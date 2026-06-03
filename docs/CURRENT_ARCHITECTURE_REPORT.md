@@ -9,7 +9,10 @@ It is designed to:
 - Parse user commands
 - Apply a safety gate before execution
 - Automate only user-controlled Android UI/app actions
-- Speak replies locally with TextToSpeech
+- Speak replies locally with Android TextToSpeech
+
+Nova and Luna are local TTS profiles that adjust pitch and speech rate only.
+Exact male/female voice selection is not guaranteed across devices because it depends on the installed Android TTS engine.
 
 Nova is the male voice profile.
 Luna is the female voice profile.
@@ -39,6 +42,7 @@ Luna is the female voice profile.
 3. `SpeechRecognizer` listens with a controlled restart loop.
 4. Final or partial text is sent into `CommandBrain`.
 5. `TextToSpeechManager` speaks the safe response.
+   - It uses local Android TextToSpeech and applies the selected Nova/Luna pitch and rate profile.
 6. Listening resumes only after speech completes or an error backoff expires.
 
 ## Command Flow
@@ -135,4 +139,4 @@ Luna is the female voice profile.
 - Screenshot capture is scaffolded only.
 - Call automation is scaffolded only.
 - The starter depends on Android system speech and accessibility capabilities, which vary by device and OEM.
-
+- The exact audible voice can vary because Android TTS engine availability differs by device and installed engine.

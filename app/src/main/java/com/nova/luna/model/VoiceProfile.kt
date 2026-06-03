@@ -5,7 +5,7 @@ enum class VoiceProfile(
     val pitch: Float,
     val speechRate: Float
 ) {
-    NOVA("Nova", 0.88f, 1.0f),
+    NOVA("Nova", 0.88f, 0.96f),
     LUNA("Luna", 1.12f, 1.0f);
 
     companion object {
@@ -14,4 +14,3 @@ enum class VoiceProfile(
         }
     }
 }
-

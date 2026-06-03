@@ -10,7 +10,8 @@ The default architecture should stay offline-first, with zero backend cost unles
 
 - Flutter app for the primary front end
 - Local voice input layer for speech capture and command intake
-- Local voice output layer for spoken replies
+- Local voice output layer for spoken replies using Android TextToSpeech
+- Nova and Luna are local TTS profiles that tune pitch and speech rate only; exact voice availability still depends on the installed Android TTS engine
 - Local task engine for routing commands and assistant actions
 - First-class control command path for stop/cancel style commands that safely shut down listening
 - Local memory and preferences for persona, settings, and lightweight state
@@ -21,6 +22,7 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Prefer on-device logic before any remote service.
 - Do not add a backend by default.
 - Do not introduce paid APIs by default.
+- Keep voice output on local Android TextToSpeech rather than cloud TTS services.
 - Keep app structure clean and testable.
 - Keep Nova/Luna separate from Jarvis language or workflows.
 - Treat stop and cancel as safe control actions that can end listening cleanly.
