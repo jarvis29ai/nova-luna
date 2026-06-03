@@ -113,4 +113,42 @@ class CommandHistoryDaoTest {
         assertTrue(afterClear.isEmpty())
         assertEquals(0, afterClear.size)
     }
+
+    @Test
+    fun `getRecent one returns only the newest row`() = runBlocking {
+        dao.insert(
+            CommandHistoryEntity(
+                rawText = "open app",
+                normalizedText = "open app",
+                intentType = "APP",
+                actionType = "OPEN_APP",
+                safetyLevel = "SAFE",
+                safetyMessage = "Allowed",
+                resultMessage = "Opening app.",
+                success = true,
+                shouldStopListening = false,
+                timestamp = 500L
+            )
+        )
+        dao.insert(
+            CommandHistoryEntity(
+                rawText = "stop listening",
+                normalizedText = "stop listening",
+                intentType = "CONTROL",
+                actionType = "STOP_SERVICE",
+                safetyLevel = "SAFE",
+                safetyMessage = "Allowed",
+                resultMessage = "Voice assistant stopped.",
+                success = true,
+                shouldStopListening = true,
+                timestamp = 600L
+            )
+        )
+
+        val recent = dao.getRecent(1)
+
+        assertEquals(1, recent.size)
+        assertEquals("stop listening", recent[0].rawText)
+        assertEquals(600L, recent[0].timestamp)
+    }
 }
