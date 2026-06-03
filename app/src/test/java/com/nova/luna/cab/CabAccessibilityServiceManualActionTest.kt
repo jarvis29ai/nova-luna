@@ -1,0 +1,41 @@
+package com.nova.luna.cab
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+
+@RunWith(RobolectricTestRunner::class)
+class CabAccessibilityServiceManualActionTest {
+    private val service = CabAccessibilityService()
+    private val detectManualActionReason = CabAccessibilityService::class.java
+        .getDeclaredMethod("detectManualActionReason", List::class.java)
+        .apply { isAccessible = true }
+
+    @Test
+    fun `manual action keywords map to explicit manual action reasons`() {
+        assertEquals("login", detect(listOf("Login required")))
+        assertEquals("payment", detect(listOf("Payment screen open")))
+        assertEquals("captcha", detect(listOf("Captcha challenge shown")))
+        assertEquals("OTP", detect(listOf("OTP verification required")))
+        assertEquals("UPI", detect(listOf("UPI screen open")))
+        assertEquals("permission", detect(listOf("Permission required")))
+    }
+
+    @Test
+    fun `manual action reason from snapshot is preserved`() {
+        assertEquals(
+            "manual action required",
+            service.detectManualActionRequired(
+                CabScreenSnapshot(
+                    visibleText = listOf("manual action required"),
+                    manualActionReason = "manual action required"
+                )
+            )
+        )
+    }
+
+    private fun detect(texts: List<String>): String? {
+        return detectManualActionReason.invoke(service, texts) as String?
+    }
+}
