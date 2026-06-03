@@ -1,5 +1,11 @@
 # Work Process Report
 
+## Progress Snapshot
+
+- Current app readiness: 41%
+- `docs/NOVA_LUNA_PROGRESS_CHECKPOINT.md` records the 40% verified command-brain checkpoint.
+- This process-report sync raises tracked project readiness to 41% because documentation is now aligned.
+
 ## Current Setup
 
 - Nova / Luna is a phone-first assistant project.
@@ -18,6 +24,30 @@
 - Cursor is optional visual IDE and rules support.
 - Agents should preserve existing project direction and avoid unrelated changes.
 - Codex reports changed files, validation, and the next step.
+
+## Verified Command Families
+
+- Open app.
+- Tap / click / press.
+- Scroll / swipe / move up-down.
+- Open settings.
+- Open accessibility settings.
+- Open usage access settings.
+- Type / write / enter / input text.
+
+## Safety Notes
+
+- Deterministic JVM tests only.
+- Mocked `NovaAccessibilityService` and mocked launchers are used in tests.
+- No real screen taps, typing, settings launches, or permission grants happen in tests.
+- `flutter_app/` remains untouched and must not be added yet.
+- Usage-access settings remains explicit and safety-aware.
+
+## Verified Test Command
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --rerun-tasks --no-daemon
+```
 
 ## Coordination Rules
 
@@ -45,3 +75,4 @@
 - Tests are added or updated for behavior changes.
 - Docs stay aligned with the codebase.
 - Folder structure stays clean and understandable.
+- `flutter_app/` stays untracked until explicitly added later.

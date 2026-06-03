@@ -34,14 +34,38 @@ class SafetyGate {
         }
 
         return when (commandIntent.actionType) {
-            ActionType.OPEN_SETTINGS,
-            ActionType.OPEN_ACCESSIBILITY_SETTINGS,
-            ActionType.OPEN_USAGE_ACCESS_SETTINGS,
             ActionType.CALL_CONTACT,
             ActionType.TAKE_SCREENSHOT -> {
                 SafetyDecision.requireBiometric(
                     "This is a sensitive command. Use the app to confirm with biometrics before trying again."
                 )
+            }
+
+            ActionType.OPEN_SETTINGS,
+            ActionType.OPEN_ACCESSIBILITY_SETTINGS -> {
+                SafetyDecision(
+                    level = SafetyLevel.SAFE,
+                    allowed = true,
+                    message = "Command allowed.",
+                    requiresBiometric = false
+                )
+            }
+
+            ActionType.OPEN_USAGE_ACCESS_SETTINGS -> {
+                if (normalized.contains("usage") &&
+                    (normalized.contains("settings") || normalized.contains("permission"))
+                ) {
+                    SafetyDecision(
+                        level = SafetyLevel.SAFE,
+                        allowed = true,
+                        message = "Command allowed.",
+                        requiresBiometric = false
+                    )
+                } else {
+                    SafetyDecision.requireBiometric(
+                        "This is a sensitive command. Use the app to confirm with biometrics before trying again."
+                    )
+                }
             }
 
             ActionType.BLOCKED -> SafetyDecision.block("Blocked command.")
@@ -54,4 +78,3 @@ class SafetyGate {
         }
     }
 }
-

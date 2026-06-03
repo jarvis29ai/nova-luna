@@ -16,7 +16,7 @@ import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class CommandBrainTypeTextTest {
+class CommandBrainTapClickTest {
     private lateinit var context: Context
     private lateinit var brain: CommandBrain
     private lateinit var service: NovaAccessibilityService
@@ -26,7 +26,7 @@ class CommandBrainTypeTextTest {
         context = ApplicationProvider.getApplicationContext()
         brain = CommandBrain(context)
         service = Mockito.mock(NovaAccessibilityService::class.java)
-        Mockito.`when`(service.typeText("hello")).thenReturn(true)
+        Mockito.`when`(service.clickByTextOrDescription("settings")).thenReturn(true)
         installServiceInstance(service)
     }
 
@@ -42,35 +42,34 @@ class CommandBrainTypeTextTest {
     }
 
     @Test
-    fun `type text aliases route through the same text entry path`() {
+    fun `tap click and press aliases route through the same click path`() {
         val phrases = linkedMapOf(
-            "type hello" to "hello",
-            "write hello" to "hello",
-            "enter hello" to "hello",
-            "type message hello" to "hello",
-            "write message hello" to "hello",
-            "input hello" to "hello"
+            "tap settings" to "settings",
+            "click settings" to "settings",
+            "press settings" to "settings",
+            "tap on settings" to "settings",
+            "click on settings" to "settings"
         )
 
-        phrases.forEach { (phrase, expectedText) ->
+        phrases.forEach { (phrase, expectedTarget) ->
             val result = brain.process(phrase)
 
             assertTrue("Expected success for phrase: $phrase", result.success)
             assertEquals(
-                "Expected text entry intent for phrase: $phrase",
-                IntentType.TEXT_ENTRY,
+                "Expected interaction intent for phrase: $phrase",
+                IntentType.INTERACTION,
                 result.intentType
             )
             assertEquals(
-                "Expected type text action for phrase: $phrase",
-                ActionType.TYPE_TEXT,
+                "Expected click text action for phrase: $phrase",
+                ActionType.CLICK_TEXT,
                 result.actionType
             )
-            assertEquals("Typed text.", result.message)
+            assertEquals("Tapped $expectedTarget.", result.message)
             assertFalse(result.shouldStopListening)
-            assertEquals(expectedText, result.entities["text"])
+            assertEquals(expectedTarget, result.entities["text"])
         }
 
-        Mockito.verify(service, Mockito.times(6)).typeText("hello")
+        Mockito.verify(service, Mockito.times(5)).clickByTextOrDescription("settings")
     }
 }

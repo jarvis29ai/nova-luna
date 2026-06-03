@@ -50,17 +50,17 @@ class RuleBasedCommandParser {
             isRecentsCommand(normalized) -> nav(rawText, ActionType.OPEN_RECENTS, "open_recents")
 
             isOpenNotificationsCommand(normalized) -> nav(rawText, ActionType.OPEN_NOTIFICATIONS, "open_notifications")
-            normalized == "scroll down" -> nav(rawText, ActionType.SCROLL_FORWARD, "scroll_down")
-            normalized == "scroll up" -> nav(rawText, ActionType.SCROLL_BACKWARD, "scroll_up")
-            normalized.startsWith("tap ") -> interaction(rawText, ActionType.CLICK_TEXT, normalized.removePrefix("tap ").trim())
-            normalized.startsWith("click ") -> interaction(rawText, ActionType.CLICK_TEXT, normalized.removePrefix("click ").trim())
+            isScrollDownCommand(normalized) -> nav(rawText, ActionType.SCROLL_FORWARD, "scroll_down")
+            isScrollUpCommand(normalized) -> nav(rawText, ActionType.SCROLL_BACKWARD, "scroll_up")
+            isTapCommand(normalized) -> interaction(rawText, ActionType.CLICK_TEXT, extractTapTarget(normalized))
             isTypeTextCommand(normalized) -> textEntry(rawText, extractTypeText(normalized))
             isReadNotificationsCommand(normalized) -> reading(rawText, ActionType.READ_NOTIFICATIONS, "read_notifications")
             normalized == "take screenshot" -> sensitive(rawText, ActionType.TAKE_SCREENSHOT, "take_screenshot")
-            normalized == "open settings" -> sensitive(rawText, ActionType.OPEN_SETTINGS, "open_settings")
-            normalized == "open accessibility settings" -> sensitive(rawText, ActionType.OPEN_ACCESSIBILITY_SETTINGS, "open_accessibility_settings")
-            normalized == "open usage access settings" -> sensitive(rawText, ActionType.OPEN_USAGE_ACCESS_SETTINGS, "open_usage_access_settings")
+            isOpenSettingsCommand(normalized) -> sensitive(rawText, ActionType.OPEN_SETTINGS, "open_settings")
+            isOpenAccessibilitySettingsCommand(normalized) -> sensitive(rawText, ActionType.OPEN_ACCESSIBILITY_SETTINGS, "open_accessibility_settings")
+            isOpenUsageAccessSettingsCommand(normalized) -> sensitive(rawText, ActionType.OPEN_USAGE_ACCESS_SETTINGS, "open_usage_access_settings")
             normalized.startsWith("call ") -> sensitive(rawText, ActionType.CALL_CONTACT, normalized.removePrefix("call ").trim())
+            normalized.startsWith("open app ") -> openApp(rawText, normalized.removePrefix("open app ").trim())
             normalized.startsWith("open ") -> openApp(rawText, normalized.removePrefix("open ").trim())
             normalized.startsWith("launch ") -> openApp(rawText, normalized.removePrefix("launch ").trim())
             normalized.startsWith("start ") -> openApp(rawText, normalized.removePrefix("start ").trim())
@@ -108,15 +108,75 @@ class RuleBasedCommandParser {
             normalized == "show notifications"
     }
 
+    private fun isOpenSettingsCommand(normalized: String): Boolean {
+        return normalized == "open settings" ||
+            normalized == "launch settings" ||
+            normalized == "open phone settings"
+    }
+
+    private fun isOpenAccessibilitySettingsCommand(normalized: String): Boolean {
+        return normalized == "open accessibility settings" ||
+            normalized == "open nova accessibility settings"
+    }
+
+    private fun isOpenUsageAccessSettingsCommand(normalized: String): Boolean {
+        return normalized == "open usage access settings" ||
+            normalized == "open usage settings" ||
+            normalized == "open app usage settings" ||
+            normalized == "open usage permission" ||
+            normalized == "open app usage permission"
+    }
+
+    private fun isScrollDownCommand(normalized: String): Boolean {
+        return normalized == "scroll down" ||
+            normalized == "swipe down" ||
+            normalized == "move down"
+    }
+
+    private fun isScrollUpCommand(normalized: String): Boolean {
+        return normalized == "scroll up" ||
+            normalized == "swipe up" ||
+            normalized == "move up"
+    }
+
     private fun isReadNotificationsCommand(normalized: String): Boolean {
         return normalized == "read notifications" ||
             normalized == "check notifications"
     }
 
+    private fun isTapCommand(normalized: String): Boolean {
+        return normalized.startsWith("tap ") ||
+            normalized.startsWith("tap on ") ||
+            normalized.startsWith("click ") ||
+            normalized.startsWith("click on ") ||
+            normalized.startsWith("press ") ||
+            normalized.startsWith("press on ")
+    }
+
+    private fun extractTapTarget(normalized: String): String {
+        val prefixes = listOf(
+            "tap on ",
+            "click on ",
+            "press on ",
+            "tap ",
+            "click ",
+            "press "
+        )
+
+        for (prefix in prefixes) {
+            if (normalized.startsWith(prefix)) {
+                return normalized.removePrefix(prefix).trim()
+            }
+        }
+
+        return normalized
+    }
+
     private fun isTypeTextCommand(normalized: String): Boolean {
         return normalized.startsWith("type ") ||
             normalized.startsWith("write ") ||
-            normalized.startsWith("enter ")
+            normalized.startsWith("enter ") ||
+            normalized.startsWith("input ")
     }
 
     private fun extractTypeText(normalized: String): String {
@@ -126,7 +186,9 @@ class RuleBasedCommandParser {
             "enter message ",
             "type ",
             "write ",
-            "enter "
+            "enter ",
+            "input message ",
+            "input "
         )
 
         for (prefix in prefixes) {
