@@ -72,4 +72,45 @@ class CommandHistoryDaoTest {
         assertEquals("open app", recent[1].rawText)
         assertEquals(100L, recent[1].timestamp)
     }
+
+    @Test
+    fun `clearAll removes all history rows`() = runBlocking {
+        dao.insert(
+            CommandHistoryEntity(
+                rawText = "go home",
+                normalizedText = "go home",
+                intentType = "NAVIGATION",
+                actionType = "GO_HOME",
+                safetyLevel = "SAFE",
+                safetyMessage = "Allowed",
+                resultMessage = "Going home.",
+                success = true,
+                shouldStopListening = false,
+                timestamp = 300L
+            )
+        )
+        dao.insert(
+            CommandHistoryEntity(
+                rawText = "stop listening",
+                normalizedText = "stop listening",
+                intentType = "CONTROL",
+                actionType = "STOP_SERVICE",
+                safetyLevel = "SAFE",
+                safetyMessage = "Allowed",
+                resultMessage = "Voice assistant stopped.",
+                success = true,
+                shouldStopListening = true,
+                timestamp = 400L
+            )
+        )
+
+        val beforeClear = dao.getRecent(10)
+        assertEquals(2, beforeClear.size)
+
+        dao.clearAll()
+
+        val afterClear = dao.getRecent(10)
+        assertTrue(afterClear.isEmpty())
+        assertEquals(0, afterClear.size)
+    }
 }
