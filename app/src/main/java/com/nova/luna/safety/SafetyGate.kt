@@ -10,6 +10,7 @@ class SafetyGate {
     private val blockedPatterns = listOf(
         "send money",
         "pay",
+        "payment",
         "order",
         "buy",
         "checkout",
@@ -27,7 +28,16 @@ class SafetyGate {
             return SafetyDecision.allow("Stop command accepted.")
         }
 
-        if (blockedPatterns.any { normalized.contains(it) }) {
+        if (commandIntent.actionType == ActionType.CAB_BOOKING) {
+            return SafetyDecision(
+                level = SafetyLevel.SAFE,
+                allowed = true,
+                message = "Cab booking flow allowed. Final booking, payment, OTP, and CAPTCHA steps must stay manual.",
+                requiresBiometric = false
+            )
+        }
+
+        if (containsBlockedKeyword(normalized)) {
             return SafetyDecision.block(
                 "Blocked: payments, banking, passwords, OTPs, CAPTCHAs, and checkout flows must stay manual."
             )
@@ -75,6 +85,12 @@ class SafetyGate {
                 message = "Command allowed.",
                 requiresBiometric = false
             )
+        }
+    }
+
+    private fun containsBlockedKeyword(normalized: String): Boolean {
+        return blockedPatterns.any { keyword ->
+            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
         }
     }
 }

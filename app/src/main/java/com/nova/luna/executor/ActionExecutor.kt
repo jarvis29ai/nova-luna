@@ -4,6 +4,13 @@ import android.content.Context
 import com.nova.luna.model.ActionType
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
+import com.nova.luna.cab.AndroidCabPickupLocationResolver
+import com.nova.luna.cab.CabAccessibilityService
+import com.nova.luna.cab.CabBookingOrchestrator
+import com.nova.luna.cab.CabDeepLinkBuilder
+import com.nova.luna.cab.CabProviderRegistry
+import com.nova.luna.cab.toCabBookingRequest
+import com.nova.luna.cab.toCommandResult
 
 class ActionExecutor(context: Context) {
     private val appLauncher = AppLauncher(context.applicationContext)
@@ -13,6 +20,19 @@ class ActionExecutor(context: Context) {
     private val typeExecutor = TypeExecutor()
     private val settingsExecutor = SettingsExecutor(context.applicationContext)
     private val notificationReader = NotificationReader(context.applicationContext)
+    private val cabProviderRegistry = CabProviderRegistry(context.applicationContext.packageManager)
+    private val cabOrchestrator = CabBookingOrchestrator(
+        providerRegistry = cabProviderRegistry,
+        deepLinkBuilder = CabDeepLinkBuilder(context.applicationContext, cabProviderRegistry),
+        accessibilityService = CabAccessibilityService(),
+        pickupLocationResolver = AndroidCabPickupLocationResolver(context.applicationContext),
+        providerLauncher = { intent ->
+            runCatching {
+                context.applicationContext.startActivity(intent)
+                true
+            }.getOrDefault(false)
+        }
+    )
 
     fun execute(commandIntent: CommandIntent): CommandResult {
         return when (commandIntent.actionType) {
@@ -41,6 +61,7 @@ class ActionExecutor(context: Context) {
                 commandIntent.actionType,
                 commandIntent.entities
             )
+            ActionType.CAB_BOOKING -> cabOrchestrator.start(commandIntent.toCabBookingRequest()).toCommandResult()
             ActionType.STOP_SERVICE -> CommandResult.success(
                 message = "Stopping listening.",
                 intentType = commandIntent.intentType,
@@ -57,5 +78,12 @@ class ActionExecutor(context: Context) {
             )
         }
     }
-}
 
+    fun hasActiveCabBookingSession(): Boolean {
+        return cabOrchestrator.isActive()
+    }
+
+    fun handleCabBookingText(rawText: String): CommandResult {
+        return cabOrchestrator.handleUserInput(rawText).toCommandResult()
+    }
+}

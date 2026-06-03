@@ -28,6 +28,35 @@ class CommandBrain(context: Context) {
             )
         }
 
+        if (parsed.intentType == IntentType.CAB_BOOKING || parsed.actionType == ActionType.CAB_BOOKING) {
+            val resolved = resolver.resolve(parsed)
+            val decision = safetyGate.evaluate(resolved)
+            if (!decision.allowed) {
+                return if (decision.requiresBiometric) {
+                    CommandResult.biometricRequired(
+                        message = decision.message,
+                        intentType = resolved.intentType,
+                        actionType = resolved.actionType,
+                        entities = resolved.entities
+                    )
+                } else {
+                    CommandResult.blocked(
+                        message = decision.message,
+                        intentType = resolved.intentType,
+                        actionType = resolved.actionType,
+                        entities = resolved.entities
+                    )
+                }
+            }
+
+            val result = router.route(resolved)
+            return result.copy(safetyDecision = decision)
+        }
+
+        if (router.hasActiveCabBookingSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
+            return router.routeCabConversation(rawText)
+        }
+
         if (parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
             return CommandResult.failure(
                 "I did not understand that command.",

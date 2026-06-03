@@ -8,7 +8,7 @@ enum class IntentType {
     READ_NOTIFICATIONS,
     CONTROL,
     SENSITIVE,
+    CAB_BOOKING,
     BLOCKED,
     UNKNOWN
 }
-

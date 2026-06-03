@@ -10,5 +10,12 @@ class CommandRouter(
     fun route(commandIntent: CommandIntent): CommandResult {
         return actionExecutor.execute(commandIntent)
     }
-}
 
+    fun hasActiveCabBookingSession(): Boolean {
+        return actionExecutor.hasActiveCabBookingSession()
+    }
+
+    fun routeCabConversation(rawText: String): CommandResult {
+        return actionExecutor.handleCabBookingText(rawText)
+    }
+}

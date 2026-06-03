@@ -3,12 +3,16 @@ package com.nova.luna.brain
 import com.nova.luna.model.ActionType
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.IntentType
+import com.nova.luna.cab.CabIntentParser
+import com.nova.luna.cab.toEntities
 import java.util.Locale
 
 class RuleBasedCommandParser {
+    private val cabIntentParser = CabIntentParser()
     private val blockedKeywords = listOf(
         "send money",
         "pay",
+        "payment",
         "order",
         "buy",
         "checkout",
@@ -35,7 +39,16 @@ class RuleBasedCommandParser {
             )
         }
 
-        if (blockedKeywords.any { normalized.contains(it) }) {
+        cabIntentParser.parse(rawText)?.let { cabRequest ->
+            return CommandIntent(
+                rawText = rawText,
+                intentType = IntentType.CAB_BOOKING,
+                actionType = ActionType.CAB_BOOKING,
+                entities = cabRequest.toEntities()
+            )
+        }
+
+        if (containsBlockedKeyword(normalized)) {
             return CommandIntent(
                 rawText = rawText,
                 intentType = IntentType.BLOCKED,
@@ -255,5 +268,11 @@ class RuleBasedCommandParser {
             normalized == "stop speaking" ||
             normalized == "quiet" ||
             normalized == "be quiet"
+    }
+
+    private fun containsBlockedKeyword(normalized: String): Boolean {
+        return blockedKeywords.any { keyword ->
+            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
+        }
     }
 }

@@ -13,6 +13,7 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Local voice output layer for spoken replies using Android TextToSpeech
 - Nova and Luna are local TTS profiles that tune pitch and speech rate only; exact voice availability still depends on the installed Android TTS engine
 - Local task engine for routing commands and assistant actions
+- Local cab-booking orchestration for provider launch, fare comparison, and explicit user-confirmed handoff
 - First-class control command path for stop/cancel style commands that safely shut down listening
 - Local memory and preferences for persona, settings, and lightweight state
 - Optional smartwatch companion later for quick commands and watch-first conveniences
@@ -26,11 +27,14 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Keep app structure clean and testable.
 - Keep Nova/Luna separate from Jarvis language or workflows.
 - Treat stop and cancel as safe control actions that can end listening cleanly.
+- Do not finalize a cab booking without explicit user confirmation.
+- Do not bypass OTP, login, payment, or CAPTCHA screens.
 - Keep assistant personality, voice, and automation logic aligned with the product mission.
 
 ## Data And State
 
 - Use local storage for preferences and lightweight memory.
+- Keep cab-booking session state transient and local to the device.
 - Keep sensitive data handling explicit and minimal.
 - Avoid hidden synchronization paths.
 

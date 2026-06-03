@@ -26,6 +26,18 @@ object PermissionUtils {
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 
+    fun hasLocationPermission(context: Context): Boolean {
+        val fineGranted = ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val coarseGranted = ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        return fineGranted || coarseGranted
+    }
+
     fun hasNotificationAccess(context: Context): Boolean {
         return NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
@@ -85,4 +97,3 @@ object PermissionUtils {
         return if (enabled) "Granted" else "Missing"
     }
 }
-
