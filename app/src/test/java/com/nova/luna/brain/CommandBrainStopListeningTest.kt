@@ -43,4 +43,30 @@ class CommandBrainStopListeningTest {
         assertEquals(ActionType.STOP_SERVICE, result.actionType)
         assertEquals("Stopping listening.", result.message)
     }
+
+    @Test
+    fun `shutdown phrases all route through the same stop service path`() {
+        val context = mock(Context::class.java)
+        val packageManager = mock(PackageManager::class.java)
+        Mockito.`when`(context.applicationContext).thenReturn(context)
+        Mockito.`when`(context.packageManager).thenReturn(packageManager)
+
+        val brain = CommandBrain(context)
+        val phrases = listOf(
+            "cancel",
+            "stop voice",
+            "stop speaking",
+            "quiet",
+            "be quiet"
+        )
+
+        phrases.forEach { phrase ->
+            val result = brain.process(phrase)
+            assertTrue("Expected shutdown for phrase: $phrase", result.success)
+            assertTrue("Expected stop listening flag for phrase: $phrase", result.shouldStopListening)
+            assertEquals("Expected control intent for phrase: $phrase", IntentType.CONTROL, result.intentType)
+            assertEquals("Expected stop action for phrase: $phrase", ActionType.STOP_SERVICE, result.actionType)
+            assertEquals("Stopping listening.", result.message)
+        }
+    }
 }

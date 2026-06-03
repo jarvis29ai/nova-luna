@@ -135,7 +135,9 @@ class RuleBasedCommandParser {
             normalized == "stop listening" ||
             normalized == "cancel listening" ||
             normalized == "stop voice" ||
-            normalized == "cancel voice"
+            normalized == "cancel voice" ||
+            normalized == "stop speaking" ||
+            normalized == "quiet" ||
+            normalized == "be quiet"
     }
 }
-
