@@ -1,0 +1,15 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.NovaLuna" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/nova_primary</item>
+        <item name="colorOnPrimary">@color/nova_on_primary</item>
+        <item name="colorSecondary">@color/nova_secondary</item>
+        <item name="colorOnSecondary">@color/nova_on_secondary</item>
+        <item name="colorTertiary">@color/nova_tertiary</item>
+        <item name="android:colorBackground">@color/nova_background</item>
+        <item name="colorOnBackground">@color/nova_on_background</item>
+        <item name="colorSurface">@color/nova_surface</item>
+        <item name="colorOnSurface">@color/nova_on_surface</item>
+        <item name="android:statusBarColor" tools:targetApi="l">@color/nova_background</item>
+        <item name="android:navigationBarColor" tools:targetApi="l">@color/nova_background</item>
+    </style>
+</resources>

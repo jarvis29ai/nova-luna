@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Nova Luna Wear</string>
+    <string name="wear_summary">Quick watch companion for voice relay and shortcut commands.</string>
+    <string name="quick_command_hint">Type a command for the phone</string>
+    <string name="start_mic">Start Mic</string>
+    <string name="send_command">Send Command</string>
+    <string name="send_home">Home</string>
+    <string name="send_stop">Stop</string>
+</resources>
+

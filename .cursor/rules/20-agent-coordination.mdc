@@ -1,0 +1,34 @@
+---
+description: Agent routing and coordination for Cursor, Codex, Gemini, and OpenCode
+alwaysApply: true
+---
+
+# Agent Coordination
+
+## Instruction Priority
+
+- Cursor should read `AGENTS.md` first if it is available.
+- Gemini should use `GEMINI.md`.
+- OpenCode should use `README_AGENT.md`.
+- Codex remains the main contractor and final decision maker.
+
+## Role Routing
+
+- Use Codex for planning, implementation, debugging, terminal validation, test writing, diff review, and final calls.
+- Use Gemini for research, UI/UX thinking, long-context review, Android/Flutter help, and broad comparisons.
+- Use OpenCode for local edits, file creation, small bugs, repetitive refactors, and formatting.
+- Do not require Claude in this workflow.
+
+## Coordination Rules
+
+- Keep work scoped to the current task.
+- Avoid unrelated edits.
+- Preserve useful existing content.
+- If instructions conflict, follow the most specific applicable project rule without losing the Nova/Luna mission.
+- Keep token usage disciplined and avoid unnecessary repetition.
+
+## Reporting
+
+- Update `docs/ARCHITECTURE.md` when architecture changes.
+- Update `docs/WORK_PROCESS_REPORT.md` when workflow changes.
+- Keep reports in `docs/` current and aligned with the codebase.

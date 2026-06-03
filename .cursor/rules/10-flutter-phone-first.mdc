@@ -1,0 +1,34 @@
+---
+description: Flutter phone-first rules for Nova/Luna implementation work
+alwaysApply: true
+---
+
+# Flutter Phone First
+
+## Flutter Rules
+
+- Treat Flutter as the primary front end for Nova / Luna.
+- Keep the Flutter app backend-free unless a future backend is explicitly requested.
+- Keep the phone experience first and the smartwatch companion second.
+- Favor local/on-device behavior for voice input, voice output, memory, preferences, and assistant actions.
+- Avoid introducing cloud services or paid APIs by default.
+
+## Build And Structure
+
+- Keep folder structure clean and intentional.
+- Add tests when behavior changes.
+- Keep docs updated when architecture or process changes.
+- Prefer small, reviewable changes over broad rewrites.
+
+## Implementation Boundaries
+
+- Do not add placeholder-only architecture unless it is clearly marked as `TODO`.
+- Do not create fake code paths that only simulate success.
+- Do not add assumptions about a backend, sync service, or remote inference layer.
+- Use open-source dependencies when practical and appropriate.
+
+## Future Watch Support
+
+- A smartwatch companion is allowed later.
+- Watch support should extend the phone-first architecture, not replace it.
+- Keep watch features lightweight and coordinated with the phone app.

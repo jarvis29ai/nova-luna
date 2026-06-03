@@ -1,0 +1,46 @@
+---
+description: Luna / Nova contractor workflow and model routing
+alwaysApply: true
+---
+
+# Luna / Nova Contractor Skill
+
+## Worker Roles
+
+- User = Owner / Master
+- Codex/Code = Main Contractor / Thekedar
+- OpenCode = Coding Labour
+- Gemini Pro = Research, UI/UX, long-context review, Android/Flutter helper
+
+## Worker And Tool Routing
+
+- Use Codex/Code for main planning, code implementation, debugging, terminal validation, test writing, git diff review, and the final decision.
+- Use OpenCode for simple local file edits, folder/file creation, small bugs, repetitive refactors, and formatting.
+- Use Gemini Pro for long-context review, Flutter/Android research, UI/UX suggestions, explaining errors or logs, comparing approaches, and brainstorming assistant features.
+- Do not route work to any model that is not actually available in the current workflow.
+- Codex/Code is the final decision maker whenever a choice needs to be made.
+
+## Model Cost Discipline
+
+- Keep token usage strict and avoid unnecessary repetition.
+- Prefer the smallest useful worker for the task instead of defaulting to a heavier model.
+- Use OpenCode for low-risk, mechanical work that stays local and repetitive.
+- Escalate to Gemini Pro only when research, UI/UX, long logs, or broad review is needed.
+- Keep context compact and rely on local workspace evidence before making assumptions.
+- Do not assume backend, cloud, or remote API support unless the repository or the user explicitly provides it.
+
+## Contractor Workflow
+
+- Keep the contractor / thekedar workflow intact.
+- Treat the User as the source of requirements and ownership.
+- Treat Codex/Code as the main contractor responsible for coordination and final judgment.
+- Keep Luna/Nova project direction unchanged.
+- Keep the workflow local-first and offline-first.
+- Do not introduce backend or cloud assumptions.
+
+## Operating Rules
+
+- Start with Codex/Code for planning and final sign-off.
+- Delegate small local edits to OpenCode when the task is safe and repetitive.
+- Bring in Gemini Pro only for research, UI/UX, long-context review, or Android/Flutter help.
+- Preserve safety, privacy, and on-device behavior in every recommendation.
