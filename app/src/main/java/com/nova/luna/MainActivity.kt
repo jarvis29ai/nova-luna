@@ -15,6 +15,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.nova.luna.history.CommandHistoryActivity
 import com.nova.luna.data.PreferencesManager
 import com.nova.luna.model.VoiceProfile
 import com.nova.luna.service.VoiceCommandService
@@ -95,6 +96,9 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.refreshStatusButton).setOnClickListener {
             refreshPermissionStatus()
+        }
+        findViewById<Button>(R.id.commandHistoryButton).setOnClickListener {
+            startActivity(Intent(this, CommandHistoryActivity::class.java))
         }
 
         profileSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -186,4 +190,3 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 }
-

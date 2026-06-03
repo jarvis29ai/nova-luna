@@ -10,8 +10,12 @@
     <string name="open_accessibility_settings">Open Accessibility Settings</string>
     <string name="open_usage_access_settings">Open Usage Access Settings</string>
     <string name="refresh_status">Refresh Status</string>
+    <string name="view_command_history">View Command History</string>
     <string name="permission_status">Permission Status</string>
     <string name="voice_profile_label">Voice Profile</string>
+    <string name="command_history_title">Command History</string>
+    <string name="command_history_screen_description">Recent local command results and safety decisions.</string>
+    <string name="command_history_loading">Loading recent commands...</string>
     <string name="service_running">Voice service is active.</string>
     <string name="service_stopped">Voice service is stopped.</string>
     <string name="permission_microphone">Microphone</string>
@@ -20,4 +24,3 @@
     <string name="permission_usage_access">Usage Access</string>
     <string name="permission_biometric">Biometric Hardware</string>
 </resources>
-

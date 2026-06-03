@@ -25,6 +25,7 @@ Luna is the female voice profile.
   - AccessibilityService
   - Safety gate
   - Command brain
+  - Cab booking flow
   - Room database
   - DataStore preferences
   - TTS manager
@@ -53,6 +54,7 @@ Luna is the female voice profile.
 4. The safety gate classifies the intent.
 5. `CommandRouter` sends the action to the executor.
 6. The result is spoken and written to the command history database.
+7. Cab booking requests are routed into a dedicated local state machine when the parser detects ride-hailing commands.
 
 ## Safety Flow
 
@@ -61,6 +63,19 @@ Luna is the female voice profile.
 - Sensitive commands such as settings changes and screenshots are gated.
 - The starter does not implement payment, banking, shopping checkout, or OTP extraction.
 - The AccessibilityService is used only for user-controlled actions like navigation, tapping, scrolling, and typing.
+- Cab booking stays local-first: the app opens installed providers, compares visible fares, and requires an explicit final user confirmation before any booking tap.
+
+## Cab Booking Flow
+
+- `RuleBasedCommandParser` detects cab-booking phrases and maps them to `IntentType.CAB_BOOKING` and `ActionType.CAB_BOOKING`.
+- `CabBookingOrchestrator` drives a state machine with pickup, drop, ride-type, provider comparison, platform choice, final confirmation, manual-action, success, and failure states.
+- `PermissionUtils.hasLocationPermission()` is used to check whether the app can resolve a local pickup from the device's last known location.
+- `CabProviderRegistry` checks installed provider apps locally.
+- Supported providers are Uber, Ola, Rapido, and inDrive.
+- `CabDeepLinkBuilder` opens the provider app and passes trip extras.
+- `CabAccessibilityService` reads visible fare, ETA, coupon, and discount text from the provider screen, fills trip details when safe, and stops on OTP, login, payment, CAPTCHA, and other manual-action screens.
+- `CabFareComparator` normalizes and sorts fare options from lowest to highest.
+- The final booking tap stays blocked until the user explicitly confirms.
 
 ## Accessibility Flow
 
@@ -75,6 +90,7 @@ Luna is the female voice profile.
   - `scrollBackward()`
   - `typeText(text)`
 - Notification state text is captured as a scaffold for future notification reading.
+- The cab flow uses the same accessibility surface, but only for provider-app handoff and screen inspection that the user has already requested.
 
 ## Data Flow
 
@@ -87,6 +103,7 @@ Luna is the female voice profile.
   - command history
   - audit log fields
   - custom automation rule scaffolding
+- A local command history screen can read the same Room table and show recent command results, safety decisions, and timestamps without any cloud sync.
 
 ## Wear OS Flow
 
