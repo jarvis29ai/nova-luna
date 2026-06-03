@@ -54,7 +54,7 @@ class RuleBasedCommandParser {
             normalized == "scroll up" -> nav(rawText, ActionType.SCROLL_BACKWARD, "scroll_up")
             normalized.startsWith("tap ") -> interaction(rawText, ActionType.CLICK_TEXT, normalized.removePrefix("tap ").trim())
             normalized.startsWith("click ") -> interaction(rawText, ActionType.CLICK_TEXT, normalized.removePrefix("click ").trim())
-            normalized.startsWith("type ") -> textEntry(rawText, normalized.removePrefix("type ").trim())
+            isTypeTextCommand(normalized) -> textEntry(rawText, extractTypeText(normalized))
             isReadNotificationsCommand(normalized) -> reading(rawText, ActionType.READ_NOTIFICATIONS, "read_notifications")
             normalized == "take screenshot" -> sensitive(rawText, ActionType.TAKE_SCREENSHOT, "take_screenshot")
             normalized == "open settings" -> sensitive(rawText, ActionType.OPEN_SETTINGS, "open_settings")
@@ -111,6 +111,31 @@ class RuleBasedCommandParser {
     private fun isReadNotificationsCommand(normalized: String): Boolean {
         return normalized == "read notifications" ||
             normalized == "check notifications"
+    }
+
+    private fun isTypeTextCommand(normalized: String): Boolean {
+        return normalized.startsWith("type ") ||
+            normalized.startsWith("write ") ||
+            normalized.startsWith("enter ")
+    }
+
+    private fun extractTypeText(normalized: String): String {
+        val prefixes = listOf(
+            "type message ",
+            "write message ",
+            "enter message ",
+            "type ",
+            "write ",
+            "enter "
+        )
+
+        for (prefix in prefixes) {
+            if (normalized.startsWith(prefix)) {
+                return normalized.removePrefix(prefix).trim()
+            }
+        }
+
+        return normalized
     }
 
     private fun interaction(rawText: String, actionType: ActionType, target: String): CommandIntent {
