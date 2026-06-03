@@ -14,6 +14,7 @@ import android.util.Log
 import com.nova.luna.brain.CommandBrain
 import com.nova.luna.data.AppDatabase
 import com.nova.luna.data.CommandHistoryEntity
+import com.nova.luna.data.buildCommandHistoryEntity
 import com.nova.luna.data.PreferencesManager
 import com.nova.luna.model.CommandResult
 import com.nova.luna.model.VoiceProfile
@@ -175,19 +176,7 @@ class VoiceCommandService : Service(), RecognitionListener {
 
         val result = commandBrain.process(normalized)
         serviceScope.launch(Dispatchers.IO) {
-            historyDao.insert(
-                CommandHistoryEntity(
-                    rawText = text,
-                    normalizedText = normalized.lowercase(Locale.US),
-                    intentType = result.intentType.name,
-                    actionType = result.actionType.name,
-                    safetyLevel = result.safetyDecision.level.name,
-                    safetyMessage = result.safetyDecision.message,
-                    resultMessage = result.message,
-                    success = result.success,
-                    shouldStopListening = result.shouldStopListening
-                )
-            )
+            historyDao.insert(buildCommandHistoryEntity(text, normalized, result))
         }
         speakResult(result)
     }
