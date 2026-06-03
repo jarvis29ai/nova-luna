@@ -18,6 +18,22 @@ class CommandBrain(context: Context) {
 
     fun process(rawText: String): CommandResult {
         val parsed = parser.parse(rawText)
+        val hasActiveCabSession = router.hasActiveCabBookingSession()
+
+        if (hasActiveCabSession) {
+            if (parsed.actionType == ActionType.STOP_SERVICE && isExplicitStopListeningCommand(rawText)) {
+                router.cancelCabBookingSession()
+                return CommandResult.success(
+                    message = "Stopping listening.",
+                    intentType = parsed.intentType,
+                    actionType = parsed.actionType,
+                    entities = parsed.entities,
+                    shouldStopListening = true
+                )
+            }
+
+            return router.routeCabConversation(rawText)
+        }
 
         if (parsed.intentType == IntentType.BLOCKED || parsed.actionType == ActionType.BLOCKED) {
             return CommandResult.blocked(
@@ -53,10 +69,6 @@ class CommandBrain(context: Context) {
             return result.copy(safetyDecision = decision)
         }
 
-        if (router.hasActiveCabBookingSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
-            return router.routeCabConversation(rawText)
-        }
-
         if (parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
             return CommandResult.failure(
                 "I did not understand that command.",
@@ -88,5 +100,14 @@ class CommandBrain(context: Context) {
 
         val result = router.route(resolved)
         return result.copy(safetyDecision = decision)
+    }
+
+    private fun isExplicitStopListeningCommand(rawText: String): Boolean {
+        val normalized = rawText.trim().lowercase()
+        return normalized.contains("listening") ||
+            normalized.contains("voice") ||
+            normalized.contains("speaking") ||
+            normalized == "quiet" ||
+            normalized == "be quiet"
     }
 }

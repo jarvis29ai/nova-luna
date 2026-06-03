@@ -15,6 +15,10 @@ class CommandRouter(
         return actionExecutor.hasActiveCabBookingSession()
     }
 
+    fun cancelCabBookingSession(): CommandResult {
+        return actionExecutor.cancelCabBookingSession()
+    }
+
     fun routeCabConversation(rawText: String): CommandResult {
         return actionExecutor.handleCabBookingText(rawText)
     }

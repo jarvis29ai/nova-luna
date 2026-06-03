@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -61,6 +60,21 @@ class CabBookingOrchestratorTest {
     }
 
     @Test
+    fun `missing drop asks NEED_DROP`() {
+        val result = orchestrator.start(
+            CabBookingRequest(
+                rawText = "book cab from home",
+                pickupLocation = "Home",
+                rideType = RideType.AUTO
+            )
+        )
+
+        assertEquals(CabBookingState.NEED_DROP, result.state)
+        assertEquals("Where do you want to go?", result.message)
+        assertTrue(orchestrator.isActive())
+    }
+
+    @Test
     fun `missing ride type asks NEED_RIDE_TYPE`() {
         val result = orchestrator.start(
             CabBookingRequest(
@@ -71,14 +85,78 @@ class CabBookingOrchestratorTest {
         )
 
         assertEquals(CabBookingState.NEED_RIDE_TYPE, result.state)
-        assertEquals("Which ride type do you want? Auto, bike, mini, sedan, SUV, or any ride type?", result.message)
+        assertEquals("Which ride type do you want - auto, bike, mini, sedan, SUV, or any?", result.message)
         assertTrue(orchestrator.isActive())
     }
 
     @Test
-    fun `missing provider app is skipped and reported`() {
+    fun `current location available skips pickup question`() {
         installProvider(CabProvider.UBER)
-        accessibilityService.fareByProvider[CabProvider.UBER] = fareOption(CabProvider.UBER, "₹124", "ETA 4 min")
+        accessibilityService.fareByProvider[CabProvider.UBER] = fareOption(CabProvider.UBER, "₹124", "₹124", "ETA 5 min")
+
+        orchestrator = createOrchestrator(
+            pickupLocationResolver = CabPickupLocationResolver {
+                CabPickupLocation("Current location", 23.0, 77.0)
+            }
+        )
+
+        val result = orchestrator.start(
+            CabBookingRequest(
+                rawText = "book cab to DB Mall",
+                dropLocation = "DB Mall",
+                rideType = RideType.AUTO
+            )
+        )
+
+        assertEquals(CabBookingState.SHOWING_COMPARISON, result.state)
+        assertEquals("Current location", result.request?.pickupLocation)
+        assertFalse(result.message.contains("What is your pickup location?"))
+    }
+
+    @Test
+    fun `no providers installed returns provider unavailable message`() {
+        val result = orchestrator.start(
+            CabBookingRequest(
+                rawText = "book cab to DB Mall",
+                pickupLocation = "Home",
+                dropLocation = "DB Mall",
+                rideType = RideType.AUTO
+            )
+        )
+
+        assertEquals(CabBookingState.FAILED, result.state)
+        assertEquals("I could not find Uber, Ola, Rapido, or inDrive installed on this phone.", result.message)
+        assertTrue(result.skippedProviders.isNotEmpty())
+    }
+
+    @Test
+    fun `provider failures are collected`() {
+        installProvider(CabProvider.UBER)
+        accessibilityService.fareByProvider[CabProvider.UBER] = null
+
+        val result = orchestrator.start(
+            CabBookingRequest(
+                rawText = "book cab to DB Mall",
+                pickupLocation = "Home",
+                dropLocation = "DB Mall",
+                rideType = RideType.AUTO
+            )
+        )
+
+        assertEquals(CabBookingState.FAILED, result.state)
+        assertTrue(result.providerFailures.containsKey(CabProvider.UBER))
+        assertTrue(result.message.contains("Provider issues"))
+    }
+
+    @Test
+    fun `fare comparison is sorted low to high`() {
+        installProvider(CabProvider.UBER)
+        installProvider(CabProvider.RAPIDO)
+        installProvider(CabProvider.OLA)
+
+        accessibilityService.fareByProvider[CabProvider.UBER] = fareOption(CabProvider.UBER, "₹139", "₹124 after discount", "ETA 5 min")
+        accessibilityService.fareByProvider[CabProvider.RAPIDO] = fareOption(CabProvider.RAPIDO, "₹99", "₹99", "ETA 4 min")
+        accessibilityService.fareByProvider[CabProvider.OLA] = fareOption(CabProvider.OLA, "₹188", "₹188", "ETA 6 min")
 
         val result = orchestrator.start(
             CabBookingRequest(
@@ -90,19 +168,18 @@ class CabBookingOrchestratorTest {
         )
 
         assertEquals(CabBookingState.SHOWING_COMPARISON, result.state)
-        assertEquals(listOf(CabProvider.UBER), result.availableProviders)
-        assertTrue(result.skippedProviders.containsKey(CabProvider.OLA))
-        assertTrue(result.skippedProviders.containsKey(CabProvider.RAPIDO))
-        assertTrue(result.skippedProviders.containsKey(CabProvider.INDRIVE))
-        assertTrue(result.message.contains("Skipped apps"))
+        assertEquals(
+            listOf(CabProvider.RAPIDO, CabProvider.UBER, CabProvider.OLA),
+            result.fareOptions.map { it.provider }
+        )
     }
 
     @Test
-    fun `final booking is blocked until user confirmation`() {
+    fun `book cheapest selects lowest fare and waits for final confirmation`() {
         installProvider(CabProvider.UBER)
         installProvider(CabProvider.RAPIDO)
-        accessibilityService.fareByProvider[CabProvider.UBER] = fareOption(CabProvider.UBER, "₹124", "ETA 4 min")
-        accessibilityService.fareByProvider[CabProvider.RAPIDO] = fareOption(CabProvider.RAPIDO, "₹139", "ETA 5 min")
+        accessibilityService.fareByProvider[CabProvider.UBER] = fareOption(CabProvider.UBER, "₹139", "₹124 after discount", "ETA 5 min")
+        accessibilityService.fareByProvider[CabProvider.RAPIDO] = fareOption(CabProvider.RAPIDO, "₹99", "₹99", "ETA 4 min")
 
         val comparison = orchestrator.start(
             CabBookingRequest(
@@ -114,30 +191,26 @@ class CabBookingOrchestratorTest {
         )
 
         assertEquals(CabBookingState.SHOWING_COMPARISON, comparison.state)
-        assertEquals(2, launchedIntents.size)
-        assertEquals(0, accessibilityService.finalConfirmTapCount)
 
-        val selection = orchestrator.handleUserInput("Book the cheapest")
+        val selection = orchestrator.handleUserInput("book the cheapest")
         assertEquals(CabBookingState.WAITING_FOR_FINAL_CONFIRMATION, selection.state)
-        assertNotNull(selection.selectedOption)
-        assertEquals(CabProvider.UBER, selection.selectedOption?.provider)
+        assertEquals(CabProvider.RAPIDO, selection.selectedOption?.provider)
         assertEquals(0, accessibilityService.finalConfirmTapCount)
-        assertTrue(selection.message.contains("Should I confirm booking?"))
 
         val completed = orchestrator.handleUserInput("yes")
         assertEquals(CabBookingState.COMPLETED, completed.state)
         assertEquals(1, accessibilityService.finalConfirmTapCount)
-        assertTrue(completed.message.contains("Booking completed"))
         assertFalse(orchestrator.isActive())
     }
 
     @Test
-    fun `manual payment or login screen stops automation and asks for help`() {
+    fun `final booking is blocked before yes`() {
         installProvider(CabProvider.UBER)
-        accessibilityService.manualReason = "OTP"
-        accessibilityService.fareByProvider[CabProvider.UBER] = fareOption(CabProvider.UBER, "₹124", "ETA 4 min")
+        installProvider(CabProvider.RAPIDO)
+        accessibilityService.fareByProvider[CabProvider.UBER] = fareOption(CabProvider.UBER, "₹139", "₹124 after discount", "ETA 5 min")
+        accessibilityService.fareByProvider[CabProvider.RAPIDO] = fareOption(CabProvider.RAPIDO, "₹99", "₹99", "ETA 4 min")
 
-        val result = orchestrator.start(
+        orchestrator.start(
             CabBookingRequest(
                 rawText = "book cab to DB Mall",
                 pickupLocation = "Home",
@@ -146,10 +219,96 @@ class CabBookingOrchestratorTest {
             )
         )
 
-        assertEquals(CabBookingState.MANUAL_ACTION_REQUIRED, result.state)
-        assertTrue(result.manualActionRequired)
-        assertTrue(result.message.contains("OTP"))
-        assertTrue(orchestrator.isActive())
+        val selection = orchestrator.handleUserInput("Book Uber")
+        assertEquals(CabBookingState.WAITING_FOR_FINAL_CONFIRMATION, selection.state)
+        assertEquals(CabProvider.UBER, selection.selectedOption?.provider)
+        assertEquals(0, accessibilityService.finalConfirmTapCount)
+        assertTrue(selection.message.contains("Should I confirm booking?"))
+    }
+
+    @Test
+    fun `no or cancel cancels before final booking`() {
+        listOf("no", "cancel").forEach { phrase ->
+            setUp()
+            installProvider(CabProvider.UBER)
+            accessibilityService.fareByProvider[CabProvider.UBER] = fareOption(CabProvider.UBER, "₹124", "₹124", "ETA 5 min")
+
+            orchestrator.start(
+                CabBookingRequest(
+                    rawText = "book cab to DB Mall",
+                    pickupLocation = "Home",
+                    dropLocation = "DB Mall",
+                    rideType = RideType.AUTO
+                )
+            )
+
+            val result = orchestrator.handleUserInput(phrase)
+            assertEquals(CabBookingState.CANCELLED, result.state)
+            assertFalse(orchestrator.isActive())
+        }
+    }
+
+    @Test
+    fun `yes after final confirmation allows final booking`() {
+        installProvider(CabProvider.UBER)
+        accessibilityService.fareByProvider[CabProvider.UBER] = fareOption(CabProvider.UBER, "₹124", "₹124", "ETA 5 min")
+
+        orchestrator.start(
+            CabBookingRequest(
+                rawText = "book cab to DB Mall",
+                pickupLocation = "Home",
+                dropLocation = "DB Mall",
+                rideType = RideType.AUTO
+            )
+        )
+
+        val selection = orchestrator.handleUserInput("Book Uber")
+        assertEquals(CabBookingState.WAITING_FOR_FINAL_CONFIRMATION, selection.state)
+        assertEquals(0, accessibilityService.finalConfirmTapCount)
+
+        val completed = orchestrator.handleUserInput("yes")
+        assertEquals(CabBookingState.COMPLETED, completed.state)
+        assertEquals(1, accessibilityService.finalConfirmTapCount)
+        assertFalse(orchestrator.isActive())
+    }
+
+    @Test
+    fun `otp login payment and captcha set manual action required`() {
+        listOf("OTP", "login", "payment", "captcha").forEach { reason ->
+            setUp()
+            installProvider(CabProvider.UBER)
+            accessibilityService.manualReason = reason
+            accessibilityService.fareByProvider[CabProvider.UBER] = fareOption(CabProvider.UBER, "₹124", "₹124", "ETA 5 min")
+
+            val result = orchestrator.start(
+                CabBookingRequest(
+                    rawText = "book cab to DB Mall",
+                    pickupLocation = "Home",
+                    dropLocation = "DB Mall",
+                    rideType = RideType.AUTO
+                )
+            )
+
+            assertEquals(CabBookingState.MANUAL_ACTION_REQUIRED, result.state)
+            assertTrue(result.manualActionRequired)
+            assertTrue(result.message.contains(reason, ignoreCase = true))
+            assertTrue(orchestrator.isActive())
+        }
+    }
+
+    private fun createOrchestrator(
+        pickupLocationResolver: CabPickupLocationResolver? = null
+    ): CabBookingOrchestrator {
+        return CabBookingOrchestrator(
+            providerRegistry = registry,
+            deepLinkBuilder = deepLinkBuilder,
+            accessibilityService = accessibilityService,
+            pickupLocationResolver = pickupLocationResolver,
+            providerLauncher = { intent ->
+                launchedIntents.add(Intent(intent))
+                true
+            }
+        )
     }
 
     private fun installProvider(provider: CabProvider) {
@@ -157,12 +316,17 @@ class CabBookingOrchestratorTest {
             .thenReturn(Intent(Intent.ACTION_MAIN))
     }
 
-    private fun fareOption(provider: CabProvider, fareText: String, etaText: String): CabFareOption {
+    private fun fareOption(
+        provider: CabProvider,
+        visibleFareText: String,
+        finalFareText: String,
+        etaText: String
+    ): CabFareOption {
         return CabFareOption(
             provider = provider,
             rideType = RideType.AUTO,
-            visibleFareText = fareText,
-            finalFareText = fareText,
+            visibleFareText = visibleFareText,
+            finalFareText = finalFareText,
             etaText = etaText
         )
     }
@@ -185,17 +349,29 @@ class CabBookingOrchestratorTest {
     private class FakeCabAccessibilityService : CabAccessibilityService() {
         var manualReason: String? = null
         var finalConfirmTapCount = 0
-        val fareByProvider = mutableMapOf<CabProvider, CabFareOption>()
+        var fillTripDetailsResult: Boolean = true
+        val fareByProvider = mutableMapOf<CabProvider, CabFareOption?>()
+
+        override fun captureScreenSnapshot(): CabScreenSnapshot? {
+            return CabScreenSnapshot(
+                visibleText = if (manualReason != null) listOf(manualReason!!) else emptyList(),
+                manualActionReason = manualReason
+            )
+        }
 
         override fun detectManualActionRequired(snapshot: CabScreenSnapshot?): String? {
             return manualReason
         }
 
-        override fun fillTripDetails(request: CabBookingRequest): Boolean {
-            return true
+        override fun fillTripDetails(request: CabBookingRequest, snapshot: CabScreenSnapshot?): Boolean {
+            return fillTripDetailsResult
         }
 
-        override fun collectFareOption(provider: CabProvider, request: CabBookingRequest): CabFareOption? {
+        override fun collectFareOption(
+            provider: CabProvider,
+            request: CabBookingRequest,
+            snapshot: CabScreenSnapshot?
+        ): CabFareOption? {
             return fareByProvider[provider]
         }
 

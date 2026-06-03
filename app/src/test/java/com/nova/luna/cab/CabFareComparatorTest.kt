@@ -1,6 +1,7 @@
 package com.nova.luna.cab
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -10,7 +11,21 @@ class CabFareComparatorTest {
     private val comparator = CabFareComparator()
 
     @Test
-    fun `discounted fare is preferred and options sort lowest to highest`() {
+    fun `parse rupee formats and discounted fares`() {
+        assertEquals(124L, comparator.extractFareAmount("₹124"))
+        assertEquals(124L, comparator.extractFareAmount("₹ 124"))
+        assertEquals(124L, comparator.extractFareAmount("Rs 124"))
+        assertEquals(124L, comparator.extractFareAmount("Rs.124"))
+        assertEquals(124L, comparator.extractFareAmount("INR 124"))
+        assertEquals(124L, comparator.extractFareAmount("124 rupees"))
+        assertEquals(99L, comparator.extractFareAmount("₹124 ₹99 discount case"))
+        assertEquals(99L, comparator.extractFareAmount("₹99 after coupon"))
+        assertNull(comparator.extractFareAmount("Save ₹30"))
+        assertEquals(180L, comparator.extractFareAmount("₹180 ₹150"))
+    }
+
+    @Test
+    fun `sort low to high and push unavailable fares to the end`() {
         val options = listOf(
             CabFareOption(
                 provider = CabProvider.UBER,
@@ -22,7 +37,7 @@ class CabFareComparatorTest {
             CabFareOption(
                 provider = CabProvider.RAPIDO,
                 rideType = RideType.AUTO,
-                visibleFareText = "Rs. 128",
+                visibleFareText = "₹99",
                 etaText = "ETA 4 min"
             ),
             CabFareOption(
@@ -30,6 +45,13 @@ class CabFareComparatorTest {
                 rideType = RideType.AUTO,
                 visibleFareText = "₹188",
                 etaText = "ETA 6 min"
+            ),
+            CabFareOption(
+                provider = CabProvider.INDRIVE,
+                rideType = RideType.AUTO,
+                visibleFareText = null,
+                finalFareText = null,
+                etaText = null
             )
         )
 
@@ -37,14 +59,12 @@ class CabFareComparatorTest {
         val sorted = comparator.sortLowestToHighest(options)
 
         assertEquals(124L, normalizedUber.finalFareAmount)
-        assertEquals(139L, normalizedUber.visibleFareAmount)
-        assertEquals(listOf(CabProvider.UBER, CabProvider.RAPIDO, CabProvider.OLA), sorted.map { it.provider })
-    }
-
-    @Test
-    fun `extractFareAmount handles rupee and rupees text`() {
-        assertEquals(124L, comparator.extractFareAmount("₹124"))
-        assertEquals(124L, comparator.extractFareAmount("Rs. 124"))
-        assertEquals(124L, comparator.extractFareAmount("₹124 after discount"))
+        assertEquals(139L, normalizedUber.originalFareAmount)
+        assertEquals(listOf(
+            CabProvider.RAPIDO,
+            CabProvider.UBER,
+            CabProvider.OLA,
+            CabProvider.INDRIVE
+        ), sorted.map { it.provider })
     }
 }

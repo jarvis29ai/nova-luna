@@ -6,6 +6,8 @@ import java.util.Locale
 
 data class CabScreenSnapshot(
     val visibleText: List<String>,
+    val sourceText: String? = null,
+    val sourcePackageName: String? = null,
     val visibleFareText: String? = null,
     val finalFareText: String? = null,
     val etaText: String? = null,
@@ -31,9 +33,13 @@ open class CabAccessibilityService(
             val couponText = findCouponText(visibleText)
             val discountText = findDiscountText(visibleText)
             val manualActionReason = detectManualActionReason(visibleText)
+            val sourceText = visibleText.joinToString(separator = " | ")
+            val sourcePackageName = root.packageName?.toString()
 
-            CabScreenSnapshot(
+            val snapshot = CabScreenSnapshot(
                 visibleText = visibleText,
+                sourceText = sourceText,
+                sourcePackageName = sourcePackageName,
                 visibleFareText = visibleFareText,
                 finalFareText = finalFareText,
                 etaText = etaText,
@@ -42,66 +48,173 @@ open class CabAccessibilityService(
                 discountText = discountText,
                 manualActionReason = manualActionReason
             )
+
+            CabLogger.d(
+                "screen_snapshot",
+                mapOf(
+                    "packageName" to sourcePackageName,
+                    "fareText" to visibleFareText,
+                    "finalFareText" to finalFareText,
+                    "etaText" to etaText,
+                    "rideTypeText" to rideTypeText,
+                    "couponText" to couponText,
+                    "discountText" to discountText,
+                    "manualActionReason" to manualActionReason,
+                    "visibleTextCount" to visibleText.size
+                )
+            )
+
+            snapshot
         } finally {
             root.recycle()
         }
     }
 
-    open fun collectFareOption(provider: CabProvider, request: CabBookingRequest): CabFareOption? {
-        val snapshot = captureScreenSnapshot() ?: return null
-        if (snapshot.manualActionReason != null) return null
+    open fun collectFareOption(
+        provider: CabProvider,
+        request: CabBookingRequest,
+        snapshot: CabScreenSnapshot? = captureScreenSnapshot()
+    ): CabFareOption? {
+        val currentSnapshot = snapshot ?: return null
+        if (currentSnapshot.manualActionReason != null) {
+            CabLogger.d(
+                "fare_collection_manual_action",
+                mapOf(
+                    "provider" to provider.name,
+                    "reason" to currentSnapshot.manualActionReason
+                )
+            )
+            return null
+        }
 
-        val visibleFareText = snapshot.visibleFareText ?: snapshot.finalFareText
-        val finalFareText = snapshot.finalFareText ?: snapshot.visibleFareText
+        val visibleFareText = currentSnapshot.visibleFareText ?: currentSnapshot.finalFareText
+        val finalFareText = currentSnapshot.finalFareText ?: currentSnapshot.visibleFareText
+        val visibleRawText = currentSnapshot.sourceText
+
         val option = CabFareOption(
             provider = provider,
             rideType = request.rideType ?: RideType.ANY,
             visibleFareText = visibleFareText,
-            visibleFareAmount = fareComparator.extractFareAmount(visibleFareText),
+            visibleFareAmount = fareComparator.extractFareAmount(visibleFareText ?: visibleRawText),
+            originalFareAmount = fareComparator.extractFareAmount(visibleFareText ?: visibleRawText),
             finalFareText = finalFareText,
-            finalFareAmount = fareComparator.extractFareAmount(finalFareText),
-            etaText = snapshot.etaText,
-            etaMinutes = fareComparator.extractEtaMinutes(snapshot.etaText),
-            couponText = snapshot.couponText,
-            discountText = snapshot.discountText
+            finalFareAmount = fareComparator.extractFareAmount(finalFareText ?: visibleRawText),
+            etaText = currentSnapshot.etaText,
+            etaMinutes = fareComparator.extractEtaMinutes(currentSnapshot.etaText),
+            couponText = currentSnapshot.couponText,
+            discountText = currentSnapshot.discountText,
+            visibleRawText = visibleRawText,
+            packageName = currentSnapshot.sourcePackageName
         )
 
-        return if (
-            option.visibleFareText.isNullOrBlank() &&
-            option.finalFareText.isNullOrBlank() &&
-            option.etaText.isNullOrBlank() &&
-            option.couponText.isNullOrBlank() &&
-            option.discountText.isNullOrBlank()
-        ) {
-            null
+        val hasFareData =
+            option.visibleFareText != null ||
+            option.visibleFareAmount != null ||
+            option.originalFareAmount != null ||
+            option.finalFareText != null ||
+            option.finalFareAmount != null
+
+        val hasVisibleData = hasFareData || option.etaText != null
+
+        val normalizedOption = fareComparator.normalize(option)
+        return if (hasVisibleData) {
+            CabLogger.d(
+                "fare_parsed",
+                mapOf(
+                    "provider" to provider.name,
+                    "rideType" to normalizedOption.rideType.name,
+                    "visibleFareText" to normalizedOption.visibleFareText,
+                    "originalFareAmount" to normalizedOption.originalFareAmount,
+                    "finalFareText" to normalizedOption.finalFareText,
+                    "finalFareAmount" to normalizedOption.finalFareAmount,
+                    "etaText" to normalizedOption.etaText,
+                    "couponText" to normalizedOption.couponText,
+                    "discountText" to normalizedOption.discountText,
+                    "sourceText" to normalizedOption.visibleRawText
+                )
+            )
+            normalizedOption
         } else {
-            option
+            CabLogger.w(
+                "fare_unavailable",
+                mapOf(
+                    "provider" to provider.name,
+                    "sourceText" to visibleRawText
+                )
+            )
+            null
         }
     }
 
     open fun detectManualActionRequired(snapshot: CabScreenSnapshot? = captureScreenSnapshot()): String? {
-        return snapshot?.manualActionReason
+        val reason = snapshot?.manualActionReason
+        if (reason != null) {
+            CabLogger.d(
+                "manual_action_detected",
+                mapOf(
+                    "reason" to reason,
+                    "packageName" to snapshot.sourcePackageName
+                )
+            )
+        }
+        return reason
     }
 
-    open fun fillTripDetails(request: CabBookingRequest): Boolean {
+    open fun fillTripDetails(
+        request: CabBookingRequest,
+        snapshot: CabScreenSnapshot? = captureScreenSnapshot()
+    ): Boolean {
         val service = NovaAccessibilityService.instance ?: return false
         var performedAction = false
+        val safeSnapshot = snapshot
 
         request.pickupLocation?.takeIf { it.isNotBlank() }?.let { pickup ->
-            if (tapSafeField("pickup") || tapSafeField("from") || tapSafeField("pickup location")) {
+            val pickupField = listOf(
+                "pickup location",
+                "pickup",
+                "from where",
+                "from",
+                "enter pickup",
+                "set pickup"
+            ).firstOrNull { tapSafeField(it) }
+
+            if (pickupField != null) {
                 performedAction = service.typeText(pickup) || performedAction
             }
         }
 
         request.dropLocation?.takeIf { it.isNotBlank() }?.let { drop ->
-            if (tapSafeField("drop") || tapSafeField("destination") || tapSafeField("where to")) {
+            val dropField = listOf(
+                "drop location",
+                "destination",
+                "where to",
+                "drop",
+                "enter drop",
+                "drop off"
+            ).firstOrNull { tapSafeField(it) }
+
+            if (dropField != null) {
                 performedAction = service.typeText(drop) || performedAction
             }
         }
 
         request.rideType?.takeIf { it != RideType.ANY }?.let { rideType ->
-            performedAction = tapSafeField(rideType.displayName()) || performedAction
+            performedAction = listOf(
+                rideType.displayName(),
+                rideType.displayName().lowercase(Locale.US)
+            ).any { tapSafeField(it) } || performedAction
         }
+
+        CabLogger.d(
+            "fill_trip_details",
+            mapOf(
+                "pickup" to request.pickupLocation,
+                "drop" to request.dropLocation,
+                "rideType" to request.rideType?.name,
+                "performedAction" to performedAction,
+                "sourceText" to safeSnapshot?.sourceText
+            )
+        )
 
         return performedAction
     }
@@ -113,8 +226,15 @@ open class CabAccessibilityService(
 
     open fun tapSafeButton(query: String, finalUserConfirmed: Boolean = false): Boolean {
         val normalized = query.lowercase(Locale.US)
-        val finalActionKeywords = listOf("book", "confirm", "pay", "request", "complete")
+        val finalActionKeywords = listOf("book", "confirm", "pay", "request", "complete", "submit")
         if (!finalUserConfirmed && finalActionKeywords.any { normalized.contains(it) }) {
+            CabLogger.d(
+                "tap_safe_button_blocked",
+                mapOf(
+                    "query" to query,
+                    "finalUserConfirmed" to finalUserConfirmed
+                )
+            )
             return false
         }
 
@@ -131,15 +251,33 @@ open class CabAccessibilityService(
 
         for (candidate in candidates) {
             if (service.clickByTextOrDescription(candidate)) {
+                CabLogger.d(
+                    "tap_safe_button",
+                    mapOf(
+                        "query" to query,
+                        "candidate" to candidate,
+                        "finalUserConfirmed" to finalUserConfirmed
+                    )
+                )
                 return true
             }
         }
 
+        CabLogger.w(
+            "tap_safe_button_failed",
+            mapOf(
+                "query" to query,
+                "finalUserConfirmed" to finalUserConfirmed
+            )
+        )
         return false
     }
 
     open fun tapFinalConfirmButton(finalUserConfirmed: Boolean): Boolean {
-        if (!finalUserConfirmed) return false
+        if (!finalUserConfirmed) {
+            CabLogger.d("tap_final_confirm_blocked", mapOf("finalUserConfirmed" to false))
+            return false
+        }
 
         return listOf(
             "confirm booking",
@@ -168,14 +306,27 @@ open class CabAccessibilityService(
     }
 
     private fun findFareText(texts: List<String>): String? {
-        return texts.firstOrNull { fareComparator.extractFareAmount(it) != null }
+        return texts.firstOrNull { text ->
+            val amount = fareComparator.extractFareAmount(text)
+            amount != null && !isSavingsOnlyText(text)
+        }
     }
 
     private fun findFinalFareText(texts: List<String>): String? {
-        return texts.firstOrNull {
-            val normalized = it.lowercase(Locale.US)
-            (normalized.contains("discount") || normalized.contains("coupon") || normalized.contains("after") || normalized.contains("now")) &&
-                fareComparator.extractFareAmount(it) != null
+        return texts.firstOrNull { text ->
+            val normalized = text.lowercase(Locale.US)
+            val amounts = fareComparator.extractFareAmounts(text)
+            val hasDiscountContext = listOf(
+                "discount",
+                "coupon",
+                "after",
+                "final",
+                "now",
+                "save",
+                "offer",
+                "promo"
+            ).any { normalized.contains(it) }
+            fareComparator.extractFareAmount(text) != null && (hasDiscountContext || amounts.size > 1)
         }
     }
 
@@ -184,8 +335,8 @@ open class CabAccessibilityService(
     }
 
     private fun findRideTypeText(texts: List<String>): String? {
-        return texts.firstOrNull {
-            val normalized = it.lowercase(Locale.US)
+        return texts.firstOrNull { text ->
+            val normalized = text.lowercase(Locale.US)
             normalized.contains("auto") ||
                 normalized.contains("bike") ||
                 normalized.contains("mini") ||
@@ -195,8 +346,8 @@ open class CabAccessibilityService(
     }
 
     private fun findCouponText(texts: List<String>): String? {
-        return texts.firstOrNull {
-            val normalized = it.lowercase(Locale.US)
+        return texts.firstOrNull { text ->
+            val normalized = text.lowercase(Locale.US)
             normalized.contains("coupon") ||
                 normalized.contains("promo") ||
                 normalized.contains("offer") ||
@@ -205,8 +356,8 @@ open class CabAccessibilityService(
     }
 
     private fun findDiscountText(texts: List<String>): String? {
-        return texts.firstOrNull {
-            val normalized = it.lowercase(Locale.US)
+        return texts.firstOrNull { text ->
+            val normalized = text.lowercase(Locale.US)
             normalized.contains("discount") ||
                 normalized.contains("discounted") ||
                 normalized.contains("cashback")
@@ -215,21 +366,53 @@ open class CabAccessibilityService(
 
     private fun detectManualActionReason(texts: List<String>): String? {
         val normalized = texts.joinToString(separator = " ").lowercase(Locale.US)
-        val reasons = linkedMapOf(
-            "otp" to "OTP",
+        val patterns = listOf(
             "one time password" to "OTP",
-            "captcha" to "captcha",
-            "password" to "password",
+            "otp" to "OTP",
             "login" to "login",
             "sign in" to "sign-in",
+            "password" to "password",
             "payment" to "payment",
             "pay now" to "payment",
+            "pay with" to "payment",
             "upi" to "UPI",
+            "card" to "card",
+            "captcha" to "captcha",
+            "verify" to "verification",
             "verification" to "verification",
-            "secure" to "secure screen",
-            "permission" to "permission"
+            "permission" to "permission",
+            "allow location" to "permission",
+            "location disabled" to "location disabled",
+            "location off" to "location disabled",
+            "update app" to "app update required",
+            "app update" to "app update required",
+            "secure" to "secure or unreadable screen",
+            "unavailable" to "provider unavailable",
+            "not available" to "provider unavailable"
         )
 
-        return reasons.entries.firstOrNull { (needle, _) -> normalized.contains(needle) }?.value
+        return patterns.firstOrNull { (needle, _) -> normalized.contains(needle) }?.second
+    }
+
+    private fun isSavingsOnlyText(text: String): Boolean {
+        val normalized = text.lowercase(Locale.US)
+        if (!normalized.startsWith("save ")) return false
+
+        val containsFareWords = listOf(
+            "fare",
+            "ride",
+            "trip",
+            "price",
+            "cost",
+            "pay",
+            "total",
+            "estimate",
+            "estimated",
+            "book",
+            "now",
+            "after"
+        ).any { normalized.contains(it) }
+
+        return !containsFareWords
     }
 }

@@ -29,6 +29,12 @@ class SafetyGate {
         }
 
         if (commandIntent.actionType == ActionType.CAB_BOOKING) {
+            if (containsBlockedKeyword(normalized)) {
+                return SafetyDecision.block(
+                    "Blocked: payments, banking, passwords, OTPs, CAPTCHAs, and checkout flows must stay manual."
+                )
+            }
+
             return SafetyDecision(
                 level = SafetyLevel.SAFE,
                 allowed = true,

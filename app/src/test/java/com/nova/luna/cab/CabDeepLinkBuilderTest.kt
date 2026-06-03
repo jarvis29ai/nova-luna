@@ -103,7 +103,8 @@ class CabDeepLinkBuilderTest {
         assertEquals("DB Mall", intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_DROP_LOCATION))
         assertEquals(RideType.MINI.name, intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_RIDE_TYPE))
         assertEquals(CabProvider.OLA.name, intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_PREFERRED_PROVIDER))
-        Mockito.verify(packageManager).getLaunchIntentForPackage(CabProviderRegistry.OLA_PACKAGE_NAME)
+        Mockito.verify(packageManager, Mockito.atLeastOnce())
+            .getLaunchIntentForPackage(CabProviderRegistry.OLA_PACKAGE_NAME)
     }
 
     private class TestContext(

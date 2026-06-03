@@ -83,6 +83,10 @@ class ActionExecutor(context: Context) {
         return cabOrchestrator.isActive()
     }
 
+    fun cancelCabBookingSession(): CommandResult {
+        return cabOrchestrator.cancelSession().toCommandResult()
+    }
+
     fun handleCabBookingText(rawText: String): CommandResult {
         return cabOrchestrator.handleUserInput(rawText).toCommandResult()
     }

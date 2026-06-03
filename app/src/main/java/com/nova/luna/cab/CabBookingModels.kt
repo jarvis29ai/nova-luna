@@ -11,6 +11,48 @@ data class CabPickupLocation(
     val longitude: Double? = null
 )
 
+data class CabIntentParseResult(
+    val rawText: String,
+    val isCabBooking: Boolean,
+    val pickupText: String? = null,
+    val dropText: String? = null,
+    val rideType: RideType? = null,
+    val providerPreference: CabProvider? = null,
+    val wantsCheapest: Boolean = false
+) {
+    fun toBookingRequest(): CabBookingRequest {
+        return CabBookingRequest(
+            rawText = rawText,
+            pickupLocation = pickupText?.takeIf { it.isNotBlank() },
+            dropLocation = dropText?.takeIf { it.isNotBlank() },
+            rideType = rideType,
+            preferredProvider = providerPreference,
+            wantsCheapest = wantsCheapest
+        )
+    }
+
+    fun toEntities(): Map<String, String> {
+        return buildMap {
+            put("rawText", rawText)
+            put("isCabBooking", isCabBooking.toString())
+            pickupText?.takeIf { it.isNotBlank() }?.let {
+                put("pickupText", it)
+                put("pickupLocation", it)
+            }
+            dropText?.takeIf { it.isNotBlank() }?.let {
+                put("dropText", it)
+                put("dropLocation", it)
+            }
+            rideType?.let { put("rideType", it.name) }
+            providerPreference?.let {
+                put("providerPreference", it.name)
+                put("preferredProvider", it.name)
+            }
+            put("wantsCheapest", wantsCheapest.toString())
+        }
+    }
+}
+
 data class CabBookingRequest(
     val rawText: String,
     val pickupLocation: String? = null,
@@ -19,6 +61,7 @@ data class CabBookingRequest(
     val dropLocation: String? = null,
     val rideType: RideType? = null,
     val preferredProvider: CabProvider? = null,
+    val wantsCheapest: Boolean = false,
     val finalUserConfirmed: Boolean = false
 )
 
@@ -43,27 +86,33 @@ data class CabFareOption(
     val rideType: RideType,
     val visibleFareText: String? = null,
     val visibleFareAmount: Long? = null,
+    val originalFareAmount: Long? = null,
     val finalFareText: String? = null,
     val finalFareAmount: Long? = null,
     val etaText: String? = null,
     val etaMinutes: Int? = null,
     val couponText: String? = null,
     val discountText: String? = null,
+    val visibleRawText: String? = null,
     val packageName: String? = null
 )
 
 enum class CabBookingState {
     IDLE,
+    PARSING_REQUEST,
     NEED_PICKUP,
     NEED_DROP,
     NEED_RIDE_TYPE,
-    OPENING_PROVIDERS,
+    CHECKING_PROVIDERS,
+    OPENING_PROVIDER,
+    FILLING_TRIP,
     COLLECTING_FARES,
     SHOWING_COMPARISON,
     WAITING_FOR_PLATFORM_CHOICE,
     WAITING_FOR_FINAL_CONFIRMATION,
     BOOKING,
     COMPLETED,
+    CANCELLED,
     FAILED,
     MANUAL_ACTION_REQUIRED
 }
@@ -74,11 +123,15 @@ data class CabBookingResult(
     val request: CabBookingRequest? = null,
     val fareOptions: List<CabFareOption> = emptyList(),
     val selectedOption: CabFareOption? = null,
+    val selectedFareOption: CabFareOption? = selectedOption,
+    val selectedProvider: CabProvider? = selectedOption?.provider,
     val availableProviders: List<CabProvider> = emptyList(),
     val skippedProviders: Map<CabProvider, String> = emptyMap(),
+    val providerFailures: Map<CabProvider, String> = emptyMap(),
     val manualActionRequired: Boolean = false,
     val manualActionReason: String? = null,
-    val finalUserConfirmed: Boolean = false
+    val finalUserConfirmed: Boolean = false,
+    val currentState: CabBookingState = state
 )
 
 fun CabProvider.displayName(): String {
@@ -105,18 +158,19 @@ fun CommandIntent.toCabBookingRequest(): CabBookingRequest {
     val rideType = entities["rideType"]?.let { value ->
         RideType.values().firstOrNull { it.name.equals(value, ignoreCase = true) }
     }
-    val preferredProvider = entities["preferredProvider"]?.let { value ->
+    val preferredProvider = (entities["providerPreference"] ?: entities["preferredProvider"])?.let { value ->
         CabProvider.values().firstOrNull { it.name.equals(value, ignoreCase = true) }
     }
 
     return CabBookingRequest(
         rawText = rawText,
-        pickupLocation = entities["pickupLocation"]?.takeIf { it.isNotBlank() },
+        pickupLocation = (entities["pickupText"] ?: entities["pickupLocation"])?.takeIf { it.isNotBlank() },
         pickupLatitude = entities["pickupLatitude"]?.toDoubleOrNull(),
         pickupLongitude = entities["pickupLongitude"]?.toDoubleOrNull(),
-        dropLocation = entities["dropLocation"]?.takeIf { it.isNotBlank() },
+        dropLocation = (entities["dropText"] ?: entities["dropLocation"])?.takeIf { it.isNotBlank() },
         rideType = rideType,
         preferredProvider = preferredProvider,
+        wantsCheapest = entities["wantsCheapest"]?.toBooleanStrictOrNull() ?: false,
         finalUserConfirmed = entities["finalUserConfirmed"]?.toBooleanStrictOrNull() ?: false
     )
 }
@@ -133,11 +187,17 @@ fun CabBookingRequest.toEntities(): Map<String, String> {
     return buildMap {
         put("rawText", rawText)
         pickupLocation?.takeIf { it.isNotBlank() }?.let { put("pickupLocation", it) }
+        pickupLocation?.takeIf { it.isNotBlank() }?.let { put("pickupText", it) }
         pickupLatitude?.let { put("pickupLatitude", it.toString()) }
         pickupLongitude?.let { put("pickupLongitude", it.toString()) }
         dropLocation?.takeIf { it.isNotBlank() }?.let { put("dropLocation", it) }
+        dropLocation?.takeIf { it.isNotBlank() }?.let { put("dropText", it) }
         rideType?.let { put("rideType", it.name) }
-        preferredProvider?.let { put("preferredProvider", it.name) }
+        preferredProvider?.let {
+            put("preferredProvider", it.name)
+            put("providerPreference", it.name)
+        }
+        put("wantsCheapest", wantsCheapest.toString())
         put("finalUserConfirmed", finalUserConfirmed.toString())
     }
 }
@@ -145,6 +205,7 @@ fun CabBookingRequest.toEntities(): Map<String, String> {
 fun CabBookingResult.toEntities(): Map<String, String> {
     return buildMap {
         put("cabState", state.name)
+        put("currentState", currentState.name)
         put("manualActionRequired", manualActionRequired.toString())
         manualActionReason?.takeIf { it.isNotBlank() }?.let { put("manualActionReason", it) }
         request?.let { request ->
@@ -152,15 +213,19 @@ fun CabBookingResult.toEntities(): Map<String, String> {
         }
         selectedOption?.let { option ->
             put("selectedProvider", option.provider.name)
+            put("selectedFareOption", option.provider.name)
+            put("selectedOption", option.provider.name)
             put("selectedRideType", option.rideType.name)
             option.finalFareText?.takeIf { it.isNotBlank() }?.let { put("selectedFareText", it) }
             option.finalFareAmount?.let { put("selectedFareAmount", it.toString()) }
             option.visibleFareText?.takeIf { it.isNotBlank() }?.let { put("selectedVisibleFareText", it) }
             option.visibleFareAmount?.let { put("selectedVisibleFareAmount", it.toString()) }
+            option.originalFareAmount?.let { put("selectedOriginalFareAmount", it.toString()) }
             option.etaText?.takeIf { it.isNotBlank() }?.let { put("selectedEtaText", it) }
             option.etaMinutes?.let { put("selectedEtaMinutes", it.toString()) }
             option.couponText?.takeIf { it.isNotBlank() }?.let { put("selectedCouponText", it) }
             option.discountText?.takeIf { it.isNotBlank() }?.let { put("selectedDiscountText", it) }
+            option.visibleRawText?.takeIf { it.isNotBlank() }?.let { put("selectedVisibleRawText", it) }
             option.packageName?.takeIf { it.isNotBlank() }?.let { put("selectedPackageName", it) }
         }
         if (fareOptions.isNotEmpty()) {
@@ -175,6 +240,14 @@ fun CabBookingResult.toEntities(): Map<String, String> {
                 skippedProviders.entries.joinToString(separator = ";") { "${it.key.name}:${it.value}" }
             )
         }
+        if (providerFailures.isNotEmpty()) {
+            put(
+                "providerFailures",
+                providerFailures.entries.joinToString(separator = ";") { "${it.key.name}:${it.value}" }
+            )
+        }
+        selectedProvider?.let { put("selectedProviderName", it.name) }
+        selectedFareOption?.let { put("selectedFareOptionName", it.provider.name) }
         put("finalUserConfirmed", finalUserConfirmed.toString())
     }
 }
