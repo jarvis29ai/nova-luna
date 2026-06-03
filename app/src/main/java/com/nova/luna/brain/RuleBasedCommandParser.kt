@@ -49,13 +49,13 @@ class RuleBasedCommandParser {
             isBackCommand(normalized) -> nav(rawText, ActionType.GO_BACK, "go_back")
             isRecentsCommand(normalized) -> nav(rawText, ActionType.OPEN_RECENTS, "open_recents")
 
-            normalized == "open notifications" -> nav(rawText, ActionType.OPEN_NOTIFICATIONS, "open_notifications")
+            isOpenNotificationsCommand(normalized) -> nav(rawText, ActionType.OPEN_NOTIFICATIONS, "open_notifications")
             normalized == "scroll down" -> nav(rawText, ActionType.SCROLL_FORWARD, "scroll_down")
             normalized == "scroll up" -> nav(rawText, ActionType.SCROLL_BACKWARD, "scroll_up")
             normalized.startsWith("tap ") -> interaction(rawText, ActionType.CLICK_TEXT, normalized.removePrefix("tap ").trim())
             normalized.startsWith("click ") -> interaction(rawText, ActionType.CLICK_TEXT, normalized.removePrefix("click ").trim())
             normalized.startsWith("type ") -> textEntry(rawText, normalized.removePrefix("type ").trim())
-            normalized == "read notifications" -> reading(rawText, ActionType.READ_NOTIFICATIONS, "read_notifications")
+            isReadNotificationsCommand(normalized) -> reading(rawText, ActionType.READ_NOTIFICATIONS, "read_notifications")
             normalized == "take screenshot" -> sensitive(rawText, ActionType.TAKE_SCREENSHOT, "take_screenshot")
             normalized == "open settings" -> sensitive(rawText, ActionType.OPEN_SETTINGS, "open_settings")
             normalized == "open accessibility settings" -> sensitive(rawText, ActionType.OPEN_ACCESSIBILITY_SETTINGS, "open_accessibility_settings")
@@ -101,6 +101,16 @@ class RuleBasedCommandParser {
             normalized == "open recents" ||
             normalized == "recent apps" ||
             normalized == "recents"
+    }
+
+    private fun isOpenNotificationsCommand(normalized: String): Boolean {
+        return normalized == "open notifications" ||
+            normalized == "show notifications"
+    }
+
+    private fun isReadNotificationsCommand(normalized: String): Boolean {
+        return normalized == "read notifications" ||
+            normalized == "check notifications"
     }
 
     private fun interaction(rawText: String, actionType: ActionType, target: String): CommandIntent {
