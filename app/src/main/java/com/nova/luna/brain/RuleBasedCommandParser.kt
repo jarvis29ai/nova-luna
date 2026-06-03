@@ -45,7 +45,7 @@ class RuleBasedCommandParser {
         }
 
         return when {
-            normalized == "go home" -> nav(rawText, ActionType.GO_HOME, "go_home")
+            isHomeCommand(normalized) -> nav(rawText, ActionType.GO_HOME, "go_home")
             normalized == "go back" -> nav(rawText, ActionType.GO_BACK, "go_back")
             normalized == "show recent apps" ||
                 normalized == "show recents" ||
@@ -82,6 +82,12 @@ class RuleBasedCommandParser {
             actionType = actionType,
             entities = mapOf("command" to command)
         )
+    }
+
+    private fun isHomeCommand(normalized: String): Boolean {
+        return normalized == "go home" ||
+            normalized == "home" ||
+            normalized == "back to home"
     }
 
     private fun interaction(rawText: String, actionType: ActionType, target: String): CommandIntent {
