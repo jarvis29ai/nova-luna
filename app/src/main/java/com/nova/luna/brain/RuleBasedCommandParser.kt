@@ -47,10 +47,7 @@ class RuleBasedCommandParser {
         return when {
             isHomeCommand(normalized) -> nav(rawText, ActionType.GO_HOME, "go_home")
             isBackCommand(normalized) -> nav(rawText, ActionType.GO_BACK, "go_back")
-            normalized == "show recent apps" ||
-                normalized == "show recents" ||
-                normalized == "open recent apps" ||
-                normalized == "recent apps" -> nav(rawText, ActionType.OPEN_RECENTS, "open_recents")
+            isRecentsCommand(normalized) -> nav(rawText, ActionType.OPEN_RECENTS, "open_recents")
 
             normalized == "open notifications" -> nav(rawText, ActionType.OPEN_NOTIFICATIONS, "open_notifications")
             normalized == "scroll down" -> nav(rawText, ActionType.SCROLL_FORWARD, "scroll_down")
@@ -95,6 +92,15 @@ class RuleBasedCommandParser {
             normalized == "back" ||
             normalized == "previous" ||
             normalized == "go previous"
+    }
+
+    private fun isRecentsCommand(normalized: String): Boolean {
+        return normalized == "show recent apps" ||
+            normalized == "show recents" ||
+            normalized == "open recent apps" ||
+            normalized == "open recents" ||
+            normalized == "recent apps" ||
+            normalized == "recents"
     }
 
     private fun interaction(rawText: String, actionType: ActionType, target: String): CommandIntent {
