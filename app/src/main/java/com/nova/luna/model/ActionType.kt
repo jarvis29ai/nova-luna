@@ -18,6 +18,7 @@ enum class ActionType {
     OPEN_USAGE_ACCESS_SETTINGS,
     CALL_CONTACT,
     CAB_BOOKING,
+    FOOD_ORDER,
     BLOCKED,
     UNKNOWN
 }

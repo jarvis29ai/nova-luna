@@ -15,7 +15,15 @@ class CommandRouter(
         return actionExecutor.hasActiveCabBookingSession()
     }
 
+    fun hasActiveFoodBookingSession(): Boolean {
+        return actionExecutor.hasActiveFoodBookingSession()
+    }
+
     fun routeCabConversation(rawText: String): CommandResult {
         return actionExecutor.handleCabBookingText(rawText)
+    }
+
+    fun routeFoodConversation(rawText: String): CommandResult {
+        return actionExecutor.handleFoodBookingText(rawText)
     }
 }

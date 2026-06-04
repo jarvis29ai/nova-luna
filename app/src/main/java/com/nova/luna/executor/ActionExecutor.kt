@@ -11,6 +11,13 @@ import com.nova.luna.cab.CabDeepLinkBuilder
 import com.nova.luna.cab.CabProviderRegistry
 import com.nova.luna.cab.toCabBookingRequest
 import com.nova.luna.cab.toCommandResult
+import com.nova.luna.food.FoodAccessibilityService
+import com.nova.luna.food.FoodBookingOrchestrator
+import com.nova.luna.food.FoodDeepLinkBuilder
+import com.nova.luna.food.FoodProviderLauncher
+import com.nova.luna.food.FoodProviderRegistry
+import com.nova.luna.food.toFoodBookingRequest
+import com.nova.luna.food.toCommandResult as toFoodCommandResult
 
 class ActionExecutor(context: Context) {
     private val appLauncher = AppLauncher(context.applicationContext)
@@ -21,12 +28,24 @@ class ActionExecutor(context: Context) {
     private val settingsExecutor = SettingsExecutor(context.applicationContext)
     private val notificationReader = NotificationReader(context.applicationContext)
     private val cabProviderRegistry = CabProviderRegistry(context.applicationContext.packageManager)
+    private val foodProviderRegistry = FoodProviderRegistry(context.applicationContext.packageManager)
     private val cabOrchestrator = CabBookingOrchestrator(
         providerRegistry = cabProviderRegistry,
         deepLinkBuilder = CabDeepLinkBuilder(context.applicationContext, cabProviderRegistry),
         accessibilityService = CabAccessibilityService(),
         pickupLocationResolver = AndroidCabPickupLocationResolver(context.applicationContext),
         providerLauncher = { intent ->
+            runCatching {
+                context.applicationContext.startActivity(intent)
+                true
+            }.getOrDefault(false)
+        }
+    )
+    private val foodOrchestrator = FoodBookingOrchestrator(
+        providerRegistry = foodProviderRegistry,
+        deepLinkBuilder = FoodDeepLinkBuilder(context.applicationContext, foodProviderRegistry),
+        accessibilityService = FoodAccessibilityService(),
+        providerLauncher = FoodProviderLauncher { intent ->
             runCatching {
                 context.applicationContext.startActivity(intent)
                 true
@@ -62,6 +81,7 @@ class ActionExecutor(context: Context) {
                 commandIntent.entities
             )
             ActionType.CAB_BOOKING -> cabOrchestrator.start(commandIntent.toCabBookingRequest()).toCommandResult()
+            ActionType.FOOD_ORDER -> foodOrchestrator.start(commandIntent.toFoodBookingRequest()).toFoodCommandResult()
             ActionType.STOP_SERVICE -> CommandResult.success(
                 message = "Stopping listening.",
                 intentType = commandIntent.intentType,
@@ -83,7 +103,15 @@ class ActionExecutor(context: Context) {
         return cabOrchestrator.isActive()
     }
 
+    fun hasActiveFoodBookingSession(): Boolean {
+        return foodOrchestrator.isActive()
+    }
+
     fun handleCabBookingText(rawText: String): CommandResult {
         return cabOrchestrator.handleUserInput(rawText).toCommandResult()
+    }
+
+    fun handleFoodBookingText(rawText: String): CommandResult {
+        return foodOrchestrator.handleUserInput(rawText).toFoodCommandResult()
     }
 }

@@ -5,10 +5,13 @@ import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.IntentType
 import com.nova.luna.cab.CabIntentParser
 import com.nova.luna.cab.toEntities
+import com.nova.luna.food.FoodIntentParser
+import com.nova.luna.food.toEntities as toFoodEntities
 import java.util.Locale
 
 class RuleBasedCommandParser {
     private val cabIntentParser = CabIntentParser()
+    private val foodIntentParser = FoodIntentParser()
     private val blockedKeywords = listOf(
         "send money",
         "pay",
@@ -45,6 +48,15 @@ class RuleBasedCommandParser {
                 intentType = IntentType.CAB_BOOKING,
                 actionType = ActionType.CAB_BOOKING,
                 entities = cabRequest.toEntities()
+            )
+        }
+
+        foodIntentParser.parse(rawText)?.let { foodRequest ->
+            return CommandIntent(
+                rawText = rawText,
+                intentType = IntentType.FOOD_ORDER,
+                actionType = ActionType.FOOD_ORDER,
+                entities = foodRequest.toFoodEntities()
             )
         }
 

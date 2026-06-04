@@ -28,7 +28,12 @@ class CommandBrain(context: Context) {
             )
         }
 
-        if (parsed.intentType == IntentType.CAB_BOOKING || parsed.actionType == ActionType.CAB_BOOKING) {
+        if (
+            parsed.intentType == IntentType.CAB_BOOKING ||
+            parsed.actionType == ActionType.CAB_BOOKING ||
+            parsed.intentType == IntentType.FOOD_ORDER ||
+            parsed.actionType == ActionType.FOOD_ORDER
+        ) {
             val resolved = resolver.resolve(parsed)
             val decision = safetyGate.evaluate(resolved)
             if (!decision.allowed) {
@@ -55,6 +60,10 @@ class CommandBrain(context: Context) {
 
         if (router.hasActiveCabBookingSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
             return router.routeCabConversation(rawText)
+        }
+
+        if (router.hasActiveFoodBookingSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
+            return router.routeFoodConversation(rawText)
         }
 
         if (parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {

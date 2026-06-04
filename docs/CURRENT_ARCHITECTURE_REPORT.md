@@ -26,6 +26,7 @@ Luna is the female voice profile.
   - Safety gate
   - Command brain
   - Cab booking flow
+  - Food ordering flow
   - Room database
   - DataStore preferences
   - TTS manager
@@ -55,15 +56,18 @@ Luna is the female voice profile.
 5. `CommandRouter` sends the action to the executor.
 6. The result is spoken and written to the command history database.
 7. Cab booking requests are routed into a dedicated local state machine when the parser detects ride-hailing commands.
+8. Food ordering requests are routed into a dedicated local state machine when the parser detects food-ordering commands.
 
 ## Safety Flow
 
 - Stop and cancel commands are handled first.
 - Payment, banking, checkout, OTP, CAPTCHA, and password-related commands are blocked.
+- Unsafe food items such as alcohol, tobacco, medicines, and other restricted items are blocked.
 - Sensitive commands such as settings changes and screenshots are gated.
 - The starter does not implement payment, banking, shopping checkout, or OTP extraction.
 - The AccessibilityService is used only for user-controlled actions like navigation, tapping, scrolling, and typing.
 - Cab booking stays local-first: the app opens installed providers, compares visible fares, and requires an explicit final user confirmation before any booking tap.
+- Food ordering stays local-first: the app opens installed providers, compares visible payable amounts, tries visible coupons, and requires an explicit final user confirmation before any order-placement tap.
 
 ## Cab Booking Flow
 
@@ -76,6 +80,18 @@ Luna is the female voice profile.
 - `CabAccessibilityService` reads visible fare, ETA, coupon, and discount text from the provider screen, fills trip details when safe, and stops on OTP, login, payment, CAPTCHA, and other manual-action screens.
 - `CabFareComparator` normalizes and sorts fare options from lowest to highest.
 - The final booking tap stays blocked until the user explicitly confirms.
+
+## Food Ordering Flow
+
+- `RuleBasedCommandParser` detects food-ordering phrases and maps them to `IntentType.FOOD_ORDER` and `ActionType.FOOD_ORDER`.
+- `FoodBookingOrchestrator` drives a state machine with food item, restaurant, provider comparison, platform choice, final confirmation, manual-action, success, and failure states.
+- `FoodProviderRegistry` checks installed provider apps locally.
+- Supported providers are Swiggy, Zomato, and Toings.
+- `FoodDeepLinkBuilder` opens the provider app and passes food extras.
+- `FoodAccessibilityService` reads visible payable, delivery fee, tax, coupon, discount, and ETA text from the provider screen, fills order details when safe, and stops on OTP, login, payment, CAPTCHA, and other manual-action screens.
+- `FoodCouponEngine` extracts visible coupon candidates and chooses a best-effort coupon to try.
+- `FoodPriceComparator` normalizes and sorts quote options from lowest to highest.
+- The final place-order tap stays blocked until the user explicitly confirms.
 
 ## Accessibility Flow
 
@@ -91,6 +107,7 @@ Luna is the female voice profile.
   - `typeText(text)`
 - Notification state text is captured as a scaffold for future notification reading.
 - The cab flow uses the same accessibility surface, but only for provider-app handoff and screen inspection that the user has already requested.
+- The food flow uses the same accessibility surface, but only for provider-app handoff and screen inspection that the user has already requested.
 
 ## Data Flow
 
@@ -124,6 +141,8 @@ Luna is the female voice profile.
 - Navigation commands
 - Tap, scroll, and type scaffolding
 - Command history and audit logs
+- Cab booking orchestration
+- Food ordering orchestration
 
 ## Post-MVP Scope
 
@@ -157,3 +176,4 @@ Luna is the female voice profile.
 - Call automation is scaffolded only.
 - The starter depends on Android system speech and accessibility capabilities, which vary by device and OEM.
 - The exact audible voice can vary because Android TTS engine availability differs by device and installed engine.
+- Food apps may expose different layouts, coupon flows, and checkout screens across providers, so the food flow is best-effort and may stop for manual handling earlier than the cab flow.

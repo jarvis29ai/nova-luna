@@ -37,6 +37,21 @@ class SafetyGate {
             )
         }
 
+        if (commandIntent.actionType == ActionType.FOOD_ORDER) {
+            if (containsUnsafeFoodKeyword(normalized) || containsUnsafeFoodKeyword(commandIntent.entities["foodItem"].orEmpty())) {
+                return SafetyDecision.block(
+                    "Blocked: alcohol, tobacco, medicines, restricted items, and other unsafe food orders must stay manual."
+                )
+            }
+
+            return SafetyDecision(
+                level = SafetyLevel.SAFE,
+                allowed = true,
+                message = "Food ordering flow allowed. Final order placement, payment, OTP, and CAPTCHA steps must stay manual.",
+                requiresBiometric = false
+            )
+        }
+
         if (containsBlockedKeyword(normalized)) {
             return SafetyDecision.block(
                 "Blocked: payments, banking, passwords, OTPs, CAPTCHAs, and checkout flows must stay manual."
@@ -90,6 +105,51 @@ class SafetyGate {
 
     private fun containsBlockedKeyword(normalized: String): Boolean {
         return blockedPatterns.any { keyword ->
+            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
+        }
+    }
+
+    private fun containsUnsafeFoodKeyword(value: String): Boolean {
+        val normalized = value.lowercase(Locale.US)
+        if (normalized.isBlank()) return false
+
+        val unsafePatterns = listOf(
+            "alcohol",
+            "beer",
+            "wine",
+            "whiskey",
+            "whisky",
+            "vodka",
+            "rum",
+            "gin",
+            "scotch",
+            "liquor",
+            "cocktail",
+            "tobacco",
+            "cigarette",
+            "cigarettes",
+            "vape",
+            "weed",
+            "cannabis",
+            "marijuana",
+            "medicine",
+            "medicines",
+            "pill",
+            "pills",
+            "tablet",
+            "tablets",
+            "capsule",
+            "capsules",
+            "syrup",
+            "drug",
+            "drugs",
+            "restricted item",
+            "restricted items",
+            "unsafe item",
+            "unsafe items"
+        )
+
+        return unsafePatterns.any { keyword ->
             Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
         }
     }
