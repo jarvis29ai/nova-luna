@@ -2,9 +2,9 @@
 
 ## Progress Snapshot
 
-- Current app readiness: 41%
+- Current app readiness: 50%
 - `docs/NOVA_LUNA_PROGRESS_CHECKPOINT.md` records the 40% verified command-brain checkpoint.
-- This process-report sync raises tracked project readiness to 41% because documentation is now aligned.
+- This process-report sync raises tracked project readiness to 50% because the phone-only multi-model brain routing layer now includes the Gemma phone runtime scaffold and readiness reporting.
 
 ## Current Setup
 
@@ -41,6 +41,8 @@
 - Mocked `NovaAccessibilityService` and mocked launchers are used in tests.
 - No real screen taps, typing, settings launches, or permission grants happen in tests.
 - Debug cab smoke now resets the foreground UI to Home before the preflight snapshot and between scenarios so stale provider screens do not leak across smoke cases.
+- Debug brain smoke can be triggered in the debug build with `com.nova.luna.debug.ACTION_RUN_BRAIN_SMOKE` and logs the selected provider, raw response, parsed BrainAction, fallback usage, and final safety decision.
+- The brain runtime now tracks phone-only capability modes, role-based routing, offline behavior, Gemma phone runtime readiness, and online-assisted lookup-only preparation without adding a backend.
 - `flutter_app/` remains untouched and must not be added yet.
 - Usage-access settings remains explicit and safety-aware.
 
@@ -78,3 +80,5 @@
 - Docs stay aligned with the codebase.
 - Folder structure stays clean and understandable.
 - `flutter_app/` stays untracked until explicitly added later.
+- Local LLM setup instructions live in `docs/LOCAL_LLM_SETUP.md`.
+- Phone-only runtime notes live in `docs/PHONE_ONLY_RUNTIME.md`.
