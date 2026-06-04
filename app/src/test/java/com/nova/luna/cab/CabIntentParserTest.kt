@@ -83,6 +83,17 @@ class CabIntentParserTest {
     }
 
     @Test
+    fun `wake-word cab requests still parse current location and destination`() {
+        val parsed = parser.parseInitialCabRequest("Luna book a cab from current location to DB Mall")
+
+        assertNotNull(parsed)
+        assertTrue(parsed?.isCabBooking == true)
+        assertEquals(PickupMode.CURRENT_LOCATION, parsed?.pickupMode)
+        assertEquals("Current location", parsed?.pickupText)
+        assertEquals("DB Mall", parsed?.dropText)
+    }
+
+    @Test
     fun `current location replies resolve as pickup values`() {
         listOf("current location", "use current location", "my location", "from here", "here").forEach { text ->
             val reply = parser.parsePickupReply(text)

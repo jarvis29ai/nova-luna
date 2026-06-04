@@ -35,12 +35,38 @@ class CommandRouterGroceryTest {
         assertTrue(executor.lastGroceryUserConfirmed)
     }
 
+    @Test
+    fun `grocery booking actions start through the generic executor path`() {
+        val executor = FakeActionExecutor()
+        val router = CommandRouter(executor)
+        val action = BrainAction(
+            intent = "grocery_booking",
+            reply = "I can prepare the grocery flow.",
+            actionType = BrainActionType.EXTERNAL_ACTION,
+            riskLevel = BrainRiskLevel.SAFE,
+            requiresConfirmation = false,
+            finalActionAllowed = false,
+            params = mapOf("rawText" to "Luna order milk and bread")
+        )
+
+        val result = router.route(action)
+
+        assertTrue(result.success)
+        assertEquals(1, executor.executeCalls)
+        assertEquals(0, executor.groceryBookingTextCalls)
+        assertEquals(ActionType.GROCERY_BOOKING, executor.lastCommandIntent?.actionType)
+    }
+
     private class FakeActionExecutor : ActionExecutorGateway {
+        var executeCalls: Int = 0
         var groceryBookingTextCalls: Int = 0
+        var lastCommandIntent: CommandIntent? = null
         var lastGroceryBookingText: String? = null
         var lastGroceryUserConfirmed: Boolean = false
 
         override fun execute(commandIntent: CommandIntent): CommandResult {
+            executeCalls += 1
+            lastCommandIntent = commandIntent
             return CommandResult.success(
                 message = "executed",
                 intentType = commandIntent.intentType,

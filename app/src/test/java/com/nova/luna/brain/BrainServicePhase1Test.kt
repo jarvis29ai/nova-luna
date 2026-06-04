@@ -44,6 +44,19 @@ class BrainServicePhase1Test {
     }
 
     @Test
+    fun `grocery order phrases stay in the grocery booking flow`() {
+        val action = service.process("Luna order milk and bread")
+
+        assertEquals("grocery_booking", action.intent)
+        assertEquals(BrainActionType.EXTERNAL_ACTION, action.actionType)
+        assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
+        assertFalse(action.requiresConfirmation)
+        assertFalse(action.finalActionAllowed)
+        assertEquals("Luna order milk and bread", action.params["rawText"])
+        assertTrue(action.reply.contains("grocery", ignoreCase = true))
+    }
+
+    @Test
     fun `message preparation phrases keep app and contact structured`() {
         val action = service.process("open WhatsApp and prepare message to mom")
 

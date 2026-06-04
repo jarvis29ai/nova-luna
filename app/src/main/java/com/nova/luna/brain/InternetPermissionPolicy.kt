@@ -2,7 +2,7 @@ package com.nova.luna.brain
 
 import com.nova.luna.model.InternetPermissionCategory
 import com.nova.luna.model.InternetPermissionDecision
-import java.util.Locale
+import com.nova.luna.util.AssistantTextNormalizer
 
 class InternetPermissionPolicy {
     private val blockedSensitivePatterns = listOf(
@@ -57,7 +57,6 @@ class InternetPermissionPolicy {
         "current time",
         "time in",
         "latest",
-        "current",
         "search the web",
         "look up",
         "google",
@@ -128,9 +127,6 @@ class InternetPermissionPolicy {
     }
 
     private fun normalize(value: String): String {
-        return value.lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9\\s]+"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+        return AssistantTextNormalizer.normalize(value)
     }
 }

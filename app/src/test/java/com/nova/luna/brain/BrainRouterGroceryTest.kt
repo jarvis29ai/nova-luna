@@ -10,10 +10,17 @@ class BrainRouterGroceryTest {
 
     @Test
     fun `grocery requests route to action json`() {
-        val decision = router.route(BrainRequest("buy milk and bread"))
+        val decision = router.route(BrainRequest("Luna order milk and bread"))
 
         assertEquals(BrainModelRole.ACTION_JSON, decision.selectedRole)
         assertFalse(decision.requiresInternet)
+    }
+
+    @Test
+    fun `cab requests also route to action json with wake words`() {
+        val decision = router.route(BrainRequest("Luna book a cab from current location to DB Mall"))
+
+        assertEquals(BrainModelRole.ACTION_JSON, decision.selectedRole)
     }
 
     @Test

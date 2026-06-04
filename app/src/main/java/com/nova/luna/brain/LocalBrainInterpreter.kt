@@ -3,7 +3,6 @@ package com.nova.luna.brain
 import com.nova.luna.cab.CabIntentParser
 import com.nova.luna.cab.CabProvider
 import com.nova.luna.cab.RideType
-import com.nova.luna.cab.displayName
 import com.nova.luna.grocery.GroceryBookingVoiceResponses
 import com.nova.luna.grocery.GroceryIntentParseResult
 import com.nova.luna.grocery.GroceryIntentParser
@@ -13,6 +12,7 @@ import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainRiskLevel
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.IntentType
+import com.nova.luna.util.AssistantTextNormalizer
 import java.util.Locale
 
 class LocalBrainInterpreter {
@@ -568,10 +568,7 @@ class LocalBrainInterpreter {
     }
 
     private fun normalize(value: String): String {
-        return value.lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9\\s]+"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+        return AssistantTextNormalizer.normalize(value)
     }
 
     private fun sanitize(value: String): String {
@@ -598,5 +595,25 @@ class LocalBrainInterpreter {
             parsed.rideType?.let { add("Ride type: ${it.displayName()}.") }
         }
         return (listOf(prefix) + extras).joinToString(separator = " ").trim()
+    }
+
+    private fun CabProvider.displayName(): String {
+        return when (this) {
+            CabProvider.UBER -> "Uber"
+            CabProvider.OLA -> "Ola"
+            CabProvider.RAPIDO -> "Rapido"
+            CabProvider.INDRIVE -> "inDrive"
+        }
+    }
+
+    private fun RideType.displayName(): String {
+        return when (this) {
+            RideType.AUTO -> "Auto"
+            RideType.BIKE -> "Bike"
+            RideType.MINI -> "Mini"
+            RideType.SEDAN -> "Sedan"
+            RideType.SUV -> "SUV"
+            RideType.ANY -> "Any"
+        }
     }
 }

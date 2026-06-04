@@ -7,10 +7,10 @@ import com.nova.luna.model.BrainRiskLevel
 import com.nova.luna.model.BrainRouteDecision
 import com.nova.luna.food.FoodBookingVoiceResponses
 import com.nova.luna.food.FoodIntentParser
-import com.nova.luna.food.toEntities
 import com.nova.luna.grocery.GroceryBookingVoiceResponses
 import com.nova.luna.grocery.GroceryIntentParseResult
 import com.nova.luna.grocery.GroceryIntentParser
+import com.nova.luna.util.AssistantTextNormalizer
 import java.util.Locale
 
 class ActionJsonModel(
@@ -37,9 +37,9 @@ class ActionJsonModel(
         val groceryRequest = groceryParser.parseInitialGroceryRequest(request.rawText)
         val candidateAction = when {
             request.activeCabSession || isCabOrMessagePlanning(normalized) -> cabInterpreter.interpret(request)
-            foodRequest != null -> foodOrderingAction(request, foodRequest)
             request.activeGrocerySession -> groceryPlanningAction(request, groceryRequest, activeSession = true)
             groceryRequest != null -> groceryPlanningAction(request, groceryRequest, activeSession = false)
+            foodRequest != null -> foodOrderingAction(request, foodRequest)
             isFoodPlanning(normalized) -> foodPlanningAction(request)
             isTaskPlanning(normalized) -> taskPlanningAction(request)
             else -> generalPlanningAction(request)
@@ -242,10 +242,23 @@ class ActionJsonModel(
     }
 
     private fun normalize(value: String): String {
-        return value.lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9\\s]+"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+        return AssistantTextNormalizer.normalize(value)
+    }
+
+    private fun com.nova.luna.food.FoodBookingRequest.toEntities(): Map<String, String> {
+        return buildMap {
+            put("rawText", rawText)
+            foodItem?.takeIf { it.isNotBlank() }?.let { put("foodItem", it) }
+            restaurantName?.takeIf { it.isNotBlank() }?.let { put("restaurantName", it) }
+            quantity?.let { put("quantity", it.toString()) }
+            preferredProvider?.let { put("preferredProvider", it.name) }
+            if (requestedProviders.isNotEmpty()) {
+                put("requestedProviders", requestedProviders.joinToString(separator = ",") { it.name })
+            }
+            deliveryLocation?.takeIf { it.isNotBlank() }?.let { put("deliveryLocation", it) }
+            couponPreference?.takeIf { it.isNotBlank() }?.let { put("couponPreference", it) }
+            put("finalUserConfirmed", finalUserConfirmed.toString())
+        }
     }
 
     private fun buildSafetyNotes(reasoningHint: String?): List<String> {

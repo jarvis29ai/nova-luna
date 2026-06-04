@@ -16,7 +16,7 @@ class CommandBrainFoodOrderTest {
 
     @Test
     fun `food command routes into the food flow and asks for restaurant when missing`() {
-        val result = brain.process("Order burger")
+        val result = brain.process("Luna order burger")
 
         assertEquals(IntentType.FOOD_ORDER, result.intentType)
         assertEquals(ActionType.FOOD_ORDER, result.actionType)

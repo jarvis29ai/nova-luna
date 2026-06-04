@@ -1,5 +1,6 @@
 package com.nova.luna.cab
 
+import com.nova.luna.util.AssistantTextNormalizer
 import java.util.Locale
 
 enum class CabFinalConfirmationReply {
@@ -474,10 +475,7 @@ class CabIntentParser {
     }
 
     private fun normalize(value: String): String {
-        return value.lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9\\s]+"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+        return AssistantTextNormalizer.normalize(value)
     }
 
     private fun containsPhrase(normalized: String, phrase: String): Boolean {
@@ -490,7 +488,10 @@ class CabIntentParser {
     }
 
     private fun isWakeWordOrFillerOnly(rawText: String): Boolean {
-        val normalized = normalize(rawText)
+        val normalized = rawText.lowercase(Locale.US)
+            .replace(Regex("[^a-z0-9\\s]+"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
         if (normalized.isBlank()) return false
 
         val tokens = normalized.split(" ").filter { it.isNotBlank() }

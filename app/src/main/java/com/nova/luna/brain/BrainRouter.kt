@@ -5,7 +5,7 @@ import com.nova.luna.model.BrainRouteDecision
 import com.nova.luna.model.InternetPermissionCategory
 import com.nova.luna.food.FoodIntentParser
 import com.nova.luna.grocery.GroceryIntentParser
-import java.util.Locale
+import com.nova.luna.util.AssistantTextNormalizer
 
 class BrainRouter(
     private val internetPermissionPolicy: InternetPermissionPolicy = InternetPermissionPolicy()
@@ -321,9 +321,6 @@ class BrainRouter(
     }
 
     private fun normalize(value: String): String {
-        return value.lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9\\s]+"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+        return AssistantTextNormalizer.normalize(value)
     }
 }

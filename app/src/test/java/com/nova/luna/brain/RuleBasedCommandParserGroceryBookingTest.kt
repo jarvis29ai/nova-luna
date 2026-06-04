@@ -11,7 +11,7 @@ class RuleBasedCommandParserGroceryBookingTest {
 
     @Test
     fun `grocery phrases route into the grocery booking branch`() {
-        val result = parser.parse("buy milk and bread")
+        val result = parser.parse("Luna order milk and bread")
 
         assertNotNull(result)
         assertEquals(IntentType.GROCERY_BOOKING, result.intentType)

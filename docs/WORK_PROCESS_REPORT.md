@@ -42,15 +42,18 @@
 - No real screen taps, typing, settings launches, or permission grants happen in tests.
 - Debug cab smoke now resets the foreground UI to Home before the preflight snapshot and between scenarios so stale provider screens do not leak across smoke cases.
 - Debug brain smoke can be triggered in the debug build with `com.nova.luna.debug.ACTION_RUN_BRAIN_SMOKE` and logs the selected provider, raw response, parsed BrainAction, fallback usage, and final safety decision.
+- Debug command smoke can be triggered in the debug build with `com.nova.luna.debug.ACTION_RUN_COMMAND_SMOKE` and records exact command handling for basic, cab, food, grocery, and negative safety phrases. The debug receiver also writes a cached report in app storage so the phone-side results can be reviewed deterministically.
 - The brain runtime now tracks phone-only capability modes, role-based routing, offline behavior, Gemma phone runtime readiness, and online-assisted lookup-only preparation without adding a backend.
 - `flutter_app/` remains untouched and must not be added yet.
 - Usage-access settings remains explicit and safety-aware.
+- Sectioned command smoke reruns are used when a single full pass would otherwise stall on a later section, so each family can be verified independently without changing production behavior.
 
 ## Verified Test Command
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --no-daemon
 .\gradlew.bat :app:assembleDebug --no-daemon
+.\gradlew.bat :app:installDebug --no-daemon
 ```
 
 ## Coordination Rules

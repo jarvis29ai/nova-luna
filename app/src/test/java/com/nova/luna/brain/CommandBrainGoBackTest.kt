@@ -46,7 +46,7 @@ class CommandBrainGoBackTest {
 
     @Test
     fun `go back aliases route through the same navigation path`() {
-        val phrases = listOf("go back", "back", "previous", "go previous")
+        val phrases = listOf("go back", "back", "previous", "go previous", "Hey Luna, go back")
 
         phrases.forEach { phrase ->
             val result = brain.process(phrase)
@@ -68,6 +68,7 @@ class CommandBrainGoBackTest {
 
         assertEquals(
             listOf(
+                AccessibilityService.GLOBAL_ACTION_BACK,
                 AccessibilityService.GLOBAL_ACTION_BACK,
                 AccessibilityService.GLOBAL_ACTION_BACK,
                 AccessibilityService.GLOBAL_ACTION_BACK,

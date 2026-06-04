@@ -43,7 +43,8 @@ class CommandBrainOpenAppTest {
             "open whatsapp" to "whatsapp",
             "launch whatsapp" to "whatsapp",
             "start whatsapp" to "whatsapp",
-            "open app whatsapp" to "whatsapp"
+            "open app whatsapp" to "whatsapp",
+            "Luna open WhatsApp" to "whatsapp"
         )
 
         phrases.forEach { (phrase, expectedAppName) ->
@@ -68,9 +69,9 @@ class CommandBrainOpenAppTest {
             assertEquals("com.whatsapp", result.entities["resolvedPackage"])
         }
 
-        Mockito.verify(packageManager, Mockito.times(4))
+        Mockito.verify(packageManager, Mockito.times(5))
             .getLaunchIntentForPackage("com.whatsapp")
-        assertEquals(4, context.launchedIntents.size)
+        assertEquals(5, context.launchedIntents.size)
         assertEquals(Intent.ACTION_MAIN, context.launchedIntents.last().action)
     }
 

@@ -9,6 +9,7 @@ import com.nova.luna.model.BrainAction
 import com.nova.luna.model.CommandResult
 import com.nova.luna.model.IntentType
 import com.nova.luna.safety.SafetyGate
+import com.nova.luna.util.AssistantTextNormalizer
 
 class CommandBrain(context: Context) {
     private val parser = RuleBasedCommandParser()
@@ -21,7 +22,7 @@ class CommandBrain(context: Context) {
     private var pendingConfirmationAction: BrainAction? = null
 
     fun process(rawText: String): CommandResult {
-        val normalized = rawText.trim()
+        val normalized = AssistantTextNormalizer.stripWakeWords(rawText).trim()
         if (normalized.isBlank()) {
             return CommandResult.failure("I did not understand that command.")
         }

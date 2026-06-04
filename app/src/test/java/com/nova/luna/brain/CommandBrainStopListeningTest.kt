@@ -17,7 +17,7 @@ class CommandBrainStopListeningTest {
     fun `stop listening is parsed as control and allowed by safety gate`() {
         val parser = RuleBasedCommandParser()
 
-        val parsed = parser.parse("stop listening")
+        val parsed = parser.parse("Luna stop listening")
         val decision = SafetyGate().evaluate(parsed)
 
         assertEquals(IntentType.CONTROL, parsed.intentType)
@@ -35,7 +35,7 @@ class CommandBrainStopListeningTest {
         Mockito.`when`(context.packageManager).thenReturn(packageManager)
 
         val brain = CommandBrain(context)
-        val result = brain.process("stop listening")
+        val result = brain.process("Luna stop listening")
 
         assertTrue(result.success)
         assertTrue(result.shouldStopListening)

@@ -1,5 +1,6 @@
 package com.nova.luna.grocery
 
+import com.nova.luna.util.AssistantTextNormalizer
 import java.util.Locale
 
 class GroceryIntentParser {
@@ -254,7 +255,7 @@ class GroceryIntentParser {
     }
 
     private fun sanitizeBasketText(rawText: String): String {
-        var text = stripWakeWords(rawText).trim()
+        var text = AssistantTextNormalizer.stripWakeWords(rawText).trim()
         if (text.isBlank()) return text
 
         val leadingPrefixes = listOf(
@@ -404,26 +405,6 @@ class GroceryIntentParser {
             .trim()
     }
 
-    private fun stripWakeWords(rawText: String): String {
-        var trimmed = rawText.trim()
-        if (trimmed.isBlank()) return trimmed
-
-        val wakeWordPattern = Regex(
-            """^\s*(?:(?:hey\s+)?(?:luna|nova))\b[\s,:-]*""",
-            RegexOption.IGNORE_CASE
-        )
-
-        repeat(2) {
-            val stripped = wakeWordPattern.replaceFirst(trimmed, "")
-            if (stripped == trimmed) {
-                return trimmed
-            }
-            trimmed = stripped.trimStart(',', ':', ' ')
-        }
-
-        return trimmed
-    }
-
     private fun buildQuantityText(quantityValue: Double?, unit: String?): String? {
         if (quantityValue == null && unit.isNullOrBlank()) return null
         return buildString {
@@ -490,10 +471,7 @@ class GroceryIntentParser {
     }
 
     private fun normalize(value: String): String {
-        return value.lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9\\s]+"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+        return AssistantTextNormalizer.normalize(value)
     }
 
     private fun containsPhrase(normalized: String, phrase: String): Boolean {

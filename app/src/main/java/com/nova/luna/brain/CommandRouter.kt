@@ -95,7 +95,7 @@ class CommandRouter(
             return result.copy(safetyDecision = decision)
         }
 
-        if (isGroceryBrainAction(brainAction)) {
+        if (brainAction.intent == "grocery_session") {
             val rawText = brainAction.params["rawText"].orEmpty().ifBlank { brainAction.reply }
             val result = actionExecutor.handleGroceryBookingText(rawText, userConfirmed)
             return result.copy(safetyDecision = decision)

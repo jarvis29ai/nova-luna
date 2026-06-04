@@ -22,14 +22,21 @@ class InternetPermissionPolicyTest {
     }
 
     @Test
+    fun `cab booking prompts stay local instead of hitting the live info gate`() {
+        val decision = policy.classify("Luna book a cab from current location to DB Mall")
+
+        assertEquals(InternetPermissionCategory.LOCAL_ONLY, decision.category)
+    }
+
+    @Test
     fun `dangerous payment and final step requests are blocked`() {
         val phrases = listOf(
-            "pay 500 rupees to Rahul",
-            "enter this OTP automatically",
-            "book it without asking me",
-            "final booking",
-            "delete my files",
-            "complete the payment"
+            "Luna pay 500 rupees to Rahul",
+            "Hey Luna, enter this OTP automatically",
+            "Nova, book it without asking me",
+            "Luna final booking",
+            "Hey Nova, delete my files",
+            "Luna complete the payment"
         )
 
         phrases.forEach { phrase ->

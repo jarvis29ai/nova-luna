@@ -15,12 +15,13 @@ class RuleBasedCommandParserCabBookingTest {
 
     @Test
     fun `cab booking phrases route into the cab booking branch`() {
-        val result = parser.parse("book auto to DB Mall")
+        val result = parser.parse("Luna book a cab from current location to DB Mall")
 
         assertEquals(IntentType.CAB_BOOKING, result.intentType)
         assertEquals(ActionType.CAB_BOOKING, result.actionType)
         assertEquals("DB Mall", result.entities["dropLocation"])
-        assertEquals("AUTO", result.entities["rideType"])
+        assertEquals("Current location", result.entities["pickupLocation"])
+        assertEquals("CURRENT_LOCATION", result.entities["pickupMode"])
         assertNull(result.entities["preferredProvider"])
     }
 }

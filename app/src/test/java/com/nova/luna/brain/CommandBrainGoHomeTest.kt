@@ -46,7 +46,7 @@ class CommandBrainGoHomeTest {
 
     @Test
     fun `go home aliases route through the same navigation path`() {
-        val phrases = listOf("go home", "home", "back to home")
+        val phrases = listOf("go home", "home", "back to home", "Luna go home")
 
         phrases.forEach { phrase ->
             val result = brain.process(phrase)
@@ -68,6 +68,7 @@ class CommandBrainGoHomeTest {
 
         assertEquals(
             listOf(
+                AccessibilityService.GLOBAL_ACTION_HOME,
                 AccessibilityService.GLOBAL_ACTION_HOME,
                 AccessibilityService.GLOBAL_ACTION_HOME,
                 AccessibilityService.GLOBAL_ACTION_HOME

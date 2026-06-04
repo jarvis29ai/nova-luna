@@ -395,14 +395,17 @@ Latest validation on the current branch:
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest --no-daemon
 .\gradlew.bat :app:assembleDebug --no-daemon
+.\gradlew.bat :app:installDebug --no-daemon
 ```
 
 Result:
 
 - JVM unit tests passed.
 - Debug build passed.
+- Debug install passed on the connected KB2001 / Android 14 device.
+- Sectioned phone smoke reruns passed for wake-word stripping, cab routing, food flow startup, grocery flow startup, and negative safety boundaries.
 
-The repo therefore remains in a validated state after this documentation-only change.
+The repo therefore remains in a validated state after this code and documentation change set.
 
 ## 12. File / Module Inventory
 
@@ -411,7 +414,7 @@ The repo therefore remains in a validated state after this documentation-only ch
 | Module / path | Key files | Role |
 |---|---|---|
 | Root build config | `app/build.gradle`, `gradle.properties` | Android app build configuration, feature flags, and local brain/runtime configuration inputs. |
-| Debug configuration | `app/src/debug/AndroidManifest.xml`, `app/src/debug/java/com/nova/luna/brain/BrainSmokeReceiver.kt`, `app/src/debug/java/com/nova/luna/brain/BrainSmokeLogger.kt`, `app/src/debug/java/com/nova/luna/brain/BrainSmokePhraseCatalog.kt`, `app/src/debug/java/com/nova/luna/cab/CabSmokeReceiver.kt` | Debug-only smoke entry points and logging hooks. |
+| Debug configuration | `app/src/debug/AndroidManifest.xml`, `app/src/debug/java/com/nova/luna/brain/BrainSmokeReceiver.kt`, `app/src/debug/java/com/nova/luna/brain/BrainSmokeLogger.kt`, `app/src/debug/java/com/nova/luna/brain/BrainSmokePhraseCatalog.kt`, `app/src/debug/java/com/nova/luna/cab/CabSmokeReceiver.kt`, `app/src/debug/java/com/nova/luna/smoke/CommandSmokeReceiver.kt` | Debug-only smoke entry points and logging hooks. |
 
 ### Brain layer
 
@@ -443,12 +446,13 @@ The repo therefore remains in a validated state after this documentation-only ch
 | `app/src/main/java/com/nova/luna/data` | `AppDatabase.kt`, `CommandHistoryDao.kt`, `CommandHistoryEntity.kt`, `CommandHistoryRecordFactory.kt`, `CustomRuleDao.kt`, `CustomRuleEntity.kt`, `PreferencesManager.kt` | Local Room storage and DataStore preferences. |
 | `app/src/main/java/com/nova/luna/history` | `CommandHistoryActivity.kt`, `CommandHistoryFormatter.kt` | Local command-history UI and formatting. |
 | `app/src/main/java/com/nova/luna/tts` | `TextToSpeechManager.kt` | Local spoken replies. |
-| `app/src/main/java/com/nova/luna/util` | `AccessibilityNodeUtils.kt`, `FuzzyMatcher.kt`, `PermissionUtils.kt` | Shared helper utilities. |
+| `app/src/main/java/com/nova/luna/util` | `AccessibilityNodeUtils.kt`, `AssistantTextNormalizer.kt`, `FuzzyMatcher.kt`, `PermissionUtils.kt` | Shared helper utilities. |
 
 ### Tests
 
 | Module / path | Key files | Role |
 |---|---|---|
+| `app/src/test/java/com/nova/luna/util` | `AssistantTextNormalizerTest.kt` | Wake-word stripping and normalization coverage. |
 | `app/src/test/java/com/nova/luna/brain` | `BrainActionValidatorTest.kt`, `BrainRouterGroceryTest.kt`, `BrainRouterPhase5Test.kt`, `BrainServicePhase1Test.kt` through `BrainServicePhase6Test.kt`, `CommandBrainFoodOrderTest.kt`, `CommandBrainGoBackTest.kt`, `CommandBrainGoHomeTest.kt`, `CommandBrainNavigationTest.kt`, `CommandBrainNotificationsTest.kt`, `CommandBrainOpenAppTest.kt`, `CommandBrainRecentsTest.kt`, `CommandBrainScrollTest.kt`, `CommandBrainSettingsTest.kt`, `CommandBrainStopListeningTest.kt`, `CommandBrainTapClickTest.kt`, `CommandBrainTypeTextTest.kt`, `CommandBrainUsageAccessSettingsTest.kt`, `CommandRouterGroceryTest.kt`, `CommandRouterSafetyTest.kt`, `FlutterAppIsolationTest.kt`, `InternetPermissionPolicyTest.kt`, `LocalLlmBrainProviderTest.kt`, `NetworkAwareBrainSelectorTest.kt`, `RuleBasedCommandParserCabBookingTest.kt`, `RuleBasedCommandParserGroceryBookingTest.kt` | Brain routing, fallback, safety, and isolation coverage. |
 | `app/src/test/java/com/nova/luna/cab` | `CabAccessibilityServiceTest.kt`, `CabAccessibilityServiceManualActionTest.kt`, `CabBookingOrchestratorTest.kt`, `CabDeepLinkBuilderTest.kt`, `CabFareComparatorTest.kt`, `CabIntentParserTest.kt`, `CabProviderRegistryTest.kt`, `CabSafetyGateTest.kt` | Cab-flow safety and state-machine coverage. |
 | `app/src/test/java/com/nova/luna/food` | `FoodAccessibilityServiceFinalTapSafetyTest.kt`, `FoodAccessibilityServiceForegroundRetryTest.kt`, `FoodAccessibilityServiceManualActionTest.kt`, `FoodBookingOrchestratorTest.kt`, `FoodCouponEngineTest.kt`, `FoodIntentParserTest.kt`, `FoodPriceComparatorTest.kt`, `FoodProviderRegistryTest.kt` | Food-flow comparison, coupon, and manual-action coverage. |

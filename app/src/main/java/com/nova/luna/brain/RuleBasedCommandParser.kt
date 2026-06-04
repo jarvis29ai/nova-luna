@@ -4,10 +4,9 @@ import com.nova.luna.model.ActionType
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.IntentType
 import com.nova.luna.cab.CabIntentParser
-import com.nova.luna.cab.toEntities
 import com.nova.luna.food.FoodIntentParser
-import com.nova.luna.food.toEntities as toFoodEntities
 import com.nova.luna.grocery.GroceryIntentParser
+import com.nova.luna.util.AssistantTextNormalizer
 import java.util.Locale
 
 class RuleBasedCommandParser {
@@ -36,34 +35,34 @@ class RuleBasedCommandParser {
     )
 
     fun parse(rawText: String): CommandIntent {
-        val raw = rawText.trim()
+        val raw = AssistantTextNormalizer.stripWakeWords(rawText).trim()
         val normalized = raw.lowercase(Locale.US)
         if (raw.isBlank()) {
-            return CommandIntent(rawText = rawText)
+            return CommandIntent(rawText = raw)
         }
 
         if (isStopCommand(normalized)) {
             return CommandIntent(
-                rawText = rawText,
+                rawText = raw,
                 intentType = IntentType.CONTROL,
                 actionType = ActionType.STOP_SERVICE,
                 entities = mapOf("command" to "stop")
             )
         }
 
-        cabIntentParser.parse(rawText)?.let { cabRequest ->
+        cabIntentParser.parse(raw)?.let { cabRequest ->
             return CommandIntent(
-                rawText = rawText,
+                rawText = raw,
                 intentType = IntentType.CAB_BOOKING,
                 actionType = ActionType.CAB_BOOKING,
                 entities = cabRequest.toEntities()
             )
         }
 
-        groceryIntentParser.parseInitialGroceryRequest(rawText)?.let { groceryRequest ->
+        groceryIntentParser.parseInitialGroceryRequest(raw)?.let { groceryRequest ->
             if (groceryRequest.isGroceryBooking) {
                 return CommandIntent(
-                    rawText = rawText,
+                    rawText = raw,
                     intentType = IntentType.GROCERY_BOOKING,
                     actionType = ActionType.GROCERY_BOOKING,
                     entities = groceryRequest.toEntities()
@@ -71,9 +70,9 @@ class RuleBasedCommandParser {
             }
         }
 
-        foodIntentParser.parse(rawText)?.let { foodRequest ->
+        foodIntentParser.parse(raw)?.let { foodRequest ->
             return CommandIntent(
-                rawText = rawText,
+                rawText = raw,
                 intentType = IntentType.FOOD_ORDER,
                 actionType = ActionType.FOOD_ORDER,
                 entities = foodRequest.toFoodEntities()
@@ -82,7 +81,7 @@ class RuleBasedCommandParser {
 
         if (containsBlockedKeyword(normalized)) {
             return CommandIntent(
-                rawText = rawText,
+                rawText = raw,
                 intentType = IntentType.BLOCKED,
                 actionType = ActionType.BLOCKED,
                 entities = mapOf("reason" to "blocked_keyword")
@@ -90,27 +89,27 @@ class RuleBasedCommandParser {
         }
 
         return when {
-            isHomeCommand(normalized) -> nav(rawText, ActionType.GO_HOME, "go_home")
-            isBackCommand(normalized) -> nav(rawText, ActionType.GO_BACK, "go_back")
-            isRecentsCommand(normalized) -> nav(rawText, ActionType.OPEN_RECENTS, "open_recents")
+            isHomeCommand(normalized) -> nav(raw, ActionType.GO_HOME, "go_home")
+            isBackCommand(normalized) -> nav(raw, ActionType.GO_BACK, "go_back")
+            isRecentsCommand(normalized) -> nav(raw, ActionType.OPEN_RECENTS, "open_recents")
 
-            isOpenNotificationsCommand(normalized) -> nav(rawText, ActionType.OPEN_NOTIFICATIONS, "open_notifications")
-            isScrollDownCommand(normalized) -> nav(rawText, ActionType.SCROLL_FORWARD, "scroll_down")
-            isScrollUpCommand(normalized) -> nav(rawText, ActionType.SCROLL_BACKWARD, "scroll_up")
-            isTapCommand(normalized) -> interaction(rawText, ActionType.CLICK_TEXT, extractTapTarget(normalized))
-            isTypeTextCommand(normalized) -> textEntry(rawText, extractTypeText(normalized))
-            isReadNotificationsCommand(normalized) -> reading(rawText, ActionType.READ_NOTIFICATIONS, "read_notifications")
-            normalized == "take screenshot" -> sensitive(rawText, ActionType.TAKE_SCREENSHOT, "take_screenshot")
-            isOpenSettingsCommand(normalized) -> sensitive(rawText, ActionType.OPEN_SETTINGS, "open_settings")
-            isOpenAccessibilitySettingsCommand(normalized) -> sensitive(rawText, ActionType.OPEN_ACCESSIBILITY_SETTINGS, "open_accessibility_settings")
-            isOpenUsageAccessSettingsCommand(normalized) -> sensitive(rawText, ActionType.OPEN_USAGE_ACCESS_SETTINGS, "open_usage_access_settings")
-            normalized.startsWith("call ") -> sensitive(rawText, ActionType.CALL_CONTACT, normalized.removePrefix("call ").trim())
-            normalized.startsWith("open app ") -> openApp(rawText, normalized.removePrefix("open app ").trim())
-            normalized.startsWith("open ") -> openApp(rawText, normalized.removePrefix("open ").trim())
-            normalized.startsWith("launch ") -> openApp(rawText, normalized.removePrefix("launch ").trim())
-            normalized.startsWith("start ") -> openApp(rawText, normalized.removePrefix("start ").trim())
+            isOpenNotificationsCommand(normalized) -> nav(raw, ActionType.OPEN_NOTIFICATIONS, "open_notifications")
+            isScrollDownCommand(normalized) -> nav(raw, ActionType.SCROLL_FORWARD, "scroll_down")
+            isScrollUpCommand(normalized) -> nav(raw, ActionType.SCROLL_BACKWARD, "scroll_up")
+            isTapCommand(normalized) -> interaction(raw, ActionType.CLICK_TEXT, extractTapTarget(normalized))
+            isTypeTextCommand(normalized) -> textEntry(raw, extractTypeText(normalized))
+            isReadNotificationsCommand(normalized) -> reading(raw, ActionType.READ_NOTIFICATIONS, "read_notifications")
+            normalized == "take screenshot" -> sensitive(raw, ActionType.TAKE_SCREENSHOT, "take_screenshot")
+            isOpenSettingsCommand(normalized) -> sensitive(raw, ActionType.OPEN_SETTINGS, "open_settings")
+            isOpenAccessibilitySettingsCommand(normalized) -> sensitive(raw, ActionType.OPEN_ACCESSIBILITY_SETTINGS, "open_accessibility_settings")
+            isOpenUsageAccessSettingsCommand(normalized) -> sensitive(raw, ActionType.OPEN_USAGE_ACCESS_SETTINGS, "open_usage_access_settings")
+            normalized.startsWith("call ") -> sensitive(raw, ActionType.CALL_CONTACT, normalized.removePrefix("call ").trim())
+            normalized.startsWith("open app ") -> openApp(raw, normalized.removePrefix("open app ").trim())
+            normalized.startsWith("open ") -> openApp(raw, normalized.removePrefix("open ").trim())
+            normalized.startsWith("launch ") -> openApp(raw, normalized.removePrefix("launch ").trim())
+            normalized.startsWith("start ") -> openApp(raw, normalized.removePrefix("start ").trim())
             else -> CommandIntent(
-                rawText = rawText,
+                rawText = raw,
                 intentType = IntentType.UNKNOWN,
                 actionType = ActionType.UNKNOWN
             )
@@ -305,6 +304,43 @@ class RuleBasedCommandParser {
     private fun containsBlockedKeyword(normalized: String): Boolean {
         return blockedKeywords.any { keyword ->
             Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
+        }
+    }
+
+    private fun com.nova.luna.cab.CabBookingRequest.toEntities(): Map<String, String> {
+        return buildMap {
+            put("rawText", rawText)
+            pickupLocation?.takeIf { it.isNotBlank() }?.let { put("pickupLocation", it) }
+            pickupLocation?.takeIf { it.isNotBlank() }?.let { put("pickupText", it) }
+            pickupLatitude?.let { put("pickupLatitude", it.toString()) }
+            pickupLongitude?.let { put("pickupLongitude", it.toString()) }
+            put("pickupMode", pickupMode.name)
+            dropLocation?.takeIf { it.isNotBlank() }?.let { put("dropLocation", it) }
+            dropLocation?.takeIf { it.isNotBlank() }?.let { put("dropText", it) }
+            rideType?.let { put("rideType", it.name) }
+            preferredProvider?.let {
+                put("preferredProvider", it.name)
+                put("providerPreference", it.name)
+            }
+            put("wantsCheapest", wantsCheapest.toString())
+            put("wantsFirstOne", wantsFirstOne.toString())
+            put("finalUserConfirmed", finalUserConfirmed.toString())
+        }
+    }
+
+    private fun com.nova.luna.food.FoodBookingRequest.toFoodEntities(): Map<String, String> {
+        return buildMap {
+            put("rawText", rawText)
+            foodItem?.takeIf { it.isNotBlank() }?.let { put("foodItem", it) }
+            restaurantName?.takeIf { it.isNotBlank() }?.let { put("restaurantName", it) }
+            quantity?.let { put("quantity", it.toString()) }
+            preferredProvider?.let { put("preferredProvider", it.name) }
+            if (requestedProviders.isNotEmpty()) {
+                put("requestedProviders", requestedProviders.joinToString(separator = ",") { it.name })
+            }
+            deliveryLocation?.takeIf { it.isNotBlank() }?.let { put("deliveryLocation", it) }
+            couponPreference?.takeIf { it.isNotBlank() }?.let { put("couponPreference", it) }
+            put("finalUserConfirmed", finalUserConfirmed.toString())
         }
     }
 }

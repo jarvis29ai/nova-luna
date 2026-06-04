@@ -1,10 +1,11 @@
 package com.nova.luna.food
 
+import com.nova.luna.util.AssistantTextNormalizer
 import java.util.Locale
 
 class FoodIntentParser {
     fun parse(rawText: String): FoodBookingRequest? {
-        val trimmed = rawText.trim()
+        val trimmed = clean(rawText)
         if (trimmed.isBlank()) return null
         if (!isFoodOrderCommand(trimmed)) return null
 
@@ -53,7 +54,7 @@ class FoodIntentParser {
     }
 
     fun extractFoodItem(rawText: String): String? {
-        val trimmed = sanitize(rawText)
+        val trimmed = clean(rawText)
         if (trimmed.isBlank()) return null
 
         var candidate = trimmed
@@ -72,7 +73,7 @@ class FoodIntentParser {
     }
 
     fun extractRestaurantName(rawText: String): String? {
-        val trimmed = sanitize(rawText)
+        val trimmed = clean(rawText)
         if (trimmed.isBlank()) return null
 
         val pattern = Regex(
@@ -86,7 +87,7 @@ class FoodIntentParser {
     }
 
     fun extractQuantity(rawText: String): Int? {
-        val trimmed = sanitize(rawText)
+        val trimmed = clean(rawText)
         if (trimmed.isBlank()) return null
 
         val leadQuantityPattern = Regex(
@@ -125,7 +126,7 @@ class FoodIntentParser {
     }
 
     fun extractDeliveryLocation(rawText: String): String? {
-        val trimmed = sanitize(rawText)
+        val trimmed = clean(rawText)
         if (trimmed.isBlank()) return null
 
         val patterns = listOf(
@@ -147,7 +148,7 @@ class FoodIntentParser {
     }
 
     fun extractCouponPreference(rawText: String): String? {
-        val trimmed = sanitize(rawText)
+        val trimmed = clean(rawText)
         if (trimmed.isBlank()) return null
 
         val normalized = normalize(trimmed)
@@ -339,10 +340,7 @@ class FoodIntentParser {
     }
 
     private fun normalize(value: String): String {
-        return value.lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9\\s]+"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+        return AssistantTextNormalizer.normalize(value)
     }
 
     private fun containsPhrase(normalized: String, phrase: String): Boolean {
@@ -386,5 +384,9 @@ class FoodIntentParser {
             "okay",
             "ok"
         )
+    }
+
+    private fun clean(value: String?): String {
+        return sanitize(AssistantTextNormalizer.stripWakeWords(value.orEmpty()))
     }
 }

@@ -21,7 +21,8 @@ class CommandBrainSettingsTest {
         val phrases = linkedMapOf(
             "open settings" to "open_settings",
             "launch settings" to "open_settings",
-            "open phone settings" to "open_settings"
+            "open phone settings" to "open_settings",
+            "Luna open settings" to "open_settings"
         )
 
         phrases.forEach { (phrase, expectedValue) ->

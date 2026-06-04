@@ -19,6 +19,17 @@ class GroceryIntentParserTest {
     }
 
     @Test
+    fun `wake-word grocery requests parse the full basket`() {
+        val result = parser.parseInitialGroceryRequest("Luna order milk and bread")
+
+        assertNotNull(result)
+        assertTrue(result!!.isGroceryBooking)
+        assertEquals(2, result.basket.items.size)
+        assertEquals("milk", result.basket.items[0].name)
+        assertEquals("bread", result.basket.items[1].name)
+    }
+
+    @Test
     fun `follow up add command parses a grocery item`() {
         val followUp = parser.parseFollowUpCommand("add 2 bread packets")
 
@@ -61,5 +72,10 @@ class GroceryIntentParserTest {
         assertEquals("sugar", result.basket.items[0].name)
         assertEquals("bread", result.basket.items[1].name)
         assertEquals("atta", result.basket.items[2].name)
+    }
+
+    @Test
+    fun `normal questions are not misclassified as grocery requests`() {
+        assertEquals(null, parser.parseInitialGroceryRequest("Luna what is the weather?"))
     }
 }
