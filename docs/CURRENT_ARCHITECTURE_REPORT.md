@@ -7,6 +7,7 @@ It is designed to:
 
 - Listen locally on device
 - Parse user commands
+- Parse user commands through a structured local BrainService layer
 - Apply a safety gate before execution
 - Automate only user-controlled Android UI/app actions
 - Speak replies locally with Android TextToSpeech
@@ -23,6 +24,7 @@ Luna is the female voice profile.
   - Phone UI
   - Voice foreground service
   - AccessibilityService
+  - Structured brain service, router, and safety gate
   - Safety gate
   - Command brain
   - Cab booking flow
@@ -49,12 +51,11 @@ Luna is the female voice profile.
 ## Command Flow
 
 1. Speech text is normalized.
-2. The parser maps text to `CommandIntent`.
-3. The resolver resolves app aliases for open-app commands.
-4. The safety gate classifies the intent.
-5. `CommandRouter` sends the action to the executor.
-6. The result is spoken and written to the command history database.
-7. Cab booking requests are routed into a dedicated local state machine when the parser detects ride-hailing commands.
+2. `BrainService` turns the text into a structured `BrainAction`.
+3. `CommandRouter` asks `SafetyGate` to approve the action before execution.
+4. The router either returns a confirmation prompt, blocks a human-only command, or forwards the safe action to the executor.
+5. The result is spoken and written to the command history database.
+6. Cab booking requests are routed into a dedicated local state machine after the user confirms the preparatory step.
 
 ## Safety Flow
 
@@ -64,18 +65,21 @@ Luna is the female voice profile.
 - The starter does not implement payment, banking, shopping checkout, or OTP extraction.
 - The AccessibilityService is used only for user-controlled actions like navigation, tapping, scrolling, and typing.
 - Cab booking stays local-first: the app opens installed providers, compares visible fares, and requires an explicit final user confirmation before any booking tap.
+- Final booking, payment, OTP, login, CAPTCHA, and similar human-only screens stay outside automation.
 
 ## Cab Booking Flow
 
 - `RuleBasedCommandParser` detects cab-booking phrases and maps them to `IntentType.CAB_BOOKING` and `ActionType.CAB_BOOKING`.
-- `CabBookingOrchestrator` drives a state machine with pickup, drop, ride-type, provider comparison, platform choice, final confirmation, manual-action, success, and failure states.
-- `PermissionUtils.hasLocationPermission()` is used to check whether the app can resolve a local pickup from the device's last known location.
+- `BrainService` now produces a structured `BrainAction` first, then the router and safety gate decide whether the action can reach the executor.
+- `CabBookingOrchestrator` drives a state machine with pickup, drop, ride-type, provider comparison, platform choice, final confirmation, manual-action, success, and failure states, and keeps the active session alive across follow-up replies like current location, auto, book cheapest, yes, and cancel.
+- `CabLocationResolver` checks location permission and resolves current-location pickup from the device's last known location when available.
 - `CabProviderRegistry` checks installed provider apps locally.
 - Supported providers are Uber, Ola, Rapido, and inDrive.
-- `CabDeepLinkBuilder` opens the provider app and passes trip extras.
-- `CabAccessibilityService` reads visible fare, ETA, coupon, and discount text from the provider screen, fills trip details when safe, and stops on OTP, login, payment, CAPTCHA, and other manual-action screens.
+- `CabDeepLinkBuilder` opens the provider app, prefers provider-specific deep links where available, and falls back to geo/package launch plans with trip extras.
+- `CabAccessibilityService` reads visible fare, ETA, coupon, and discount text from the provider screen, fills trip details when safe, uses provider-specific destination fallbacks for Rapido and Ola, extracts fare candidates for comparison, and stops on OTP, login, payment, CAPTCHA, permission, and other manual-action screens.
+- `CabSmokeReceiver` runs the debug-only cab smoke, resets the UI to Home before the preflight snapshot and between scenarios, and records per-step results without tapping any final booking or payment action.
 - `CabFareComparator` normalizes and sorts fare options from lowest to highest.
-- The final booking tap stays blocked until the user explicitly confirms.
+- The final booking tap stays blocked until the user explicitly confirms, and the flow never automates payment or OTP entry.
 
 ## Accessibility Flow
 

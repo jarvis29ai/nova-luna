@@ -1,10 +1,11 @@
 package com.nova.luna.executor
 
 import android.content.Context
+import android.content.Intent
 import com.nova.luna.model.ActionType
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
-import com.nova.luna.cab.AndroidCabPickupLocationResolver
+import com.nova.luna.cab.AndroidCabLocationResolver
 import com.nova.luna.cab.CabAccessibilityService
 import com.nova.luna.cab.CabBookingOrchestrator
 import com.nova.luna.cab.CabDeepLinkBuilder
@@ -12,7 +13,7 @@ import com.nova.luna.cab.CabProviderRegistry
 import com.nova.luna.cab.toCabBookingRequest
 import com.nova.luna.cab.toCommandResult
 
-class ActionExecutor(context: Context) {
+class ActionExecutor(context: Context) : ActionExecutorGateway {
     private val appLauncher = AppLauncher(context.applicationContext)
     private val navExecutor = NavExecutor()
     private val tapExecutor = TapExecutor()
@@ -25,8 +26,8 @@ class ActionExecutor(context: Context) {
         providerRegistry = cabProviderRegistry,
         deepLinkBuilder = CabDeepLinkBuilder(context.applicationContext, cabProviderRegistry),
         accessibilityService = CabAccessibilityService(),
-        pickupLocationResolver = AndroidCabPickupLocationResolver(context.applicationContext),
-        providerLauncher = { intent ->
+        locationResolver = AndroidCabLocationResolver(context.applicationContext),
+        providerLauncher = { intent: Intent ->
             runCatching {
                 context.applicationContext.startActivity(intent)
                 true
@@ -34,7 +35,16 @@ class ActionExecutor(context: Context) {
         }
     )
 
-    fun execute(commandIntent: CommandIntent): CommandResult {
+    override fun execute(commandIntent: CommandIntent): CommandResult {
+        if (isDangerousFinalCommand(commandIntent)) {
+            return CommandResult.blocked(
+                message = "That final step must stay manual.",
+                intentType = commandIntent.intentType,
+                actionType = commandIntent.actionType,
+                entities = commandIntent.entities
+            )
+        }
+
         return when (commandIntent.actionType) {
             ActionType.LAUNCH_APP -> appLauncher.launchApp(commandIntent)
             ActionType.GO_HOME -> navExecutor.goHome(commandIntent)
@@ -79,15 +89,56 @@ class ActionExecutor(context: Context) {
         }
     }
 
-    fun hasActiveCabBookingSession(): Boolean {
+    override fun hasActiveCabBookingSession(): Boolean {
         return cabOrchestrator.isActive()
     }
 
-    fun cancelCabBookingSession(): CommandResult {
+    override fun cancelCabBookingSession(): CommandResult {
         return cabOrchestrator.cancelSession().toCommandResult()
     }
 
-    fun handleCabBookingText(rawText: String): CommandResult {
+    override fun handleCabBookingText(rawText: String): CommandResult {
         return cabOrchestrator.handleUserInput(rawText).toCommandResult()
+    }
+
+    private fun isDangerousFinalCommand(commandIntent: CommandIntent): Boolean {
+        val normalized = buildString {
+            append(commandIntent.normalizedText)
+            append(' ')
+            append(commandIntent.entities.values.joinToString(separator = " "))
+        }.lowercase()
+
+        if (commandIntent.actionType == ActionType.CAB_BOOKING) {
+            return false
+        }
+
+        val sensitivePatterns = listOf(
+            "send money",
+            "payment",
+            "pay now",
+            "pay with",
+            "bank",
+            "banking",
+            "upi",
+            "password",
+            "otp",
+            "captcha",
+            "login",
+            "sign in",
+            "delete",
+            "erase",
+            "remove account",
+            "confirm booking",
+            "book now",
+            "book ride",
+            "submit",
+            "request ride",
+            "request now",
+            "complete payment"
+        )
+
+        return sensitivePatterns.any { pattern ->
+            Regex("""\b${Regex.escape(pattern)}\b""").containsMatchIn(normalized)
+        }
     }
 }

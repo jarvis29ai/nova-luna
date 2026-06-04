@@ -102,13 +102,22 @@ class CabFareComparator {
         return listOf(
             "discount",
             "coupon",
+            "coupon applied",
+            "after coupon",
+            "after discount",
             "after",
             "final",
             "now",
             "save",
             "offer",
             "promo",
-            "off"
+            "off",
+            "payable",
+            "final fare",
+            "net fare",
+            "total fare",
+            "new fare",
+            "discounted"
         ).any { normalized.contains(it) }
     }
 

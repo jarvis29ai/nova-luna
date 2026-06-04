@@ -37,6 +37,7 @@ class CabAccessibilityServiceManualActionTest {
             service.detectManualActionRequired(
                 CabScreenSnapshot(
                     visibleText = listOf("manual action required"),
+                    sourcePackageName = CabProviderRegistry.UBER_PACKAGE_NAME,
                     manualActionReason = "manual action required"
                 )
             )

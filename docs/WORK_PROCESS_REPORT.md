@@ -40,13 +40,15 @@
 - Deterministic JVM tests only.
 - Mocked `NovaAccessibilityService` and mocked launchers are used in tests.
 - No real screen taps, typing, settings launches, or permission grants happen in tests.
+- Debug cab smoke now resets the foreground UI to Home before the preflight snapshot and between scenarios so stale provider screens do not leak across smoke cases.
 - `flutter_app/` remains untouched and must not be added yet.
 - Usage-access settings remains explicit and safety-aware.
 
 ## Verified Test Command
 
 ```powershell
-.\gradlew.bat :app:testDebugUnitTest --rerun-tasks --no-daemon
+.\gradlew.bat :app:testDebugUnitTest --no-daemon
+.\gradlew.bat :app:assembleDebug --no-daemon
 ```
 
 ## Coordination Rules

@@ -2,15 +2,50 @@ package com.nova.luna.cab
 
 object CabBookingVoiceResponses {
     fun askPickup(): String {
-        return "What is your pickup location?"
+        return "Tell me your pickup location, or say current location."
+    }
+
+    fun currentLocationUnavailable(): String {
+        return "I could not access your current location. Please tell me your pickup location."
+    }
+
+    fun usingCurrentLocationAsPickup(): String {
+        return "I will use current location as pickup in the cab app."
     }
 
     fun askDrop(): String {
-        return "Where do you want to go?"
+        return "Tell me your destination."
     }
 
     fun askRideType(): String {
-        return "Which ride type do you want - auto, bike, mini, sedan, SUV, or any?"
+        return "Which ride type do you want: auto, bike, mini, sedan, SUV, or any?"
+    }
+
+    fun fillingProvider(provider: CabProvider): String {
+        return "I am filling pickup and drop in ${provider.displayName()} now."
+    }
+
+    fun manualDestinationHandoff(provider: CabProvider): String {
+        return "I opened ${provider.displayName()}, but the destination field is not accessible on this screen. Please enter or select the destination manually. Once ride options are visible, I can compare the fares."
+    }
+
+    fun noFareVisible(provider: CabProvider? = null): String {
+        val providerPart = provider?.displayName()?.let { " on $it" }.orEmpty()
+        return "I can see the provider screen$providerPart, but no fare is visible yet. Once ride options are visible, say done or compare now and I will read them."
+    }
+
+    fun providerSkipped(
+        provider: CabProvider,
+        reason: String,
+        nextProvider: CabProvider? = null
+    ): String {
+        val nextPart = nextProvider?.let { ", so I am skipping ${provider.displayName()} and checking ${it.displayName()}." }
+            ?: ", so I am skipping ${provider.displayName()}."
+        return "I could not finish ${provider.displayName()} because ${describeFailureReason(reason)}$nextPart"
+    }
+
+    fun providerFailed(provider: CabProvider, reason: String): String {
+        return "${provider.displayName()} failed because ${describeFailureReason(reason)}."
     }
 
     fun askPlatformChoice(
@@ -22,16 +57,31 @@ object CabBookingVoiceResponses {
             return noProvidersAvailable(skippedProviders)
         }
 
-        val parts = buildList {
-            add("Which one should I book?")
-            add("You can say Book the cheapest, Book Rapido, or Book the first one.")
+        return buildList {
+            add("I found these fares, lowest to highest:")
+            add(options.mapIndexed { index, option ->
+                "${index + 1}. ${formatFareOption(option)}"
+            }.joinToString(separator = "\n"))
+            add("You can say book the cheapest, book the first one, book Rapido, or use Uber.")
+            val skippedText = skippedProviders.entries.joinToString(separator = ". ") {
+                "${it.key.displayName()} was skipped because ${it.value}"
+            }
+            if (skippedText.isNotBlank()) {
+                add("Skipped apps: $skippedText.")
+            }
             val failureSummary = providerFailureSummary(providerFailures)
             if (failureSummary.isNotBlank()) {
                 add(failureSummary)
             }
-        }
+        }.joinToString(separator = " ")
+    }
 
-        return parts.joinToString(separator = " ")
+    fun fareComparison(options: List<CabFareOption>): String {
+        if (options.isEmpty()) return "I could not read any fares yet."
+
+        return options.mapIndexed { index, option ->
+            "${index + 1}. ${formatFareOption(option)}"
+        }.joinToString(separator = "\n")
     }
 
     fun showComparison(
@@ -43,25 +93,25 @@ object CabBookingVoiceResponses {
             return noProvidersAvailable(skippedProviders)
         }
 
-        val optionText = options.mapIndexed { index, option ->
-            "${index + 1}. ${formatFareOption(option)}"
-        }.joinToString(separator = "\n")
-
         val skippedText = skippedProviders.entries.joinToString(separator = ". ") {
-            "${it.key.displayName()} skipped because ${it.value}"
+            "${it.key.displayName()} was skipped because ${it.value}"
         }
         val failureText = providerFailureSummary(providerFailures)
 
         return buildList {
-            add("I found these options:\n$optionText")
+            add("I found these fares, lowest to highest:\n${fareComparison(options)}")
             if (skippedText.isNotBlank()) {
                 add("Skipped apps: $skippedText.")
             }
             if (failureText.isNotBlank()) {
                 add(failureText)
             }
-            add("Which one should I book?")
+            add("You can say book the cheapest, book the first one, book Rapido, or use Uber.")
         }.joinToString(separator = " ")
+    }
+
+    fun cheapestSelected(option: CabFareOption): String {
+        return "I selected ${formatFareOption(option)}. I need your confirmation before booking."
     }
 
     fun askFinalConfirmation(option: CabFareOption): String {
@@ -69,8 +119,8 @@ object CabBookingVoiceResponses {
     }
 
     fun manualActionRequired(provider: CabProvider?, reason: String): String {
-        val providerLabel = provider?.displayName() ?: "this provider"
-        return "I found a manual step in $providerLabel: $reason. Please complete it yourself, then tell me to continue."
+        val providerLabel = provider?.displayName()?.let { " in $it" }.orEmpty()
+        return "This step needs you$providerLabel. Please complete $reason manually."
     }
 
     fun bookingCompleted(option: CabFareOption): String {
@@ -89,13 +139,20 @@ object CabBookingVoiceResponses {
         if (providerFailures.isEmpty()) return ""
 
         val failureText = providerFailures.entries.joinToString(separator = ". ") {
-            "${it.key.displayName()} failed because ${it.value}"
+            "${it.key.displayName()} failed because ${describeFailureReason(it.value)}"
         }
-        return "Provider issues: $failureText"
+        return "Provider issues: $failureText."
     }
 
     fun noProvidersAvailable(skippedProviders: Map<CabProvider, String>): String {
-        return "I could not find Uber, Ola, Rapido, or inDrive installed on this phone."
+        if (skippedProviders.isEmpty()) {
+            return "I could not find Uber, Ola, Rapido, or inDrive installed on this phone."
+        }
+
+        val skippedText = skippedProviders.entries.joinToString(separator = ". ") {
+            "${it.key.displayName()} was skipped because ${it.value}"
+        }
+        return "I could not find a usable cab app. $skippedText."
     }
 
     fun formatFareOption(option: CabFareOption): String {
@@ -157,6 +214,43 @@ object CabBookingVoiceResponses {
             if (extras.isNotEmpty()) {
                 append(", ")
                 append(extras.joinToString(separator = ", "))
+            }
+        }
+    }
+
+    fun describeFailureReason(reason: String): String {
+        return when (reason) {
+            "provider_did_not_open_foreground" -> "the provider app did not come to the foreground"
+            else -> when {
+                reason.contains(CabFailureReasons.PICKUP_FIELD_NOT_FOUND) &&
+                    reason.contains(CabFailureReasons.DESTINATION_FIELD_NOT_FOUND) ->
+                    "the pickup and destination fields were not accessible on this screen"
+
+                reason.contains(CabFailureReasons.PICKUP_FIELD_NOT_FOUND) ->
+                    "the pickup field was not accessible on this screen"
+
+                reason.contains(CabFailureReasons.DESTINATION_FIELD_NOT_FOUND) ->
+                    "the destination field was not accessible on this screen"
+
+                reason == CabFailureReasons.PROVIDER_NOT_OPENED ->
+                    "the provider app could not be opened"
+
+                reason == CabFailureReasons.PROVIDER_FOREGROUND_TIMEOUT ->
+                    "the provider app did not come to the foreground"
+
+                reason == CabFailureReasons.NO_FARE_VISIBLE ->
+                    "no fare was visible on the provider screen"
+
+                reason == CabFailureReasons.MANUAL_ACTION_REQUIRED ->
+                    "manual action is required on the provider screen"
+
+                reason == CabFailureReasons.RIDE_TYPE_NOT_SELECTED ->
+                    "the ride type could not be selected"
+
+                reason == CabFailureReasons.PROVIDER_SCREEN_UNAVAILABLE ->
+                    "the provider screen was not available"
+
+                else -> reason
             }
         }
     }

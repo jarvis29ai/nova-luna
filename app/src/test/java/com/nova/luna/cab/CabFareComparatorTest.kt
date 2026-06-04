@@ -18,6 +18,8 @@ class CabFareComparatorTest {
         assertEquals(124L, comparator.extractFareAmount("Rs.124"))
         assertEquals(124L, comparator.extractFareAmount("INR 124"))
         assertEquals(124L, comparator.extractFareAmount("124 rupees"))
+        assertEquals(124L, comparator.extractFareAmount("₹124 coupon applied"))
+        assertEquals(150L, comparator.extractFareAmount("₹180 ₹150 after coupon"))
         assertEquals(99L, comparator.extractFareAmount("₹124 ₹99 discount case"))
         assertEquals(99L, comparator.extractFareAmount("₹99 after coupon"))
         assertNull(comparator.extractFareAmount("Save ₹30"))
