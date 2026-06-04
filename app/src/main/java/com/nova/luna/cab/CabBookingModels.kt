@@ -459,7 +459,7 @@ fun CabBookingResult.toEntities(): Map<String, String> {
     }
 }
 
-fun CabBookingResult.toCommandResult(): CommandResult {
+fun CabBookingResult.toCabCommandResult(): CommandResult {
     val entities = toEntities()
     return if (state == CabBookingState.FAILED || state == CabBookingState.MANUAL_ACTION_REQUIRED) {
         CommandResult.failure(

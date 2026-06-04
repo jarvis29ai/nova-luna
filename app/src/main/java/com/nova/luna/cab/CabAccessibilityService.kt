@@ -564,6 +564,7 @@ open class CabAccessibilityService(
             "confirm booking",
             "book now",
             "book ride",
+            "final booking",
             "request now",
             "continue"
         ).distinct()
@@ -616,6 +617,7 @@ open class CabAccessibilityService(
             "request now",
             "request ride",
             "request",
+            "final booking",
             "book ride"
         )
 
