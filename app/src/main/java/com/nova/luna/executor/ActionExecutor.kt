@@ -2,16 +2,28 @@ package com.nova.luna.executor
 
 import android.content.Context
 import android.content.Intent
-import com.nova.luna.model.ActionType
-import com.nova.luna.model.CommandIntent
-import com.nova.luna.model.CommandResult
 import com.nova.luna.cab.AndroidCabLocationResolver
 import com.nova.luna.cab.CabAccessibilityService
 import com.nova.luna.cab.CabBookingOrchestrator
 import com.nova.luna.cab.CabDeepLinkBuilder
 import com.nova.luna.cab.CabProviderRegistry
 import com.nova.luna.cab.toCabBookingRequest
-import com.nova.luna.cab.toCommandResult
+import com.nova.luna.cab.toCabCommandResult
+import com.nova.luna.food.FoodAccessibilityService
+import com.nova.luna.food.FoodBookingOrchestrator
+import com.nova.luna.food.FoodDeepLinkBuilder
+import com.nova.luna.food.FoodProviderLauncher
+import com.nova.luna.food.FoodProviderRegistry
+import com.nova.luna.food.toCommandResult as toFoodCommandResult
+import com.nova.luna.food.toFoodBookingRequest
+import com.nova.luna.grocery.GroceryAccessibilityService
+import com.nova.luna.grocery.GroceryBookingOrchestrator
+import com.nova.luna.grocery.GroceryDeepLinkBuilder
+import com.nova.luna.grocery.GroceryProviderRegistry
+import com.nova.luna.grocery.toGroceryBookingRequest
+import com.nova.luna.model.ActionType
+import com.nova.luna.model.CommandIntent
+import com.nova.luna.model.CommandResult
 
 class ActionExecutor(context: Context) : ActionExecutorGateway {
     private val appLauncher = AppLauncher(context.applicationContext)
@@ -22,11 +34,35 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     private val settingsExecutor = SettingsExecutor(context.applicationContext)
     private val notificationReader = NotificationReader(context.applicationContext)
     private val cabProviderRegistry = CabProviderRegistry(context.applicationContext.packageManager)
+    private val foodProviderRegistry = FoodProviderRegistry(context.applicationContext.packageManager)
     private val cabOrchestrator = CabBookingOrchestrator(
         providerRegistry = cabProviderRegistry,
         deepLinkBuilder = CabDeepLinkBuilder(context.applicationContext, cabProviderRegistry),
         accessibilityService = CabAccessibilityService(),
         locationResolver = AndroidCabLocationResolver(context.applicationContext),
+        providerLauncher = { intent: Intent ->
+            runCatching {
+                context.applicationContext.startActivity(intent)
+                true
+            }.getOrDefault(false)
+        }
+    )
+    private val foodOrchestrator = FoodBookingOrchestrator(
+        providerRegistry = foodProviderRegistry,
+        deepLinkBuilder = FoodDeepLinkBuilder(context.applicationContext, foodProviderRegistry),
+        accessibilityService = FoodAccessibilityService(),
+        providerLauncher = FoodProviderLauncher { intent: Intent ->
+            runCatching {
+                context.applicationContext.startActivity(intent)
+                true
+            }.getOrDefault(false)
+        }
+    )
+    private val groceryProviderRegistry = GroceryProviderRegistry(context.applicationContext.packageManager)
+    private val groceryOrchestrator = GroceryBookingOrchestrator(
+        providerRegistry = groceryProviderRegistry,
+        deepLinkBuilder = GroceryDeepLinkBuilder(context.applicationContext, groceryProviderRegistry),
+        accessibilityService = GroceryAccessibilityService(),
         providerLauncher = { intent: Intent ->
             runCatching {
                 context.applicationContext.startActivity(intent)
@@ -71,7 +107,9 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
                 commandIntent.actionType,
                 commandIntent.entities
             )
-            ActionType.CAB_BOOKING -> cabOrchestrator.start(commandIntent.toCabBookingRequest()).toCommandResult()
+            ActionType.CAB_BOOKING -> cabOrchestrator.start(commandIntent.toCabBookingRequest()).toCabCommandResult()
+            ActionType.FOOD_ORDER -> foodOrchestrator.start(commandIntent.toFoodBookingRequest()).toFoodCommandResult()
+            ActionType.GROCERY_BOOKING -> groceryOrchestrator.start(commandIntent.toGroceryBookingRequest()).toGroceryCommandResult()
             ActionType.STOP_SERVICE -> CommandResult.success(
                 message = "Stopping listening.",
                 intentType = commandIntent.intentType,
@@ -94,11 +132,35 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     }
 
     override fun cancelCabBookingSession(): CommandResult {
-        return cabOrchestrator.cancelSession().toCommandResult()
+        return cabOrchestrator.cancelSession().toCabCommandResult()
     }
 
     override fun handleCabBookingText(rawText: String): CommandResult {
-        return cabOrchestrator.handleUserInput(rawText).toCommandResult()
+        return cabOrchestrator.handleUserInput(rawText).toCabCommandResult()
+    }
+
+    override fun hasActiveFoodBookingSession(): Boolean {
+        return foodOrchestrator.isActive()
+    }
+
+    override fun cancelFoodBookingSession(): CommandResult {
+        return foodOrchestrator.cancelSession().toFoodCommandResult()
+    }
+
+    override fun handleFoodBookingText(rawText: String): CommandResult {
+        return foodOrchestrator.handleUserInput(rawText).toFoodCommandResult()
+    }
+
+    override fun hasActiveGroceryBookingSession(): Boolean {
+        return groceryOrchestrator.isActive()
+    }
+
+    override fun cancelGroceryBookingSession(): CommandResult {
+        return groceryOrchestrator.cancelSession().toGroceryCommandResult()
+    }
+
+    override fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean): CommandResult {
+        return groceryOrchestrator.handleUserInput(rawText, userConfirmed).toGroceryCommandResult()
     }
 
     private fun isDangerousFinalCommand(commandIntent: CommandIntent): Boolean {
@@ -108,7 +170,10 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             append(commandIntent.entities.values.joinToString(separator = " "))
         }.lowercase()
 
-        if (commandIntent.actionType == ActionType.CAB_BOOKING) {
+        if (commandIntent.actionType == ActionType.CAB_BOOKING ||
+            commandIntent.actionType == ActionType.FOOD_ORDER ||
+            commandIntent.actionType == ActionType.GROCERY_BOOKING
+        ) {
             return false
         }
 
@@ -134,6 +199,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             "submit",
             "request ride",
             "request now",
+            "final booking",
             "complete payment"
         )
 

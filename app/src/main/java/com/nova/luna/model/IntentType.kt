@@ -9,6 +9,8 @@ enum class IntentType {
     CONTROL,
     SENSITIVE,
     CAB_BOOKING,
+    FOOD_ORDER,
+    GROCERY_BOOKING,
     BLOCKED,
     UNKNOWN
 }
