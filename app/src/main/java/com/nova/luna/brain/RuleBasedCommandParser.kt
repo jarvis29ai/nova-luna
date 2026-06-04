@@ -5,10 +5,15 @@ import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.IntentType
 import com.nova.luna.cab.CabIntentParser
 import com.nova.luna.cab.toEntities
+import com.nova.luna.food.FoodIntentParser
+import com.nova.luna.food.toEntities as toFoodEntities
+import com.nova.luna.grocery.GroceryIntentParser
 import java.util.Locale
 
 class RuleBasedCommandParser {
     private val cabIntentParser = CabIntentParser()
+    private val groceryIntentParser = GroceryIntentParser()
+    private val foodIntentParser = FoodIntentParser()
     private val blockedKeywords = listOf(
         "send money",
         "pay",
@@ -17,10 +22,17 @@ class RuleBasedCommandParser {
         "buy",
         "checkout",
         "bank",
+        "banking",
         "upi",
         "password",
         "otp",
-        "captcha"
+        "captcha",
+        "login",
+        "sign in",
+        "delete",
+        "erase",
+        "remove account",
+        "transfer money"
     )
 
     fun parse(rawText: String): CommandIntent {
@@ -45,6 +57,26 @@ class RuleBasedCommandParser {
                 intentType = IntentType.CAB_BOOKING,
                 actionType = ActionType.CAB_BOOKING,
                 entities = cabRequest.toEntities()
+            )
+        }
+
+        groceryIntentParser.parseInitialGroceryRequest(rawText)?.let { groceryRequest ->
+            if (groceryRequest.isGroceryBooking) {
+                return CommandIntent(
+                    rawText = rawText,
+                    intentType = IntentType.GROCERY_BOOKING,
+                    actionType = ActionType.GROCERY_BOOKING,
+                    entities = groceryRequest.toEntities()
+                )
+            }
+        }
+
+        foodIntentParser.parse(rawText)?.let { foodRequest ->
+            return CommandIntent(
+                rawText = rawText,
+                intentType = IntentType.FOOD_ORDER,
+                actionType = ActionType.FOOD_ORDER,
+                entities = foodRequest.toFoodEntities()
             )
         }
 
