@@ -238,6 +238,9 @@ object CabBookingVoiceResponses {
                 reason == CabFailureReasons.PROVIDER_FOREGROUND_TIMEOUT ->
                     "the provider app did not come to the foreground"
 
+                reason == CabFailureReasons.BLOCKED_BY_LOCATION_PERMISSION ->
+                    "location permission is missing"
+
                 reason == CabFailureReasons.NO_FARE_VISIBLE ->
                     "no fare was visible on the provider screen"
 

@@ -62,6 +62,16 @@ class GroceryIntentParserTest {
     }
 
     @Test
+    fun `follow up back and dismiss commands cancel the grocery flow`() {
+        listOf("go back", "back", "dismiss").forEach { text ->
+            val followUp = parser.parseFollowUpCommand(text)
+
+            assertNotNull(followUp)
+            assertEquals(GroceryFollowUpType.CANCEL, followUp!!.type)
+        }
+    }
+
+    @Test
     fun `compare requests keep all grocery items structured`() {
         val result = parser.parseInitialGroceryRequest("compare sugar, bread, and atta on Blinkit, JioMart, and Instamart")
 

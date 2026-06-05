@@ -248,10 +248,18 @@ open class FoodAccessibilityService(
             query,
             "search",
             "search restaurant",
+            "search restaurants",
             "search food",
-            "find dishes",
+            "search items",
+            "find restaurant",
             "find restaurants",
+            "find dish",
+            "find dishes",
+            "restaurant",
             "restaurants",
+            "food",
+            "items",
+            "menu",
             "dishes"
         ).any { tapSafeField(it) }
     }
@@ -263,6 +271,8 @@ open class FoodAccessibilityService(
             "$query restaurant",
             "$query food",
             "$query item",
+            "$query dish",
+            "$query menu",
             "$query now"
         ).any { candidate -> service.clickByTextOrDescription(candidate) }
     }
@@ -271,10 +281,14 @@ open class FoodAccessibilityService(
         return listOf(
             "view cart",
             "cart",
+            "my cart",
             "checkout",
             "go to cart",
+            "view basket",
             "basket",
-            "bag"
+            "cart summary",
+            "bag",
+            "shopping bag"
         ).any { tapSafeButton(it) }
     }
 
@@ -324,15 +338,24 @@ open class FoodAccessibilityService(
                 !normalized.contains("delivery") &&
                 !normalized.contains("tax") &&
                 !normalized.contains("discount") &&
-                !normalized.contains("coupon")
+                !normalized.contains("coupon") &&
+                !normalized.contains("total") &&
+                !normalized.contains("payable") &&
+                !normalized.contains("summary") &&
+                !normalized.contains("checkout") &&
+                !normalized.contains("subtotal")
         }
     }
 
     private fun findFinalPayableText(texts: List<String>): String? {
         val priorities = listOf(
             "grand total",
+            "order total",
+            "bill total",
             "amount to pay",
+            "amount payable",
             "final payable",
+            "payable amount",
             "payable",
             "to pay",
             "total",
@@ -376,9 +399,12 @@ open class FoodAccessibilityService(
         return texts.firstOrNull { text ->
             val normalized = text.lowercase(Locale.US)
             normalized.contains("coupon") ||
+                normalized.contains("coupon code") ||
                 normalized.contains("promo") ||
+                normalized.contains("promo code") ||
                 normalized.contains("offer") ||
-                normalized.contains("save")
+                normalized.contains("save") ||
+                normalized.contains("voucher")
         }
     }
 
@@ -409,6 +435,7 @@ open class FoodAccessibilityService(
                 !normalized.contains("checkout") &&
                 !normalized.contains("basket") &&
                 !normalized.contains("bag") &&
+                !normalized.contains("menu") &&
                 !normalized.contains("total") &&
                 !normalized.contains("delivery") &&
                 !normalized.contains("search") &&
@@ -420,11 +447,13 @@ open class FoodAccessibilityService(
         return texts.firstOrNull { text ->
             val normalized = text.lowercase(Locale.US)
             normalized.contains("restaurant") ||
+                normalized.contains("restaurants") ||
                 normalized.contains("cafe") ||
-                normalized.contains("cafe") ||
+                normalized.contains("food court") ||
                 normalized.contains("kitchen") ||
                 normalized.contains("eatery") ||
-                normalized.contains("bistro")
+                normalized.contains("bistro") ||
+                normalized.contains("diner")
         }
     }
 

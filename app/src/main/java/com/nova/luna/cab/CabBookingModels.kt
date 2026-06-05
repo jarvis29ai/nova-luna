@@ -35,6 +35,7 @@ object CabFailureReasons {
     const val PROVIDER_FOREGROUND_TIMEOUT = "provider_foreground_timeout"
     const val PICKUP_FIELD_NOT_FOUND = "pickup_field_not_found"
     const val DESTINATION_FIELD_NOT_FOUND = "destination_field_not_found"
+    const val BLOCKED_BY_LOCATION_PERMISSION = "blocked_by_location_permission"
     const val NO_FARE_VISIBLE = "no_fare_visible"
     const val MANUAL_ACTION_REQUIRED = "manual_action_required"
     const val RIDE_TYPE_NOT_SELECTED = "ride_type_not_selected"
@@ -307,6 +308,7 @@ data class CabBookingResult(
     val finalConfirmationAsked: Boolean = false,
     val manualActionRequired: Boolean = false,
     val manualActionReason: String? = null,
+    val pickupBlockedReason: String? = null,
     val finalUserConfirmed: Boolean = false,
     val currentState: CabBookingState = state
 )
@@ -413,6 +415,7 @@ fun CabBookingResult.toEntities(): Map<String, String> {
         put("currentProviderIndex", currentProviderIndex.toString())
         put("finalConfirmationAsked", finalConfirmationAsked.toString())
         manualActionReason?.takeIf { it.isNotBlank() }?.let { put("manualActionReason", it) }
+        pickupBlockedReason?.takeIf { it.isNotBlank() }?.let { put("pickupBlockedReason", it) }
         request?.let { request ->
             putAll(request.toEntities())
         }

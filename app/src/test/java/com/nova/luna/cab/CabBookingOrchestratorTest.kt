@@ -69,10 +69,17 @@ class CabBookingOrchestratorTest {
     }
 
     @Test
-    fun `current location reply uses placeholder and continues when unavailable`() {
+    fun `current location reply asks for manual pickup when location access is missing`() {
         installProvider(CabProvider.UBER)
         accessibilityService.fareByProvider[CabProvider.UBER] = fareOption(CabProvider.UBER, 124L)
         accessibilityService.setForegroundPackages(CabProviderRegistry.UBER_PACKAGE_NAME)
+        orchestrator = createOrchestrator(
+            locationResolver = object : CabLocationResolver {
+                override fun hasLocationPermission(): Boolean = false
+                override fun getCurrentLocationDisplay(): String? = null
+                override fun getCurrentLatLng(): Pair<Double, Double>? = null
+            }
+        )
 
         val start = orchestrator.start(
             CabBookingRequest(
@@ -86,15 +93,16 @@ class CabBookingOrchestratorTest {
 
         val reply = orchestrator.handleUserInput("current location")
 
-        assertEquals(CabBookingState.SHOWING_COMPARISON, reply.state)
-        assertEquals("Current location", reply.request?.pickupLocation)
+        assertEquals(CabBookingState.NEED_PICKUP, reply.state)
         assertEquals(PickupMode.CURRENT_LOCATION, reply.request?.pickupMode)
-        assertTrue(reply.message.contains(CabBookingVoiceResponses.usingCurrentLocationAsPickup()))
+        assertNull(reply.request?.pickupLocation)
+        assertEquals(CabFailureReasons.BLOCKED_BY_LOCATION_PERMISSION, reply.pickupBlockedReason)
+        assertEquals(CabBookingVoiceResponses.currentLocationUnavailable(), reply.message)
         assertTrue(orchestrator.isActive())
     }
 
     @Test
-    fun `use my current location reply also continues when unavailable`() {
+    fun `use my current location reply also asks for manual pickup when resolver is unavailable`() {
         installProvider(CabProvider.UBER)
         accessibilityService.fareByProvider[CabProvider.UBER] = fareOption(CabProvider.UBER, 124L)
         accessibilityService.setForegroundPackages(CabProviderRegistry.UBER_PACKAGE_NAME)
@@ -109,10 +117,11 @@ class CabBookingOrchestratorTest {
 
         val reply = orchestrator.handleUserInput("Use my current location")
 
-        assertEquals(CabBookingState.SHOWING_COMPARISON, reply.state)
-        assertEquals("Current location", reply.request?.pickupLocation)
+        assertEquals(CabBookingState.NEED_PICKUP, reply.state)
         assertEquals(PickupMode.CURRENT_LOCATION, reply.request?.pickupMode)
-        assertTrue(reply.message.contains(CabBookingVoiceResponses.usingCurrentLocationAsPickup()))
+        assertNull(reply.request?.pickupLocation)
+        assertNull(reply.pickupBlockedReason)
+        assertEquals(CabBookingVoiceResponses.currentLocationUnavailable(), reply.message)
         assertTrue(orchestrator.isActive())
     }
 
@@ -478,6 +487,16 @@ class CabBookingOrchestratorTest {
                 discountText = "UNLIMITED Discounts! Buy Pass Now",
                 manualActionReason = "payment"
             )
+        )
+        orchestrator = createOrchestrator(
+            accessibilityService = accessibilityService,
+            locationResolver = object : CabLocationResolver {
+                override fun hasLocationPermission(): Boolean = true
+
+                override fun getCurrentLocationDisplay(): String? = "Current location"
+
+                override fun getCurrentLatLng(): Pair<Double, Double>? = 23.0 to 77.0
+            }
         )
 
         val result = orchestrator.start(

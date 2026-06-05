@@ -2,9 +2,9 @@
 
 ## Progress Snapshot
 
-- Current app readiness: 50%
+- Current app readiness: 55%
 - `docs/NOVA_LUNA_PROGRESS_CHECKPOINT.md` records the 40% verified command-brain checkpoint.
-- This process-report sync keeps tracked project readiness at 50% because the latest sectioned phone smoke run is still partial for cab, food, and grocery even though the basic and negative safety paths are green.
+- This process-report sync keeps tracked project readiness at 55% because the latest sectioned phone smoke run now has grocery cancel passing cleanly, cab blocked by missing location permission, and food still partial on provider UI even though the basic and negative safety paths are green.
 
 ## Current Setup
 
@@ -42,11 +42,11 @@
 - No real screen taps, typing, settings launches, or permission grants happen in tests.
 - Debug cab smoke now resets the foreground UI to Home before the preflight snapshot and between scenarios so stale provider screens do not leak across smoke cases.
 - Debug brain smoke can be triggered in the debug build with `com.nova.luna.debug.ACTION_RUN_BRAIN_SMOKE` and logs the selected provider, raw response, parsed BrainAction, fallback usage, and final safety decision.
-- Debug command smoke can be triggered in the debug build with `com.nova.luna.debug.ACTION_RUN_COMMAND_SMOKE` and records exact command handling for basic, cab, food, grocery, and negative safety phrases. The debug receiver also writes a cached report in app storage so the phone-side results can be reviewed deterministically. The latest sectioned rerun landed as basic PASS, cab PARTIAL, food PARTIAL, grocery PARTIAL, and negative PASS.
+- Debug command smoke can be triggered in the debug build with `com.nova.luna.debug.ACTION_RUN_COMMAND_SMOKE` and records exact command handling for basic, cab, food, grocery, and negative safety phrases. The debug receiver also writes a cached report in app storage so the phone-side results can be reviewed deterministically. The latest sectioned rerun landed as basic PASS, cab BLOCKED_BY_LOCATION_PERMISSION, food BLOCKED_BY_PROVIDER_UI, grocery PASS, and negative PASS.
 - The brain runtime now tracks phone-only capability modes, role-based routing, offline behavior, Gemma phone runtime readiness, and online-assisted lookup-only preparation without adding a backend.
 - `flutter_app/` remains untouched and must not be added yet.
 - Usage-access settings remains explicit and safety-aware.
-- Sectioned command smoke reruns are used when a single full pass would otherwise stall on a later section, so each family can be verified independently without changing production behavior. In the latest run, the cab flow hit provider-screen manual boundaries, the food flow stopped because supported search/cart controls were not available, and the grocery flow reached comparison but did not cleanly dismiss the final-confirmation state on cancel.
+- Sectioned command smoke reruns are used when a single full pass would otherwise stall on a later section, so each family can be verified independently without changing production behavior. In the latest run, the cab flow reported missing location permission cleanly, the food flow still stopped because supported search/cart controls were not available, and the grocery flow now dismisses the final-confirmation state cleanly on cancel.
 
 ## Verified Test Command
 
@@ -67,10 +67,9 @@
 ## Next Build Steps
 
 1. Improve food provider screen discovery so the comparison step can advance when supported apps are installed.
-2. Fix the grocery cancellation / final-confirmation exit path so follow-up `cancel` commands always clear the session cleanly.
-3. Reduce cab manual-action friction once location permission is granted and the provider screens expose the needed fields.
-4. Keep the sectioned smoke docs synchronized with the actual phone results.
-5. Add or improve tests around the most important assistant behaviors as new fixes land.
+2. Keep cab current-location handling honest when location permission is missing and continue provider-screen continuation work once permission is granted.
+3. Keep the sectioned smoke docs synchronized with the actual phone results.
+4. Add or improve tests around the most important assistant behaviors as new fixes land.
 
 ## Verification Checklist
 

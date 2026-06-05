@@ -245,7 +245,7 @@ This is why the repo still guarantees:
 12. `CabBookingModels` converts the request/session/results into structured entities for command history and speech output.
 13. Debug-only `CabSmokeReceiver` validates the flow without performing the final booking or payment action.
 14. The final booking tap always waits for explicit user confirmation.
-15. The latest sectioned smoke run found Ola and Rapido installed, but the current-location flow still stopped at manual-action boundaries because location permission is missing and the provider screens did not expose every field needed for a clean continuation.
+15. The latest sectioned smoke run found Ola and Rapido installed, and the current-location flow now reports `BLOCKED_BY_LOCATION_PERMISSION` cleanly when location access is missing instead of faking a pickup. Provider screens still do not expose every field needed for a clean continuation on this phone.
 
 ## 7. Food Ordering A-To-Z Flow
 
@@ -277,7 +277,7 @@ This is why the repo still guarantees:
 12. `FoodBookingVoiceResponses` provides the spoken prompts and completions used by the food flow.
 13. Manual-action screens such as payment, OTP, login, CAPTCHA, and password boundaries stop the automation.
 14. The final order tap is only allowed after explicit user confirmation.
-15. The latest sectioned smoke run reached comparison only after a parser-friendly `from Domino's` follow-up, but the supported food providers still did not expose usable search or cart controls on this phone, so food remains PARTIAL and stops before any order or payment.
+15. The latest sectioned smoke run still reaches the food branch and exercises the restaurant follow-up, but the supported food providers still do not expose usable search or cart controls on this phone, so food remains blocked by provider UI and stops before any order or payment.
 
 ## 8. Grocery Booking A-To-Z Flow
 
@@ -313,7 +313,7 @@ This is why the repo still guarantees:
 12. `GroceryBookingVoiceResponses` supplies the spoken prompts, comparison summaries, and completion messages.
 13. Manual-action screens such as payment, OTP, login, CAPTCHA, address friction, replacement selection, and unavailable-item states stay human-only.
 14. The final order tap is only allowed after explicit user confirmation.
-15. The latest sectioned smoke run compared Blinkit, Instamart, and JioMart, then reached final confirmation on Blinkit, but the `cancel grocery` follow-up did not cleanly dismiss the final-confirmation/manual-action state.
+15. The latest sectioned smoke run compares Blinkit, Instamart, and JioMart, and the `cancel grocery` follow-up now dismisses the final-confirmation/manual-action state cleanly.
 
 ## 9. Accessibility And Screen-Understanding Layer
 
@@ -408,13 +408,13 @@ Result:
 - Debug install passed on the connected KB2001 / Android 14 device.
 - Sectioned phone smoke snapshot on the current working tree:
   - basic PASS
-  - cab PARTIAL
-  - food PARTIAL
-  - grocery PARTIAL
+  - cab BLOCKED_BY_LOCATION_PERMISSION
+  - food BLOCKED_BY_PROVIDER_UI
+  - grocery PASS
   - negative PASS
 - No final booking/order/payment/OTP/login/CAPTCHA automation happened.
 
-The repo therefore remains buildable and testable after this code and documentation change set, but the latest phone smoke still shows partial provider-flow blockers that need follow-up work.
+The repo therefore remains buildable and testable after this code and documentation change set, but the latest phone smoke still shows provider-flow blockers for cab and food that need follow-up work.
 
 ## 12. File / Module Inventory
 
@@ -479,8 +479,8 @@ The repo therefore remains buildable and testable after this code and documentat
 
 The repository contains two progress views:
 
-- Current integration completion estimate: about `76%`.
-- Release readiness: `100% candidate` in `docs/FINAL_ANDROID_NATIVE_RELEASE_READINESS_REPORT.md` after final APK verification.
+- Current integration completion estimate: about `78%`.
+- Release readiness: still gated by the latest provider-flow smoke on this phone; cab and food remain blocked while grocery cancel is now clean.
 
 Older process docs may still preserve historical snapshots such as the `50%` figure in `docs/WORK_PROCESS_REPORT.md`. This A-to-Z report reflects the current post-phone-only-brain, food, grocery, safety/executor, and cab-preservation integration status after the verified unit test and debug build success.
 

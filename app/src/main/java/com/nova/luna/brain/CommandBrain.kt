@@ -78,7 +78,7 @@ class CommandBrain(context: Context) {
         }
 
         if (router.hasActiveGroceryBookingSession()) {
-            return router.routeGroceryConversation(normalized)
+            return router.routeGroceryConversation(normalized, userConfirmed = false)
         }
 
         if (!router.hasActiveCabBookingSession() && !router.hasActiveGroceryBookingSession()) {

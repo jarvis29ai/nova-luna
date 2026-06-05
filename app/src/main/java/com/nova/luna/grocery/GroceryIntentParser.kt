@@ -449,6 +449,9 @@ class GroceryIntentParser {
             "stop",
             "stop grocery",
             "cancel grocery",
+            "go back",
+            "back",
+            "dismiss",
             "never mind",
             "nevermind",
             "abort"

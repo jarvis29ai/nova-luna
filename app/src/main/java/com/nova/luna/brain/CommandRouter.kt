@@ -153,7 +153,7 @@ class CommandRouter(
         return route(brainAction, userConfirmed = true)
     }
 
-    fun routeGroceryConversation(rawText: String, userConfirmed: Boolean = true): CommandResult {
+    fun routeGroceryConversation(rawText: String, userConfirmed: Boolean = false): CommandResult {
         val brainAction = BrainAction(
             intent = "grocery_session",
             reply = "Continuing the grocery flow.",

@@ -23,7 +23,22 @@ class CabBookingOrchestrator(
         accessibilityService = accessibilityService,
         fareComparator = fareComparator,
         intentParser = intentParser,
-        locationResolver = pickupLocationResolver?.asLocationResolver(),
+        locationResolver = pickupLocationResolver?.let { pickupResolver ->
+            object : CabLocationResolver {
+                override fun hasLocationPermission(): Boolean = true
+
+                override fun getCurrentLocationDisplay(): String? {
+                    return pickupResolver.resolvePickupLocation()?.label
+                }
+
+                override fun getCurrentLatLng(): Pair<Double, Double>? {
+                    val pickup = pickupResolver.resolvePickupLocation() ?: return null
+                    val lat = pickup.latitude ?: return null
+                    val lon = pickup.longitude ?: return null
+                    return lat to lon
+                }
+            }
+        },
         providerLauncher = providerLauncher
     )
 
@@ -187,7 +202,26 @@ class CabBookingOrchestrator(
 
         if (current.pickup == null) {
             if (current.pickupMode == PickupMode.CURRENT_LOCATION) {
-                current.pickup = resolveCurrentLocationValue()
+                val resolvedLocation = resolveCurrentLocationValue()
+                if (resolvedLocation == null) {
+                    val blockedReason = currentLocationBlockedReason()
+                    CabLogger.d(
+                        "pickup_resolution_blocked",
+                        mapOf(
+                            "mode" to current.pickupMode.name,
+                            "reason" to (blockedReason ?: "current_location_unavailable")
+                        )
+                    )
+                    setState(current, CabBookingState.NEED_PICKUP, "current location unavailable")
+                    return buildSessionResult(
+                        current = current,
+                        state = CabBookingState.NEED_PICKUP,
+                        message = CabBookingVoiceResponses.currentLocationUnavailable(),
+                        pickupBlockedReason = blockedReason
+                    )
+                }
+
+                current.pickup = resolvedLocation
                 CabLogger.d(
                     "pickup_resolution_placeholder",
                     mapOf(
@@ -269,11 +303,8 @@ class CabBookingOrchestrator(
             CabBookingState.NEED_PICKUP -> buildSessionResult(
                 current,
                 CabBookingState.NEED_PICKUP,
-                if (current.pickupMode == PickupMode.CURRENT_LOCATION) {
-                    CabBookingVoiceResponses.usingCurrentLocationAsPickup()
-                } else {
-                    CabBookingVoiceResponses.askPickup()
-                }
+                pickupPromptMessage(current),
+                pickupBlockedReason = pickupBlockedReason(current)
             )
             CabBookingState.NEED_DROP -> buildSessionResult(current, CabBookingState.NEED_DROP, CabBookingVoiceResponses.askDrop())
             CabBookingState.NEED_RIDE_TYPE -> buildSessionResult(current, CabBookingState.NEED_RIDE_TYPE, CabBookingVoiceResponses.askRideType())
@@ -348,8 +379,27 @@ class CabBookingOrchestrator(
         }
 
         if (pickupReply.isCurrentLocation) {
-            current.pickup = resolveCurrentLocationValue()
             current.pickupMode = PickupMode.CURRENT_LOCATION
+            val resolvedLocation = resolveCurrentLocationValue()
+            if (resolvedLocation == null) {
+                val blockedReason = currentLocationBlockedReason()
+                CabLogger.d(
+                    "pickup_reply_current_location_blocked",
+                    mapOf(
+                        "reason" to (blockedReason ?: "current_location_unavailable")
+                    )
+                )
+                current.pickup = null
+                setState(current, CabBookingState.NEED_PICKUP, "current location unavailable")
+                return buildSessionResult(
+                    current = current,
+                    state = CabBookingState.NEED_PICKUP,
+                    message = CabBookingVoiceResponses.currentLocationUnavailable(),
+                    pickupBlockedReason = blockedReason
+                )
+            }
+
+            current.pickup = resolvedLocation
             CabLogger.d(
                 "pickup_reply_current_location",
                 mapOf(
@@ -798,11 +848,8 @@ class CabBookingOrchestrator(
             return buildSessionResult(
                 current,
                 CabBookingState.NEED_PICKUP,
-                if (current.pickupMode == PickupMode.CURRENT_LOCATION) {
-                    CabBookingVoiceResponses.usingCurrentLocationAsPickup()
-                } else {
-                    CabBookingVoiceResponses.askPickup()
-                }
+                pickupPromptMessage(current),
+                pickupBlockedReason = pickupBlockedReason(current)
             )
         }
 
@@ -1073,6 +1120,7 @@ class CabBookingOrchestrator(
         message: String,
         manualActionRequired: Boolean = false,
         manualActionReason: String? = null,
+        pickupBlockedReason: String? = null,
         finalUserConfirmed: Boolean = current.finalUserConfirmed,
         availableProviders: List<CabProvider> = current.fareOptions.map { it.provider }.distinct()
     ): CabBookingResult {
@@ -1092,6 +1140,7 @@ class CabBookingOrchestrator(
             finalConfirmationAsked = current.finalConfirmationAsked,
             manualActionRequired = manualActionRequired,
             manualActionReason = manualActionReason,
+            pickupBlockedReason = pickupBlockedReason,
             finalUserConfirmed = finalUserConfirmed,
             currentState = current.state
         )
@@ -1442,27 +1491,47 @@ class CabBookingOrchestrator(
         )
     }
 
-    private fun resolveCurrentLocationValue(): LocationValue {
+    private fun resolveCurrentLocationValue(): LocationValue? {
         val resolver = locationResolver
-        if (resolver != null && resolver.hasLocationPermission()) {
-            val latLng = resolver.getCurrentLatLng()
-            if (latLng != null) {
-                val displayName = resolver.getCurrentLocationDisplay()?.takeIf { it.isNotBlank() } ?: "Current location"
-                return LocationValue(
-                    rawText = displayName,
-                    isCurrentLocation = true,
-                    latitude = latLng.first,
-                    longitude = latLng.second,
-                    displayName = displayName
-                )
-            }
+        if (resolver == null || !resolver.hasLocationPermission()) {
+            return null
         }
 
+        val latLng = resolver.getCurrentLatLng() ?: return null
+        val displayName = resolver.getCurrentLocationDisplay()?.takeIf { it.isNotBlank() } ?: "Current location"
         return LocationValue(
-            rawText = "current location",
+            rawText = displayName,
             isCurrentLocation = true,
-            displayName = "Current location"
+            latitude = latLng.first,
+            longitude = latLng.second,
+            displayName = displayName
         )
+    }
+
+    private fun currentLocationBlockedReason(): String? {
+        return if (locationResolver?.hasLocationPermission() == false) {
+            CabFailureReasons.BLOCKED_BY_LOCATION_PERMISSION
+        } else {
+            null
+        }
+    }
+
+    private fun pickupPromptMessage(current: CabBookingSession): String {
+        return if (current.pickupMode == PickupMode.CURRENT_LOCATION && current.pickup != null) {
+            CabBookingVoiceResponses.usingCurrentLocationAsPickup()
+        } else if (current.pickupMode == PickupMode.CURRENT_LOCATION) {
+            CabBookingVoiceResponses.currentLocationUnavailable()
+        } else {
+            CabBookingVoiceResponses.askPickup()
+        }
+    }
+
+    private fun pickupBlockedReason(current: CabBookingSession): String? {
+        return if (current.pickupMode == PickupMode.CURRENT_LOCATION && current.pickup == null) {
+            currentLocationBlockedReason()
+        } else {
+            null
+        }
     }
 
     private fun orderedInstalledProviders(current: CabBookingSession): List<CabProvider> {

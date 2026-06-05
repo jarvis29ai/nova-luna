@@ -9,6 +9,7 @@ import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.model.IntentType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -55,6 +56,17 @@ class CommandRouterGroceryTest {
         assertEquals(1, executor.executeCalls)
         assertEquals(0, executor.groceryBookingTextCalls)
         assertEquals(ActionType.GROCERY_BOOKING, executor.lastCommandIntent?.actionType)
+    }
+
+    @Test
+    fun `grocery session helper keeps follow up text unconfirmed by default`() {
+        val executor = FakeActionExecutor()
+        val router = CommandRouter(executor)
+
+        router.routeGroceryConversation("dismiss")
+
+        assertEquals(1, executor.groceryBookingTextCalls)
+        assertFalse(executor.lastGroceryUserConfirmed)
     }
 
     private class FakeActionExecutor : ActionExecutorGateway {
