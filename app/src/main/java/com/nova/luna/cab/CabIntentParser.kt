@@ -40,6 +40,28 @@ class CabIntentParser {
             else -> null
         }
 
+        val rideTime = parseRideTimeReply(trimmed)
+        val preference = parsePreferenceReply(trimmed)
+        val passengerMode = parsePassengerModeReply(trimmed)
+        val selectionIndex = parseSelectionIndexReply(trimmed)
+        val compareOnly = isCompareOnlyRequest(trimmed)
+        val manualPickupRequested = isManualPickupRequest(trimmed)
+        val changePickupRequest = isChangePickupRequest(trimmed)
+        val changeDropRequest = isChangeDropRequest(trimmed)
+        val changeRideTypeRequest = isChangeRideTypeRequest(trimmed)
+        val tryAnotherAppRequest = isTryAnotherAppRequest(trimmed)
+        val safetyNotes = buildList {
+            if (passengerMode == CabPassengerMode.SOMEONE_ELSE) {
+                add("remote booking may need manual confirmation")
+            }
+            if (rideTime == CabRideTime.SCHEDULED) {
+                add("scheduled cab details should be verified before booking")
+            }
+            if (compareOnly) {
+                add("comparison only, do not auto-book")
+            }
+        }
+
         return CabIntentParseResult(
             rawText = rawText,
             isCabBooking = true,
@@ -48,8 +70,24 @@ class CabIntentParser {
             dropText = extractDropFromCommand(trimmed),
             rideType = parseRideTypeFromBookingCommand(trimmed),
             providerPreference = parseProviderChoiceReply(trimmed),
+            rideTime = rideTime,
+            scheduledTimeText = extractScheduledTime(trimmed),
+            preference = preference,
+            passengerMode = passengerMode,
+            manualPickupRequested = manualPickupRequested,
+            compareOnly = compareOnly,
+            bookNow = isBookNowRequest(trimmed),
+            scheduleLater = isScheduleLaterRequest(trimmed),
+            safetyNotes = safetyNotes,
+            selectionIndex = selectionIndex,
             wantsCheapest = isCheapestChoice(trimmed),
-            wantsFirstOne = isFirstChoice(trimmed)
+            wantsFastest = isFastestChoice(trimmed),
+            wantsComfortable = isComfortableChoice(trimmed),
+            wantsFirstOne = isFirstChoice(trimmed) || selectionIndex == 1,
+            changePickupRequest = changePickupRequest,
+            changeDropRequest = changeDropRequest,
+            changeRideTypeRequest = changeRideTypeRequest,
+            tryAnotherAppRequest = tryAnotherAppRequest
         )
     }
 
@@ -66,7 +104,11 @@ class CabIntentParser {
         if (parseRideTypeReply(trimmed) != null || parseProviderChoiceReply(trimmed) != null) {
             return null
         }
-        if (isCheapestChoice(trimmed) || isFirstChoice(trimmed)) return null
+        if (isCheapestChoice(trimmed) || isFastestChoice(trimmed) || isComfortableChoice(trimmed)) return null
+        if (isFirstChoice(trimmed) || parseSelectionIndexReply(trimmed) != null) return null
+        if (isCompareOnlyRequest(trimmed) || isBookNowRequest(trimmed) || isScheduleLaterRequest(trimmed)) return null
+        if (isManualPickupRequest(trimmed) || isChangePickupRequest(trimmed) || isChangeDropRequest(trimmed)) return null
+        if (isChangeRideTypeRequest(trimmed) || isTryAnotherAppRequest(trimmed)) return null
 
         if (isCurrentLocationRequest(trimmed)) {
             return LocationValue(
@@ -107,15 +149,99 @@ class CabIntentParser {
         }
     }
 
-    fun parseProviderChoiceReply(rawText: String): CabProvider? {
+    fun parseRideTimeReply(rawText: String): CabRideTime? {
         val normalized = normalize(rawText)
         return when {
-            containsWord(normalized, "uber") -> CabProvider.UBER
-            containsWord(normalized, "ola") -> CabProvider.OLA
-            containsWord(normalized, "rapido") -> CabProvider.RAPIDO
-            containsPhrase(normalized, "in drive") || containsWord(normalized, "indrive") -> CabProvider.INDRIVE
+            containsPhrase(normalized, "schedule later") ||
+                containsPhrase(normalized, "book later") ||
+                containsPhrase(normalized, "later") ||
+                containsPhrase(normalized, "schedule cab") ||
+                containsPhrase(normalized, "for later") ||
+                containsPhrase(normalized, "tomorrow") ||
+                containsPhrase(normalized, "tonight") -> CabRideTime.SCHEDULED
+
+            containsPhrase(normalized, "book now") ||
+                containsPhrase(normalized, "right now") ||
+                containsPhrase(normalized, "now") ||
+                containsPhrase(normalized, "use now") -> CabRideTime.NOW
+
             else -> null
         }
+    }
+
+    fun parsePreferenceReply(rawText: String): CabRidePreference? {
+        val normalized = normalize(rawText)
+        return when {
+            isCheapestChoice(rawText) || containsPhrase(normalized, "cheapest") ||
+                containsPhrase(normalized, "lowest price") ||
+                containsPhrase(normalized, "lowest fare") -> CabRidePreference.CHEAPEST
+
+            isFastestChoice(rawText) || containsPhrase(normalized, "fastest") ||
+                containsPhrase(normalized, "quickest") ||
+                containsPhrase(normalized, "fastest available") -> CabRidePreference.FASTEST
+
+            containsPhrase(normalized, "preferred app") ||
+                containsPhrase(normalized, "preferred provider") ||
+                containsPhrase(normalized, "preferred cab app") -> CabRidePreference.PROVIDER_SPECIFIC
+
+            isComfortableChoice(rawText) || containsPhrase(normalized, "comfortable") ||
+                containsPhrase(normalized, "comfort") -> CabRidePreference.COMFORTABLE
+
+            parseProviderChoiceReply(rawText) != null -> CabRidePreference.PROVIDER_SPECIFIC
+
+            else -> null
+        }
+    }
+
+    fun parsePassengerModeReply(rawText: String): CabPassengerMode {
+        val normalized = normalize(rawText)
+        return if (containsPhrase(normalized, "someone else") ||
+            containsPhrase(normalized, "for someone else") ||
+            containsPhrase(normalized, "for my friend") ||
+            containsPhrase(normalized, "for another person") ||
+            containsPhrase(normalized, "different location")
+        ) {
+            CabPassengerMode.SOMEONE_ELSE
+        } else {
+            CabPassengerMode.SELF
+        }
+    }
+
+    fun parseSelectionIndexReply(rawText: String): Int? {
+        val normalized = normalize(rawText)
+        return when {
+            containsPhrase(normalized, "first one") ||
+                containsPhrase(normalized, "first option") ||
+                containsPhrase(normalized, "option one") ||
+                containsPhrase(normalized, "choose first") ||
+                containsPhrase(normalized, "pick first") -> 1
+
+            containsPhrase(normalized, "second one") ||
+                containsPhrase(normalized, "second option") ||
+                containsPhrase(normalized, "option two") ||
+                containsPhrase(normalized, "choose second") ||
+                containsPhrase(normalized, "pick second") -> 2
+
+            containsPhrase(normalized, "third one") ||
+                containsPhrase(normalized, "third option") ||
+                containsPhrase(normalized, "option three") ||
+                containsPhrase(normalized, "choose third") ||
+                containsPhrase(normalized, "pick third") -> 3
+
+            else -> null
+        }
+    }
+
+    fun parseProviderChoiceReply(rawText: String): CabProvider? {
+        val normalized = normalize(rawText)
+        val candidates = listOfNotNull(
+            matchProviderMention(normalized, CabProvider.UBER, listOf("uber")),
+            matchProviderMention(normalized, CabProvider.OLA, listOf("ola")),
+            matchProviderMention(normalized, CabProvider.RAPIDO, listOf("rapido")),
+            matchProviderMention(normalized, CabProvider.INDRIVE, listOf("in drive", "indrive"))
+        )
+
+        return candidates.minByOrNull { it.index }?.provider
     }
 
     fun parseFinalConfirmationReply(rawText: String): CabFinalConfirmationReply {
@@ -144,6 +270,30 @@ class CabIntentParser {
 
     fun extractRideType(rawText: String): RideType? {
         return parseRideTypeReply(rawText)
+    }
+
+    fun extractScheduledTime(rawText: String): String? {
+        val trimmed = rawText.trim()
+        if (trimmed.isBlank()) return null
+
+        if (!isScheduleLaterRequest(trimmed) && !looksLikeScheduledTimeText(trimmed)) {
+            return null
+        }
+
+        val scheduledPattern = Regex(
+            """(?:at|on|around|by)\s+(.+)$""",
+            RegexOption.IGNORE_CASE
+        )
+        scheduledPattern.find(trimmed)?.groupValues?.getOrNull(1)?.let { candidate ->
+            val sanitized = candidate.trim().trimEnd('.', ',', '!', '?')
+            if (sanitized.isNotBlank() && looksLikeScheduledTimeText(sanitized)) return sanitized
+        }
+
+        return when {
+            isScheduleLaterRequest(trimmed) -> "later"
+            isBookNowRequest(trimmed) -> "now"
+            else -> null
+        }
     }
 
     fun parseProviderChoice(rawText: String): CabProvider? {
@@ -178,6 +328,29 @@ class CabIntentParser {
             "use the first",
             "book the first",
             "book first one"
+        ).any { containsPhrase(normalized, it) }
+    }
+
+    fun isFastestChoice(rawText: String): Boolean {
+        val normalized = normalize(rawText)
+        return listOf(
+            "fastest",
+            "fastest available",
+            "fastest ride",
+            "quickest",
+            "quickest available",
+            "book fastest",
+            "book the fastest"
+        ).any { containsPhrase(normalized, it) }
+    }
+
+    fun isComfortableChoice(rawText: String): Boolean {
+        val normalized = normalize(rawText)
+        return listOf(
+            "comfortable",
+            "comfort",
+            "best comfort",
+            "more comfortable"
         ).any { containsPhrase(normalized, it) }
     }
 
@@ -245,6 +418,16 @@ class CabIntentParser {
         ).any { containsPhrase(normalized, it) }
     }
 
+    fun isChangeRideTypeRequest(rawText: String): Boolean {
+        return isChangeRideRequest(rawText) ||
+            containsPhrase(normalize(rawText), "change cab type") ||
+            containsPhrase(normalize(rawText), "change vehicle type")
+    }
+
+    fun isChangeCabTypeRequest(rawText: String): Boolean {
+        return isChangeRideTypeRequest(rawText)
+    }
+
     fun isChangeDropRequest(rawText: String): Boolean {
         val normalized = normalize(rawText)
         return listOf(
@@ -264,6 +447,51 @@ class CabIntentParser {
             "change pickup location",
             "change from location"
         ).any { containsPhrase(normalized, it) }
+    }
+
+    fun isManualPickupRequest(rawText: String): Boolean {
+        val normalized = normalize(rawText)
+        return containsPhrase(normalized, "manual pickup") ||
+            containsPhrase(normalized, "use manual pickup") ||
+            containsPhrase(normalized, "manual location") ||
+            containsPhrase(normalized, "type pickup") ||
+            containsPhrase(normalized, "enter pickup manually")
+    }
+
+    fun isCompareOnlyRequest(rawText: String): Boolean {
+        val normalized = normalize(rawText)
+        return containsPhrase(normalized, "compare only") ||
+            containsPhrase(normalized, "compare") ||
+            containsPhrase(normalized, "just compare") ||
+            containsPhrase(normalized, "compare fares only") ||
+            containsPhrase(normalized, "show comparison") ||
+            containsPhrase(normalized, "no booking yet") ||
+            containsPhrase(normalized, "compare available options")
+    }
+
+    fun isBookNowRequest(rawText: String): Boolean {
+        val normalized = normalize(rawText)
+        return containsPhrase(normalized, "book now") ||
+            containsPhrase(normalized, "book it now") ||
+            containsPhrase(normalized, "book today") ||
+            containsPhrase(normalized, "confirm now")
+    }
+
+    fun isScheduleLaterRequest(rawText: String): Boolean {
+        val normalized = normalize(rawText)
+        return containsPhrase(normalized, "schedule later") ||
+            containsPhrase(normalized, "book later") ||
+            containsPhrase(normalized, "later") ||
+            containsPhrase(normalized, "schedule cab") ||
+            containsPhrase(normalized, "for later")
+    }
+
+    fun isTryAnotherAppRequest(rawText: String): Boolean {
+        val normalized = normalize(rawText)
+        return containsPhrase(normalized, "try another app") ||
+            containsPhrase(normalized, "another app") ||
+            containsPhrase(normalized, "switch app") ||
+            containsPhrase(normalized, "try the next app")
     }
 
     fun isCurrentLocationRequest(rawText: String): Boolean {
@@ -312,7 +540,10 @@ class CabIntentParser {
             "check fares",
             "resume fare",
             "resume fares",
-            "compare fares"
+            "compare fares",
+            "search again",
+            "try another app",
+            "try the next app"
         ).any { containsPhrase(normalized, it) }
     }
 
@@ -416,9 +647,33 @@ class CabIntentParser {
             "ride from",
             "ride to",
             "hail a cab",
+            "compare",
+            "compare fares",
+            "compare rides",
+            "find cheapest",
+            "find fastest",
+            "search fares",
+            "search cab",
+            "show fares",
             "book the cheapest",
             "book cheapest",
-            "book first one"
+            "book first one",
+            "book now",
+            "schedule cab",
+            "manual pickup",
+            "use manual pickup",
+            "choose first",
+            "choose second",
+            "choose third",
+            "choose cheapest",
+            "choose fastest",
+            "choose comfortable",
+            "change pickup",
+            "change destination",
+            "change cab type",
+            "try another app",
+            "current location",
+            "use current location"
         )
 
         return cuePhrases.any { normalized.contains(it) }
@@ -433,8 +688,12 @@ class CabIntentParser {
         if (containsBookingCue(normalized)) return false
         if (isAffirmative(trimmed) || isNegative(trimmed) || isPauseCommand(trimmed)) return false
         if (parseProviderChoiceReply(trimmed) != null) return false
-        if (isCheapestChoice(trimmed) || isFirstChoice(trimmed)) return false
+        if (isCheapestChoice(trimmed) || isFastestChoice(trimmed) || isComfortableChoice(trimmed)) return false
+        if (isFirstChoice(trimmed) || parseSelectionIndexReply(trimmed) != null) return false
         if (parseRideTypeReply(trimmed) != null) return false
+        if (isCompareOnlyRequest(trimmed) || isBookNowRequest(trimmed) || isScheduleLaterRequest(trimmed)) return false
+        if (isManualPickupRequest(trimmed) || isChangePickupRequest(trimmed) || isChangeDropRequest(trimmed)) return false
+        if (isChangeRideTypeRequest(trimmed) || isTryAnotherAppRequest(trimmed)) return false
 
         return true
     }
@@ -483,9 +742,36 @@ class CabIntentParser {
         return normalized.contains(Regex("""\b${Regex.escape(normalizedPhrase)}\b"""))
     }
 
+    private fun looksLikeScheduledTimeText(value: String): Boolean {
+        val normalized = normalize(value)
+        return Regex("""\b\d{1,2}(:\d{2})?\s*(?:am|pm)?\b""", RegexOption.IGNORE_CASE).containsMatchIn(normalized) ||
+            listOf("today", "tomorrow", "tonight", "morning", "afternoon", "evening", "night", "later", "now").any {
+                containsPhrase(normalized, it)
+            }
+    }
+
     private fun containsWord(normalized: String, word: String): Boolean {
         return Regex("""\b${Regex.escape(word.lowercase(Locale.US))}\b""").containsMatchIn(normalized)
     }
+
+    private fun matchProviderMention(
+        normalized: String,
+        provider: CabProvider,
+        tokens: List<String>
+    ): ProviderMention? {
+        val matches = tokens.mapNotNull { token ->
+            val pattern = Regex("""\b${Regex.escape(token.lowercase(Locale.US))}\b""")
+            pattern.find(normalized)?.range?.first
+        }
+
+        val index = matches.minOrNull() ?: return null
+        return ProviderMention(provider, index)
+    }
+
+    private data class ProviderMention(
+        val provider: CabProvider,
+        val index: Int
+    )
 
     private fun isWakeWordOrFillerOnly(rawText: String): Boolean {
         val normalized = rawText.lowercase(Locale.US)

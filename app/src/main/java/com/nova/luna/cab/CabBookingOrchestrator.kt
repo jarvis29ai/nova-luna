@@ -1,5 +1,7 @@
 package com.nova.luna.cab
 
+import com.nova.luna.util.AccessibilityReadiness
+
 class CabBookingOrchestrator(
     private val providerRegistry: CabProviderRegistry,
     private val deepLinkBuilder: CabDeepLinkBuilder,
@@ -7,6 +9,7 @@ class CabBookingOrchestrator(
     private val fareComparator: CabFareComparator = CabFareComparator(),
     private val intentParser: CabIntentParser = CabIntentParser(),
     private val locationResolver: CabLocationResolver? = null,
+    private val accessibilityReadyProvider: () -> Boolean = { true },
     private val providerLauncher: CabProviderLauncher
 ) {
     constructor(
@@ -16,6 +19,7 @@ class CabBookingOrchestrator(
         fareComparator: CabFareComparator = CabFareComparator(),
         intentParser: CabIntentParser = CabIntentParser(),
         pickupLocationResolver: CabPickupLocationResolver? = null,
+        accessibilityReadyProvider: () -> Boolean = { true },
         providerLauncher: CabProviderLauncher
     ) : this(
         providerRegistry = providerRegistry,
@@ -23,6 +27,7 @@ class CabBookingOrchestrator(
         accessibilityService = accessibilityService,
         fareComparator = fareComparator,
         intentParser = intentParser,
+        accessibilityReadyProvider = accessibilityReadyProvider,
         locationResolver = pickupLocationResolver?.let { pickupResolver ->
             object : CabLocationResolver {
                 override fun hasLocationPermission(): Boolean = true
@@ -80,8 +85,29 @@ class CabBookingOrchestrator(
             },
             rideType = request.rideType,
             providerPreference = request.preferredProvider,
+            rideTime = request.rideTime,
+            scheduledTimeText = request.scheduledTimeText,
+            preference = request.preference,
+            passengerMode = request.passengerMode,
+            remotePassengerName = request.remotePassengerName,
+            remotePassengerPhone = request.remotePassengerPhone,
+            allowComparison = request.allowComparison,
+            requiresFinalConfirmation = request.requiresFinalConfirmation,
+            safetyNotes = request.safetyNotes.toMutableList(),
+            compareOnly = request.compareOnly,
+            bookNow = request.bookNow,
+            scheduleLater = request.scheduleLater,
+            manualPickupRequested = request.manualPickupRequested,
+            selectionIndex = request.selectionIndex,
             wantsCheapest = request.wantsCheapest,
-            wantsFirstOne = request.wantsFirstOne
+            wantsFastest = request.wantsFastest,
+            wantsComfortable = request.wantsComfortable,
+            wantsFirstOne = request.wantsFirstOne,
+            changePickupRequest = request.changePickupRequest,
+            changeDropRequest = request.changeDropRequest,
+            changeRideTypeRequest = request.changeRideTypeRequest,
+            tryAnotherAppRequest = request.tryAnotherAppRequest,
+            requirementProfile = request.toRequirementProfile()
         )
 
         CabLogger.i(
@@ -93,8 +119,18 @@ class CabBookingOrchestrator(
                 "drop" to request.dropLocation,
                 "rideType" to request.rideType?.name,
                 "providerPreference" to request.preferredProvider?.name,
+                "rideTime" to request.rideTime.name,
+                "preference" to request.preference?.name,
+                "passengerMode" to request.passengerMode.name,
+                "compareOnly" to request.compareOnly,
+                "bookNow" to request.bookNow,
+                "scheduleLater" to request.scheduleLater,
                 "wantsCheapest" to request.wantsCheapest,
-                "wantsFirstOne" to request.wantsFirstOne
+                "wantsFastest" to request.wantsFastest,
+                "wantsComfortable" to request.wantsComfortable,
+                "wantsFirstOne" to request.wantsFirstOne,
+                "selectionIndex" to request.selectionIndex,
+                "tryAnotherAppRequest" to request.tryAnotherAppRequest
             )
         )
 
@@ -179,14 +215,26 @@ class CabBookingOrchestrator(
             CabBookingState.NEED_PICKUP -> handlePickupResponse(trimmed)
             CabBookingState.NEED_DROP -> handleDropResponse(trimmed)
             CabBookingState.NEED_RIDE_TYPE -> handleRideTypeResponse(trimmed)
+            CabBookingState.NEED_RIDE_TIME -> handleRideTimeResponse(trimmed)
+            CabBookingState.NEED_PREFERENCE -> handlePreferenceResponse(trimmed)
             CabBookingState.MANUAL_ACTION_REQUIRED -> handleManualActionFollowUp(trimmed)
             CabBookingState.WAITING_FOR_FINAL_CONFIRMATION -> handleFinalConfirmation(trimmed)
+            CabBookingState.SHOWING_FINAL_SUMMARY,
+            CabBookingState.CHECKING_FINAL_ACTION_SAFETY,
+            CabBookingState.WAITING_FOR_BOOKING_RESPONSE -> handleFinalConfirmation(trimmed)
             CabBookingState.SHOWING_COMPARISON,
             CabBookingState.WAITING_FOR_PLATFORM_CHOICE,
+            CabBookingState.REFINING_SEARCH,
+            CabBookingState.OPENING_SELECTED_PROVIDER,
+            CabBookingState.SELECTING_RIDE,
             CabBookingState.CHECKING_PROVIDERS,
             CabBookingState.OPENING_PROVIDER,
             CabBookingState.FILLING_TRIP,
-            CabBookingState.COLLECTING_FARES -> handlePlatformChoice(trimmed)
+            CabBookingState.COLLECTING_FARES,
+            CabBookingState.COMPARING_OPTIONS -> handlePlatformChoice(trimmed)
+            CabBookingState.CHECKING_PERMISSIONS,
+            CabBookingState.PERMISSION_BLOCKED,
+            CabBookingState.NO_PROVIDER_AVAILABLE -> promptCurrentState()
             CabBookingState.COMPLETED,
             CabBookingState.CANCELLED,
             CabBookingState.FAILED,
@@ -205,6 +253,7 @@ class CabBookingOrchestrator(
                 val resolvedLocation = resolveCurrentLocationValue()
                 if (resolvedLocation == null) {
                     val blockedReason = currentLocationBlockedReason()
+                    val message = currentLocationPromptMessage(blockedReason)
                     CabLogger.d(
                         "pickup_resolution_blocked",
                         mapOf(
@@ -216,7 +265,7 @@ class CabBookingOrchestrator(
                     return buildSessionResult(
                         current = current,
                         state = CabBookingState.NEED_PICKUP,
-                        message = CabBookingVoiceResponses.currentLocationUnavailable(),
+                        message = message,
                         pickupBlockedReason = blockedReason
                     )
                 }
@@ -285,6 +334,25 @@ class CabBookingOrchestrator(
             }
         }
 
+        if (current.rideTime == CabRideTime.SCHEDULED && current.scheduledTimeText.isNullOrBlank()) {
+            setState(current, CabBookingState.NEED_RIDE_TIME, "missing scheduled time")
+            CabLogger.d("missing_field", mapOf("field" to "rideTime"))
+            val result = buildSessionResult(
+                current = current,
+                state = CabBookingState.NEED_RIDE_TIME,
+                message = CabBookingVoiceResponses.askRideTime()
+            )
+            return if (current.pickupMode == PickupMode.CURRENT_LOCATION) {
+                prependCurrentLocationAnnouncement(result)
+            } else {
+                result
+            }
+        }
+
+        if (!accessibilityReadyProvider()) {
+            return accessibilityNotReadyResult(current)
+        }
+
         val result = collectAndCompareFares()
         return if (current.pickupMode == PickupMode.CURRENT_LOCATION) {
             prependCurrentLocationAnnouncement(result)
@@ -308,21 +376,45 @@ class CabBookingOrchestrator(
             )
             CabBookingState.NEED_DROP -> buildSessionResult(current, CabBookingState.NEED_DROP, CabBookingVoiceResponses.askDrop())
             CabBookingState.NEED_RIDE_TYPE -> buildSessionResult(current, CabBookingState.NEED_RIDE_TYPE, CabBookingVoiceResponses.askRideType())
+            CabBookingState.NEED_RIDE_TIME -> buildSessionResult(current, CabBookingState.NEED_RIDE_TIME, CabBookingVoiceResponses.askRideTime())
+            CabBookingState.NEED_PREFERENCE -> buildSessionResult(current, CabBookingState.NEED_PREFERENCE, CabBookingVoiceResponses.askPreference())
             CabBookingState.SHOWING_COMPARISON,
             CabBookingState.WAITING_FOR_PLATFORM_CHOICE,
+            CabBookingState.REFINING_SEARCH,
+            CabBookingState.OPENING_SELECTED_PROVIDER,
+            CabBookingState.SELECTING_RIDE,
             CabBookingState.CHECKING_PROVIDERS,
             CabBookingState.OPENING_PROVIDER,
             CabBookingState.FILLING_TRIP,
-            CabBookingState.COLLECTING_FARES -> {
+            CabBookingState.COLLECTING_FARES,
+            CabBookingState.COMPARING_OPTIONS -> {
                 current.state = CabBookingState.WAITING_FOR_PLATFORM_CHOICE
                 buildSessionResult(
                     current,
                     CabBookingState.WAITING_FOR_PLATFORM_CHOICE,
                     CabBookingVoiceResponses.showComparison(
-                        current.fareOptions,
+                        current.comparisonResult?.rankedTop3?.ifEmpty { current.fareOptions.take(3) } ?: current.fareOptions.take(3),
                         current.skippedProviders,
                         current.providerFailures
                     )
+                )
+            }
+            CabBookingState.SHOWING_FINAL_SUMMARY -> {
+                current.state = CabBookingState.WAITING_FOR_FINAL_CONFIRMATION
+                buildSessionResult(
+                    current,
+                    CabBookingState.WAITING_FOR_FINAL_CONFIRMATION,
+                    current.finalSummary?.let {
+                        listOf(
+                            CabBookingVoiceResponses.finalRideSummary(it),
+                            CabBookingVoiceResponses.askFinalConfirmation(it)
+                        ).joinToString(separator = " ")
+                    } ?: current.selectedFare?.let { CabBookingVoiceResponses.askFinalConfirmation(it) }
+                        ?: CabBookingVoiceResponses.askPlatformChoice(
+                            current.fareOptions,
+                            current.skippedProviders,
+                            current.providerFailures
+                        )
                 )
             }
             CabBookingState.WAITING_FOR_FINAL_CONFIRMATION -> {
@@ -331,7 +423,12 @@ class CabBookingOrchestrator(
                 buildSessionResult(
                     current,
                     CabBookingState.WAITING_FOR_FINAL_CONFIRMATION,
-                    selected?.let { CabBookingVoiceResponses.askFinalConfirmation(it) }
+                    current.finalSummary?.let {
+                        listOf(
+                            CabBookingVoiceResponses.finalRideSummary(it),
+                            CabBookingVoiceResponses.askFinalConfirmation(it)
+                        ).joinToString(separator = " ")
+                    } ?: selected?.let { CabBookingVoiceResponses.askFinalConfirmation(it) }
                         ?: CabBookingVoiceResponses.askPlatformChoice(
                             current.fareOptions,
                             current.skippedProviders,
@@ -339,6 +436,32 @@ class CabBookingOrchestrator(
                         )
                 )
             }
+            CabBookingState.CHECKING_FINAL_ACTION_SAFETY -> buildSessionResult(
+                current,
+                CabBookingState.CHECKING_FINAL_ACTION_SAFETY,
+                "I am checking the final booking button for safety."
+            )
+            CabBookingState.WAITING_FOR_BOOKING_RESPONSE -> buildSessionResult(
+                current,
+                CabBookingState.WAITING_FOR_BOOKING_RESPONSE,
+                current.finalSummary?.let { CabBookingVoiceResponses.bookingCompleted(it) }
+                    ?: "I am waiting for the booking response."
+            )
+            CabBookingState.CHECKING_PERMISSIONS -> buildSessionResult(
+                current,
+                CabBookingState.CHECKING_PERMISSIONS,
+                "I am checking permissions."
+            )
+            CabBookingState.PERMISSION_BLOCKED -> buildSessionResult(
+                current,
+                CabBookingState.PERMISSION_BLOCKED,
+                CabBookingVoiceResponses.currentLocationPermissionRequired()
+            )
+            CabBookingState.NO_PROVIDER_AVAILABLE -> buildSessionResult(
+                current,
+                CabBookingState.NO_PROVIDER_AVAILABLE,
+                CabBookingVoiceResponses.noProvidersAvailable(current.skippedProviders)
+            )
             CabBookingState.MANUAL_ACTION_REQUIRED -> buildSessionResult(
                 current,
                 CabBookingState.MANUAL_ACTION_REQUIRED,
@@ -352,7 +475,8 @@ class CabBookingOrchestrator(
             CabBookingState.COMPLETED -> buildSessionResult(
                 current,
                 CabBookingState.COMPLETED,
-                current.selectedFare?.let { CabBookingVoiceResponses.bookingCompleted(it) }
+                current.finalSummary?.let { CabBookingVoiceResponses.bookingCompleted(it) }
+                    ?: current.selectedFare?.let { CabBookingVoiceResponses.bookingCompleted(it) }
                     ?: "Cab booking completed."
             )
             CabBookingState.CANCELLED -> buildSessionResult(
@@ -383,6 +507,7 @@ class CabBookingOrchestrator(
             val resolvedLocation = resolveCurrentLocationValue()
             if (resolvedLocation == null) {
                 val blockedReason = currentLocationBlockedReason()
+                val message = currentLocationPromptMessage(blockedReason)
                 CabLogger.d(
                     "pickup_reply_current_location_blocked",
                     mapOf(
@@ -394,7 +519,7 @@ class CabBookingOrchestrator(
                 return buildSessionResult(
                     current = current,
                     state = CabBookingState.NEED_PICKUP,
-                    message = CabBookingVoiceResponses.currentLocationUnavailable(),
+                    message = message,
                     pickupBlockedReason = blockedReason
                 )
             }
@@ -463,6 +588,10 @@ class CabBookingOrchestrator(
 
         val rideType = intentParser.parseRideTypeReply(rawText)
         val wantsCheapest = intentParser.isCheapestChoice(rawText)
+        val preference = intentParser.parsePreferenceReply(rawText)
+        if (rideType == null && preference != null) {
+            return handlePreferenceResponse(rawText)
+        }
         if (rideType == null && !wantsCheapest) {
             setState(current, CabBookingState.NEED_RIDE_TYPE, "ride type reply not usable")
             return buildSessionResult(current, CabBookingState.NEED_RIDE_TYPE, CabBookingVoiceResponses.askRideType())
@@ -470,14 +599,65 @@ class CabBookingOrchestrator(
 
         current.rideType = rideType ?: RideType.ANY
         current.wantsCheapest = current.wantsCheapest || wantsCheapest
+        if (preference != null) {
+            current.preference = preference
+            current.wantsFastest = current.wantsFastest || preference == CabRidePreference.FASTEST
+            current.wantsComfortable = current.wantsComfortable || preference == CabRidePreference.COMFORTABLE
+            current.wantsCheapest = current.wantsCheapest || preference == CabRidePreference.CHEAPEST
+        }
         CabLogger.d(
             "ride_type_set",
             mapOf(
                 "rideType" to current.rideType?.name,
-                "wantsCheapest" to current.wantsCheapest
+                "wantsCheapest" to current.wantsCheapest,
+                "preference" to current.preference?.name
             )
         )
         return collectAndCompareFares()
+    }
+
+    private fun handleRideTimeResponse(rawText: String): CabBookingResult {
+        val current = requireSession()
+        val rideTime = intentParser.parseRideTimeReply(rawText)
+        if (rideTime == null) {
+            setState(current, CabBookingState.NEED_RIDE_TIME, "ride time reply not usable")
+            return buildSessionResult(current, CabBookingState.NEED_RIDE_TIME, CabBookingVoiceResponses.askRideTime())
+        }
+
+        current.rideTime = rideTime
+        current.scheduledTimeText = intentParser.extractScheduledTime(rawText) ?: current.scheduledTimeText
+        CabLogger.d(
+            "ride_time_set",
+            mapOf(
+                "rideTime" to current.rideTime.name,
+                "scheduledTimeText" to current.scheduledTimeText
+            )
+        )
+        return advanceFromCurrentRequest()
+    }
+
+    private fun handlePreferenceResponse(rawText: String): CabBookingResult {
+        val current = requireSession()
+        val preference = intentParser.parsePreferenceReply(rawText)
+        if (preference == null) {
+            setState(current, CabBookingState.NEED_PREFERENCE, "preference reply not usable")
+            return buildSessionResult(current, CabBookingState.NEED_PREFERENCE, CabBookingVoiceResponses.askPreference())
+        }
+
+        current.preference = preference
+        current.wantsCheapest = current.wantsCheapest || preference == CabRidePreference.CHEAPEST
+        current.wantsFastest = current.wantsFastest || preference == CabRidePreference.FASTEST
+        current.wantsComfortable = current.wantsComfortable || preference == CabRidePreference.COMFORTABLE
+        CabLogger.d(
+            "preference_set",
+            mapOf(
+                "preference" to current.preference?.name,
+                "wantsCheapest" to current.wantsCheapest,
+                "wantsFastest" to current.wantsFastest,
+                "wantsComfortable" to current.wantsComfortable
+            )
+        )
+        return advanceFromCurrentRequest()
     }
 
     private fun collectAndCompareFares(): CabBookingResult {
@@ -487,8 +667,11 @@ class CabBookingOrchestrator(
         val installedProviders = orderedInstalledProviders(current)
         current.skippedProviders.clear()
         current.providerFailures.clear()
+        current.providerDiagnostics.clear()
         current.fareOptions.clear()
         current.selectedFare = null
+        current.comparisonResult = null
+        current.finalSummary = null
         current.finalConfirmationAsked = false
 
         val missingProviders = providerRegistry.missingProviders()
@@ -505,11 +688,15 @@ class CabBookingOrchestrator(
         )
 
         if (installedProviders.isEmpty()) {
-            setState(current, CabBookingState.FAILED, "no installed providers")
+            setState(current, CabBookingState.NO_PROVIDER_AVAILABLE, "no installed providers")
             val message = CabBookingVoiceResponses.noProvidersAvailable(current.skippedProviders)
-            val result = buildSessionResult(current, CabBookingState.FAILED, message, availableProviders = emptyList())
+            val result = buildSessionResult(current, CabBookingState.NO_PROVIDER_AVAILABLE, message, availableProviders = emptyList())
             clearSession()
             return result
+        }
+
+        if (!accessibilityReadyProvider()) {
+            return accessibilityNotReadyResult(current)
         }
 
         val collectedOptions = mutableListOf<CabFareOption>()
@@ -519,6 +706,7 @@ class CabBookingOrchestrator(
             current.currentProvider = provider
 
             val attempt = attemptProvider(provider, current.toRequest(), collectFare = true)
+            attempt.diagnostics?.let { current.providerDiagnostics[provider] = it }
             CabLogger.d(
                 "provider_attempt_result",
                 mapOf(
@@ -529,7 +717,8 @@ class CabBookingOrchestrator(
                     "selectedRideType" to attempt.selectedRideType,
                     "skipped" to attempt.skipped,
                     "failureReason" to attempt.failureReason,
-                    "manualActionReason" to attempt.manualActionReason
+                    "manualActionReason" to attempt.manualActionReason,
+                    "diagnostics" to attempt.diagnostics?.toSummary()
                 )
             )
 
@@ -594,9 +783,16 @@ class CabBookingOrchestrator(
             return result
         }
 
+        setState(current, CabBookingState.COMPARING_OPTIONS, "ranking provider options")
         val sortedOptions = fareComparator.sortLowestToHighest(collectedOptions)
         current.fareOptions.clear()
         current.fareOptions.addAll(sortedOptions)
+        current.comparisonResult = fareComparator.rankTopOptions(
+            options = sortedOptions,
+            profile = current.toRequest().toRequirementProfile(),
+            skippedProviders = current.skippedProviders,
+            providerFailures = current.providerFailures
+        )
         setState(current, CabBookingState.SHOWING_COMPARISON, "fare comparison ready")
 
         CabLogger.d(
@@ -612,7 +808,7 @@ class CabBookingOrchestrator(
             current,
             CabBookingState.SHOWING_COMPARISON,
             CabBookingVoiceResponses.showComparison(
-                sortedOptions,
+                current.comparisonResult?.rankedTop3?.ifEmpty { sortedOptions.take(3) } ?: sortedOptions.take(3),
                 current.skippedProviders,
                 current.providerFailures
             ),
@@ -623,9 +819,15 @@ class CabBookingOrchestrator(
     private fun handlePlatformChoice(rawText: String): CabBookingResult {
         val current = requireSession()
 
+        if (!accessibilityReadyProvider()) {
+            return accessibilityNotReadyResult(current)
+        }
+
         if (intentParser.isChangeRideRequest(rawText)) {
             current.selectedFare = null
             current.rideType = null
+            current.comparisonResult = null
+            current.finalSummary = null
             setState(current, CabBookingState.NEED_RIDE_TYPE, "user changed ride type")
             return buildSessionResult(current, CabBookingState.NEED_RIDE_TYPE, CabBookingVoiceResponses.askRideType())
         }
@@ -633,6 +835,8 @@ class CabBookingOrchestrator(
         if (intentParser.isChangeDropRequest(rawText)) {
             current.selectedFare = null
             current.drop = null
+            current.comparisonResult = null
+            current.finalSummary = null
             setState(current, CabBookingState.NEED_DROP, "user changed destination")
             return buildSessionResult(current, CabBookingState.NEED_DROP, CabBookingVoiceResponses.askDrop())
         }
@@ -641,19 +845,44 @@ class CabBookingOrchestrator(
             current.selectedFare = null
             current.pickup = null
             current.pickupMode = PickupMode.UNKNOWN
+            current.comparisonResult = null
+            current.finalSummary = null
             setState(current, CabBookingState.NEED_PICKUP, "user changed pickup")
             return buildSessionResult(current, CabBookingState.NEED_PICKUP, CabBookingVoiceResponses.askPickup())
         }
 
+        if (intentParser.isTryAnotherAppRequest(rawText)) {
+            current.selectedFare = null
+            current.finalSummary = null
+            setState(current, CabBookingState.REFINING_SEARCH, "user asked to try another app")
+            return buildSessionResult(
+                current,
+                CabBookingState.REFINING_SEARCH,
+                CabBookingVoiceResponses.askPlatformChoice(
+                    current.fareOptions,
+                    current.skippedProviders,
+                    current.providerFailures
+                ),
+                availableProviders = current.fareOptions.map { it.provider }.distinct()
+            )
+        }
+
+        val rankingOptions = current.comparisonResult?.rankedTop3?.ifEmpty { current.fareOptions.take(3) }
+            ?: current.fareOptions.take(3)
+
         val selectedOption = when {
-            intentParser.isCheapestChoice(rawText) -> current.fareOptions.firstOrNull()
-            intentParser.isFirstChoice(rawText) -> current.fareOptions.firstOrNull()
-            else -> {
-                val provider = intentParser.parseProviderChoiceReply(rawText)
-                provider?.let { providerChoice ->
-                    current.fareOptions.firstOrNull { it.provider == providerChoice }
+            current.selectionIndex != null -> optionBySelectionIndex(current.selectionIndex, rankingOptions)
+            intentParser.parseSelectionIndexReply(rawText) != null -> optionBySelectionIndex(intentParser.parseSelectionIndexReply(rawText), rankingOptions)
+            intentParser.isCheapestChoice(rawText) || current.wantsCheapest -> current.fareOptions.firstOrNull()
+            intentParser.isFastestChoice(rawText) || current.wantsFastest -> current.fareOptions.minByOrNull { it.etaMinutes ?: Int.MAX_VALUE }
+            intentParser.isComfortableChoice(rawText) || current.wantsComfortable -> current.fareOptions.maxByOrNull { comfortScore(it.rideType) }
+            intentParser.parseProviderChoiceReply(rawText) != null -> {
+                val providerChoice = intentParser.parseProviderChoiceReply(rawText)
+                providerChoice?.let { selectedProvider ->
+                    current.fareOptions.firstOrNull { it.provider == selectedProvider }
                 }
             }
+            else -> null
         }
 
         if (selectedOption == null) {
@@ -679,8 +908,10 @@ class CabBookingOrchestrator(
 
         current.selectedFare = selectedOption
         current.providerPreference = selectedOption.provider
+        current.selectionIndex = null
         current.finalUserConfirmed = false
         current.finalConfirmationAsked = false
+        current.finalSummary = null
         CabLogger.d(
             "selected_fare",
             mapOf(
@@ -724,7 +955,12 @@ class CabBookingOrchestrator(
             CabFinalConfirmationReply.DECLINE -> return cancelSession("user cancelled before final booking")
             CabFinalConfirmationReply.NONE -> {
                 setState(current, CabBookingState.WAITING_FOR_FINAL_CONFIRMATION, "final confirmation not understood")
-                val message = selectedOption?.let { CabBookingVoiceResponses.askFinalConfirmation(it) }
+                val message = current.finalSummary?.let {
+                    listOf(
+                        CabBookingVoiceResponses.finalRideSummary(it),
+                        CabBookingVoiceResponses.askFinalConfirmation(it)
+                    ).joinToString(separator = " ")
+                } ?: selectedOption?.let { CabBookingVoiceResponses.askFinalConfirmation(it) }
                     ?: CabBookingVoiceResponses.askPlatformChoice(
                         current.fareOptions,
                         current.skippedProviders,
@@ -745,8 +981,8 @@ class CabBookingOrchestrator(
             return buildSessionResult(
                 current,
                 CabBookingState.WAITING_FOR_PLATFORM_CHOICE,
-                CabBookingVoiceResponses.askPlatformChoice(
-                    current.fareOptions,
+                CabBookingVoiceResponses.showComparison(
+                    current.comparisonResult?.rankedTop3?.ifEmpty { current.fareOptions.take(3) } ?: current.fareOptions.take(3),
                     current.skippedProviders,
                     current.providerFailures
                 ),
@@ -755,7 +991,7 @@ class CabBookingOrchestrator(
         }
 
         current.finalUserConfirmed = true
-        current.state = CabBookingState.BOOKING
+        setState(current, CabBookingState.CHECKING_FINAL_ACTION_SAFETY, "checking final booking safety")
         CabLogger.d(
             "final_confirmation_status",
             mapOf(
@@ -786,16 +1022,21 @@ class CabBookingOrchestrator(
             }
         }
 
+        setState(current, CabBookingState.WAITING_FOR_BOOKING_RESPONSE, "waiting for booking response")
         val postTapManualReason = accessibilityService.detectManualActionRequired()
         if (postTapManualReason != null) {
             return manualAction(current, postTapManualReason)
         }
 
+        val postTapSnapshot = accessibilityService.captureScreenSnapshot()
+        current.finalSummary = buildFinalSummary(current, selectedOption, postTapSnapshot, booked = true)
         setState(current, CabBookingState.COMPLETED, "booking completed")
+        current.finalSummary = current.finalSummary?.copy(state = CabBookingState.COMPLETED)
         val result = buildSessionResult(
             current,
             CabBookingState.COMPLETED,
-            CabBookingVoiceResponses.bookingCompleted(selectedOption),
+            current.finalSummary?.let { CabBookingVoiceResponses.bookingCompleted(it) }
+                ?: CabBookingVoiceResponses.bookingCompleted(selectedOption),
             finalUserConfirmed = true
         )
         clearSession()
@@ -867,6 +1108,9 @@ class CabBookingOrchestrator(
     }
 
     private fun manualAction(current: CabBookingSession, reason: String): CabBookingResult {
+        if (reason == AccessibilityReadiness.BLOCKED_BY_ACCESSIBILITY_NOT_READY) {
+            return accessibilityNotReadyResult(current)
+        }
         val provider = current.currentProvider ?: current.selectedFare?.provider
         return when {
             CabFailureReasons.isFieldMissing(reason) -> manualDestinationHandoff(current, provider, reason)
@@ -1034,6 +1278,7 @@ class CabBookingOrchestrator(
             current.currentProvider = nextProvider
 
             val attempt = attemptProvider(nextProvider, current.toRequest(), collectFare = true)
+            attempt.diagnostics?.let { current.providerDiagnostics[nextProvider] = it }
             CabLogger.d(
                 "resume_provider_attempt_result",
                 mapOf(
@@ -1044,7 +1289,8 @@ class CabBookingOrchestrator(
                     "selectedRideType" to attempt.selectedRideType,
                     "skipped" to attempt.skipped,
                     "failureReason" to attempt.failureReason,
-                    "manualActionReason" to attempt.manualActionReason
+                    "manualActionReason" to attempt.manualActionReason,
+                    "diagnostics" to attempt.diagnostics?.toSummary()
                 )
             )
 
@@ -1124,11 +1370,14 @@ class CabBookingOrchestrator(
         finalUserConfirmed: Boolean = current.finalUserConfirmed,
         availableProviders: List<CabProvider> = current.fareOptions.map { it.provider }.distinct()
     ): CabBookingResult {
+        current.requirementProfile = current.toRequest().toRequirementProfile()
         return CabBookingResult(
             state = state,
             message = message,
             request = current.toRequest(),
             fareOptions = current.fareOptions.toList(),
+            comparisonResult = current.comparisonResult,
+            finalSummary = current.finalSummary,
             selectedOption = current.selectedFare,
             selectedFareOption = current.selectedFare,
             selectedFare = current.selectedFare,
@@ -1142,6 +1391,7 @@ class CabBookingOrchestrator(
             manualActionReason = manualActionReason,
             pickupBlockedReason = pickupBlockedReason,
             finalUserConfirmed = finalUserConfirmed,
+            providerDiagnostics = current.providerDiagnostics.toMap(),
             currentState = current.state
         )
     }
@@ -1152,6 +1402,23 @@ class CabBookingOrchestrator(
         collectFare: Boolean
     ): ProviderAttemptResult {
         val current = requireSession()
+        if (!accessibilityReadyProvider()) {
+            return ProviderAttemptResult(
+                provider = provider,
+                opened = false,
+                filledPickup = false,
+                filledDrop = false,
+                selectedRideType = false,
+                failureReason = AccessibilityReadiness.BLOCKED_BY_ACCESSIBILITY_NOT_READY,
+                diagnostics = accessibilityService.captureUiDiagnostics(
+                    provider = provider,
+                    reason = AccessibilityReadiness.BLOCKED_BY_ACCESSIBILITY_NOT_READY,
+                    missingControlType = "accessibility",
+                    attemptedQueries = emptyList()
+                )
+            )
+        }
+
         val launchPlan = deepLinkBuilder.buildLaunchPlan(provider, request, null)
         CabLogger.d(
             "deep_link_result",
@@ -1179,7 +1446,14 @@ class CabBookingOrchestrator(
                 selectedRideType = false,
                 failureReason = launchOutcome.failureReason
                     ?: launchPlan.failureReason
-                    ?: CabFailureReasons.PROVIDER_NOT_OPENED
+                    ?: CabFailureReasons.PROVIDER_NOT_OPENED,
+                diagnostics = accessibilityService.captureUiDiagnostics(
+                    provider = provider,
+                    reason = launchOutcome.failureReason
+                        ?: launchPlan.failureReason
+                        ?: CabFailureReasons.PROVIDER_NOT_OPENED,
+                    attemptedQueries = emptyList()
+                )
             )
         }
 
@@ -1202,7 +1476,13 @@ class CabBookingOrchestrator(
                 filledPickup = false,
                 filledDrop = false,
                 selectedRideType = false,
-                failureReason = CabFailureReasons.PROVIDER_NOT_OPENED
+                failureReason = CabFailureReasons.PROVIDER_NOT_OPENED,
+                diagnostics = accessibilityService.captureUiDiagnostics(
+                    provider = provider,
+                    reason = CabFailureReasons.PROVIDER_NOT_OPENED,
+                    snapshot = preFillSnapshot,
+                    attemptedQueries = emptyList()
+                )
             )
         }
 
@@ -1219,7 +1499,13 @@ class CabBookingOrchestrator(
                 filledPickup = false,
                 filledDrop = false,
                 selectedRideType = false,
-                manualActionReason = preFillManualReason
+                manualActionReason = preFillManualReason,
+                diagnostics = accessibilityService.captureUiDiagnostics(
+                    provider = provider,
+                    reason = preFillManualReason,
+                    snapshot = preFillSnapshot,
+                    attemptedQueries = emptyList()
+                )
             )
         }
 
@@ -1245,7 +1531,13 @@ class CabBookingOrchestrator(
                 filledPickup = tripFill.filledPickup,
                 filledDrop = tripFill.filledDrop,
                 selectedRideType = tripFill.selectedRideType,
-                failureReason = CabFailureReasons.PROVIDER_NOT_OPENED
+                failureReason = CabFailureReasons.PROVIDER_NOT_OPENED,
+                diagnostics = tripFill.diagnostics ?: accessibilityService.captureUiDiagnostics(
+                    provider = provider,
+                    reason = CabFailureReasons.PROVIDER_NOT_OPENED,
+                    snapshot = postFillSnapshot,
+                    attemptedQueries = emptyList()
+                )
             )
         }
         CabLogger.d(
@@ -1267,7 +1559,13 @@ class CabBookingOrchestrator(
                 filledPickup = tripFill.filledPickup,
                 filledDrop = tripFill.filledDrop,
                 selectedRideType = tripFill.selectedRideType,
-                manualActionReason = postFillManualReason
+                manualActionReason = postFillManualReason,
+                diagnostics = tripFill.diagnostics ?: accessibilityService.captureUiDiagnostics(
+                    provider = provider,
+                    reason = postFillManualReason,
+                    snapshot = postFillSnapshot,
+                    attemptedQueries = emptyList()
+                )
             )
         }
 
@@ -1284,6 +1582,12 @@ class CabBookingOrchestrator(
                 } else {
                     null
                 },
+                diagnostics = tripFill.diagnostics ?: accessibilityService.captureUiDiagnostics(
+                    provider = provider,
+                    reason = tripFill.failureReason ?: CabFailureReasons.MANUAL_ACTION_REQUIRED,
+                    snapshot = postFillSnapshot,
+                    attemptedQueries = emptyList()
+                ),
                 skipped = !CabFailureReasons.isFieldMissing(tripFill.failureReason)
             )
         }
@@ -1317,7 +1621,13 @@ class CabBookingOrchestrator(
                 filledPickup = tripFill.filledPickup,
                 filledDrop = tripFill.filledDrop,
                 selectedRideType = tripFill.selectedRideType,
-                failureReason = fareCollection.failureReason ?: CabFailureReasons.NO_FARE_VISIBLE
+                failureReason = fareCollection.failureReason ?: CabFailureReasons.NO_FARE_VISIBLE,
+                diagnostics = tripFill.diagnostics ?: accessibilityService.captureUiDiagnostics(
+                    provider = provider,
+                    reason = fareCollection.failureReason ?: CabFailureReasons.NO_FARE_VISIBLE,
+                    snapshot = postFillSnapshot,
+                    attemptedQueries = emptyList()
+                )
             )
         }
 
@@ -1327,7 +1637,13 @@ class CabBookingOrchestrator(
             filledPickup = tripFill.filledPickup,
             filledDrop = tripFill.filledDrop,
             selectedRideType = tripFill.selectedRideType,
-            fareOption = fareCollection.fareOption
+            fareOption = fareCollection.fareOption,
+            diagnostics = tripFill.diagnostics ?: accessibilityService.captureUiDiagnostics(
+                provider = provider,
+                reason = null,
+                snapshot = postFillSnapshot,
+                attemptedQueries = emptyList()
+            )
         )
     }
 
@@ -1335,6 +1651,10 @@ class CabBookingOrchestrator(
         current: CabBookingSession,
         selectedOption: CabFareOption
     ): CabBookingResult? {
+        if (!accessibilityReadyProvider()) {
+            return accessibilityNotReadyResult(current)
+        }
+
         current.currentProvider = selectedOption.provider
         val request = current.toRequest().copy(
             preferredProvider = selectedOption.provider,
@@ -1472,8 +1792,11 @@ class CabBookingOrchestrator(
             )
         }
 
+        current.finalSummary = buildFinalSummary(current, selectedOption, snapshot).copy(
+            state = CabBookingState.SHOWING_FINAL_SUMMARY
+        )
         current.finalConfirmationAsked = true
-        setState(current, CabBookingState.WAITING_FOR_FINAL_CONFIRMATION, "selected provider prepared")
+        setState(current, CabBookingState.SHOWING_FINAL_SUMMARY, "final ride summary ready")
         CabLogger.d(
             "awaiting_final_confirmation",
             mapOf(
@@ -1483,12 +1806,104 @@ class CabBookingOrchestrator(
             )
         )
 
+        val summaryMessage = current.finalSummary?.let { CabBookingVoiceResponses.finalRideSummary(it) }.orEmpty()
+        val confirmationMessage = current.finalSummary?.let { CabBookingVoiceResponses.askFinalConfirmation(it) }
+            ?: CabBookingVoiceResponses.askFinalConfirmation(selectedOption)
+        setState(current, CabBookingState.WAITING_FOR_FINAL_CONFIRMATION, "awaiting final confirmation")
         return buildSessionResult(
             current,
             CabBookingState.WAITING_FOR_FINAL_CONFIRMATION,
-            CabBookingVoiceResponses.askFinalConfirmation(selectedOption),
+            listOf(summaryMessage, confirmationMessage).filter { it.isNotBlank() }.joinToString(separator = " "),
             availableProviders = current.fareOptions.map { it.provider }.distinct()
         )
+    }
+
+    private fun optionBySelectionIndex(
+        selectionIndex: Int?,
+        options: List<CabFareOption>
+    ): CabFareOption? {
+        if (selectionIndex == null) return null
+        return when (selectionIndex) {
+            1 -> options.getOrNull(0)
+            2 -> options.getOrNull(1)
+            3 -> options.getOrNull(2)
+            else -> options.getOrNull((selectionIndex - 1).coerceAtLeast(0))
+        }
+    }
+
+    private fun comfortScore(rideType: RideType): Int {
+        return when (rideType) {
+            RideType.SUV -> 40
+            RideType.SEDAN -> 30
+            RideType.MINI -> 20
+            RideType.AUTO -> 10
+            RideType.BIKE -> 0
+            RideType.ANY -> 0
+        }
+    }
+
+    private fun buildFinalSummary(
+        current: CabBookingSession,
+        selectedOption: CabFareOption,
+        snapshot: CabScreenSnapshot? = null,
+        booked: Boolean = false
+    ): CabBookingFinalSummary {
+        val driverDetails = accessibilityService.extractDriverDetails(snapshot)
+        val fareText = selectedOption.finalFareText
+            ?: selectedOption.visibleFareText
+            ?: selectedOption.finalFareAmount?.let { "₹$it" }
+            ?: selectedOption.visibleFareAmount?.let { "₹$it" }
+        val pickupEtaText = selectedOption.etaText
+            ?: selectedOption.etaMinutes?.let { "$it min" }
+        val travelTimeText = accessibilityService.extractTravelTimeText(snapshot)
+        val paymentModeText = accessibilityService.extractPaymentModeText(snapshot)
+        val warnings = buildList {
+            tripFillWarningText(snapshot)?.let { add(it) }
+            selectedOption.discountText?.takeIf { it.isNotBlank() && it.lowercase().contains("warning") }?.let { add(it) }
+        }.distinct()
+        val nextSteps = buildList {
+            if (booked) {
+                add("Payment/OTP/login/CAPTCHA must be completed manually if prompted.")
+            } else {
+                add("Please confirm this ride to continue.")
+            }
+        }
+        return CabBookingFinalSummary(
+            state = current.state,
+            provider = selectedOption.provider,
+            pickup = current.pickup?.displayText() ?: current.pickupLocationForSummary(),
+            destination = current.drop?.displayText() ?: current.dropLocationForSummary(),
+            cabType = selectedOption.rideType,
+            estimatedFareText = fareText,
+            pickupEtaText = pickupEtaText,
+            travelTimeText = travelTimeText,
+            paymentModeText = paymentModeText,
+            driverName = driverDetails?.driverName,
+            vehicleNumber = driverDetails?.vehicleNumber,
+            warnings = warnings,
+            nextSteps = nextSteps,
+            manualActionRequired = false,
+            voiceMessage = null,
+            popupMessage = null
+        )
+    }
+
+    private fun tripFillWarningText(snapshot: CabScreenSnapshot?): String? {
+        return snapshot?.warningText
+            ?: snapshot?.sourceText?.takeIf {
+                it.contains("surge", ignoreCase = true) ||
+                    it.contains("cancellation", ignoreCase = true) ||
+                    it.contains("cancel fee", ignoreCase = true) ||
+                    it.contains("high demand", ignoreCase = true)
+            }
+    }
+
+    private fun CabBookingSession.pickupLocationForSummary(): String? {
+        return pickup?.displayText()
+    }
+
+    private fun CabBookingSession.dropLocationForSummary(): String? {
+        return drop?.displayText()
     }
 
     private fun resolveCurrentLocationValue(): LocationValue? {
@@ -1520,9 +1935,17 @@ class CabBookingOrchestrator(
         return if (current.pickupMode == PickupMode.CURRENT_LOCATION && current.pickup != null) {
             CabBookingVoiceResponses.usingCurrentLocationAsPickup()
         } else if (current.pickupMode == PickupMode.CURRENT_LOCATION) {
-            CabBookingVoiceResponses.currentLocationUnavailable()
+            currentLocationPromptMessage(pickupBlockedReason(current))
         } else {
             CabBookingVoiceResponses.askPickup()
+        }
+    }
+
+    private fun currentLocationPromptMessage(blockedReason: String?): String {
+        return if (blockedReason == CabFailureReasons.BLOCKED_BY_LOCATION_PERMISSION) {
+            CabBookingVoiceResponses.currentLocationPermissionRequired()
+        } else {
+            CabBookingVoiceResponses.currentLocationUnavailable()
         }
     }
 
@@ -1804,6 +2227,18 @@ class CabBookingOrchestrator(
 
     private fun clearSession() {
         session = null
+    }
+
+    private fun accessibilityNotReadyResult(current: CabBookingSession): CabBookingResult {
+        current.state = CabBookingState.MANUAL_ACTION_REQUIRED
+        current.manualActionReason = AccessibilityReadiness.BLOCKED_BY_ACCESSIBILITY_NOT_READY
+        return buildSessionResult(
+            current = current,
+            state = CabBookingState.MANUAL_ACTION_REQUIRED,
+            message = AccessibilityReadiness.blockedMessage(),
+            manualActionRequired = true,
+            manualActionReason = current.manualActionReason
+        )
     }
 
 }

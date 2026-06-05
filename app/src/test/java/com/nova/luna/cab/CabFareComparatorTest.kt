@@ -2,6 +2,7 @@ package com.nova.luna.cab
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -68,5 +69,38 @@ class CabFareComparatorTest {
             CabProvider.OLA,
             CabProvider.INDRIVE
         ), sorted.map { it.provider })
+    }
+
+    @Test
+    fun `rank top options respects fastest preference`() {
+        val options = listOf(
+            CabFareOption(
+                provider = CabProvider.UBER,
+                rideType = RideType.SEDAN,
+                visibleFareText = "₹140",
+                etaText = "ETA 8 min"
+            ),
+            CabFareOption(
+                provider = CabProvider.RAPIDO,
+                rideType = RideType.BIKE,
+                visibleFareText = "₹90",
+                etaText = "ETA 3 min"
+            ),
+            CabFareOption(
+                provider = CabProvider.OLA,
+                rideType = RideType.MINI,
+                visibleFareText = "₹110",
+                etaText = "ETA 5 min"
+            )
+        )
+
+        val comparison = comparator.rankTopOptions(
+            options = options,
+            profile = CabRequirementProfile(preference = CabRidePreference.FASTEST)
+        )
+
+        assertEquals(3, comparison.rankedTop3.size)
+        assertEquals(CabProvider.RAPIDO, comparison.recommendedOption?.provider)
+        assertTrue(comparison.rankingReasons[CabProvider.RAPIDO]?.any { it.code == "fastest_preference" } == true)
     }
 }

@@ -11,7 +11,8 @@ data class CabDeepLinkResult(
     val supportsDirectTripIntent: Boolean = false,
     val needsAccessibilityFill: Boolean = true,
     val failureReason: String? = null,
-    val launchMode: String? = null
+    val launchMode: String? = null,
+    val status: CabLaunchStatus = CabLaunchStatus.UNKNOWN
 )
 
 open class CabDeepLinkBuilder(
@@ -41,7 +42,8 @@ open class CabDeepLinkBuilder(
                 launched = true,
                 supportsDirectTripIntent = true,
                 needsAccessibilityFill = true,
-                launchMode = "direct_trip"
+                launchMode = "direct_trip",
+                status = CabLaunchStatus.SUCCESS
             )
         }
 
@@ -60,7 +62,8 @@ open class CabDeepLinkBuilder(
                 launched = true,
                 supportsDirectTripIntent = false,
                 needsAccessibilityFill = true,
-                launchMode = "geo"
+                launchMode = "geo",
+                status = CabLaunchStatus.SUCCESS
             )
         }
 
@@ -81,7 +84,8 @@ open class CabDeepLinkBuilder(
                 launched = false,
                 supportsDirectTripIntent = false,
                 needsAccessibilityFill = true,
-                failureReason = "no launch intent available"
+                failureReason = "no launch intent available",
+                status = CabLaunchStatus.APP_MISSING
             )
         }
 
@@ -104,7 +108,8 @@ open class CabDeepLinkBuilder(
                 launched = true,
                 supportsDirectTripIntent = false,
                 needsAccessibilityFill = true,
-                launchMode = "package"
+                launchMode = "package",
+                status = CabLaunchStatus.SUCCESS
             )
         }.getOrElse { throwable ->
             CabLogger.e(
@@ -120,7 +125,8 @@ open class CabDeepLinkBuilder(
                 launched = false,
                 supportsDirectTripIntent = false,
                 needsAccessibilityFill = true,
-                failureReason = throwable.message ?: "could not build launch intent"
+                failureReason = throwable.message ?: "could not build launch intent",
+                status = CabLaunchStatus.UNSUPPORTED_DEEP_LINK
             )
         }
     }

@@ -13,6 +13,15 @@ data class CabFareCandidate(
     val isLikelyFinal: Boolean = false
 )
 
+data class CabDriverDetails(
+    val driverName: String? = null,
+    val vehicleNumber: String? = null,
+    val paymentModeText: String? = null,
+    val warningText: String? = null,
+    val pickupEtaText: String? = null,
+    val fareText: String? = null
+)
+
 data class CabScreenSnapshot(
     val visibleText: List<String>,
     val sourceText: String? = null,
@@ -20,7 +29,12 @@ data class CabScreenSnapshot(
     val visibleFareText: String? = null,
     val finalFareText: String? = null,
     val etaText: String? = null,
+    val travelTimeText: String? = null,
+    val paymentModeText: String? = null,
     val rideTypeText: String? = null,
+    val driverNameText: String? = null,
+    val vehicleNumberText: String? = null,
+    val warningText: String? = null,
     val couponText: String? = null,
     val discountText: String? = null,
     val manualActionReason: String? = null,
@@ -30,6 +44,8 @@ data class CabScreenSnapshot(
 open class CabAccessibilityService(
     private val fareComparator: CabFareComparator = CabFareComparator()
 ) {
+    private var lastMissingControlType: String? = null
+
     private val providerPackages = setOf(
         CabProviderRegistry.UBER_PACKAGE_NAME,
         CabProviderRegistry.OLA_PACKAGE_NAME,
@@ -114,7 +130,12 @@ open class CabAccessibilityService(
                 ?: fareCandidates.firstOrNull { it.isLikelyFinal }?.rawText
                 ?: visibleFareText
             val etaText = findEtaText(visibleText)
+            val travelTimeText = findTravelTimeText(visibleText)
+            val paymentModeText = findPaymentModeText(visibleText)
             val rideTypeText = findRideTypeText(visibleText)
+            val driverNameText = findDriverNameText(visibleText)
+            val vehicleNumberText = findVehicleNumberText(visibleText)
+            val warningText = findWarningText(visibleText)
             val couponText = findCouponText(visibleText)
             val discountText = findDiscountText(visibleText)
             val sourcePackageName = root.packageName?.toString()
@@ -131,7 +152,12 @@ open class CabAccessibilityService(
                 visibleFareText = visibleFareText,
                 finalFareText = finalFareText,
                 etaText = etaText,
+                travelTimeText = travelTimeText,
+                paymentModeText = paymentModeText,
                 rideTypeText = rideTypeText,
+                driverNameText = driverNameText,
+                vehicleNumberText = vehicleNumberText,
+                warningText = warningText,
                 couponText = couponText,
                 discountText = discountText,
                 manualActionReason = manualActionReason,
@@ -145,7 +171,12 @@ open class CabAccessibilityService(
                     "fareText" to visibleFareText,
                     "finalFareText" to finalFareText,
                     "etaText" to etaText,
+                    "travelTimeText" to travelTimeText,
+                    "paymentModeText" to paymentModeText,
                     "rideTypeText" to rideTypeText,
+                    "driverNameText" to driverNameText,
+                    "vehicleNumberText" to vehicleNumberText,
+                    "warningText" to warningText,
                     "couponText" to couponText,
                     "discountText" to discountText,
                     "manualActionReason" to manualActionReason,
@@ -170,6 +201,64 @@ open class CabAccessibilityService(
             fields.distinct()
         } finally {
             root.recycle()
+        }
+    }
+
+    open fun findClickableFields(): List<String> {
+        val service = NovaAccessibilityService.instance ?: return emptyList()
+        val root = service.rootInActiveWindow ?: return emptyList()
+
+        return try {
+            AccessibilityNodeUtils.collectClickableNodeLabels(root)
+        } finally {
+            root.recycle()
+        }
+    }
+
+    open fun captureUiDiagnostics(
+        provider: CabProvider? = null,
+        reason: String? = null,
+        attemptedQueries: List<String> = emptyList(),
+        missingControlType: String? = null,
+        snapshot: CabScreenSnapshot? = captureScreenSnapshot()
+    ): CabUiDiagnostics? {
+        val service = NovaAccessibilityService.instance ?: return null
+        val root = service.rootInActiveWindow
+        val visibleLabels = snapshot?.visibleText?.take(12).orEmpty()
+        val packageName = snapshot?.sourcePackageName ?: root?.packageName?.toString()
+        val screenClassName = root?.className?.toString()?.trim()?.takeIf { it.isNotBlank() }
+        val screenText = snapshot?.sourceText ?: visibleLabels.joinToString(separator = " | ")
+        val editableLabels = findEditableFields().take(12)
+        val clickableLabels = findClickableFields().take(12)
+
+        return try {
+            if (
+                provider == null &&
+                reason.isNullOrBlank() &&
+                packageName.isNullOrBlank() &&
+                screenText.isNullOrBlank() &&
+                visibleLabels.isEmpty() &&
+                editableLabels.isEmpty() &&
+                clickableLabels.isEmpty() &&
+                attemptedQueries.isEmpty()
+            ) {
+                null
+            } else {
+                CabUiDiagnostics(
+                    provider = provider,
+                    reason = reason,
+                    packageName = packageName,
+                    screenClassName = screenClassName,
+                    screenText = screenText,
+                    visibleLabels = visibleLabels,
+                    editableLabels = editableLabels,
+                    clickableLabels = clickableLabels,
+                    attemptedQueries = attemptedQueries.distinct().take(12),
+                    missingControlType = missingControlType
+                )
+            }
+        } finally {
+            root?.recycle()
         }
     }
 
@@ -208,6 +297,7 @@ open class CabAccessibilityService(
         drop: LocationValue?,
         rideType: RideType?
     ): CabTripFillResult {
+        lastMissingControlType = null
         return when (provider) {
             CabProvider.OLA -> fillOlaTrip(pickup, drop, rideType)
             CabProvider.RAPIDO -> fillRapidoTrip(pickup, drop, rideType)
@@ -234,6 +324,7 @@ open class CabAccessibilityService(
         val keywords = buildPickupKeywords(pickup.isCurrentLocation)
 
         if (!clickTextOrDescriptionAnyOf(keywords)) {
+            lastMissingControlType = "pickup"
             CabLogger.w(
                 "fill_pickup_failed",
                 mapOf("pickup" to location)
@@ -257,6 +348,7 @@ open class CabAccessibilityService(
         val keywords = buildDropKeywords()
 
         if (!clickTextOrDescriptionAnyOf(keywords)) {
+            lastMissingControlType = "destination"
             CabLogger.w(
                 "fill_drop_failed",
                 mapOf("drop" to location)
@@ -503,6 +595,51 @@ open class CabAccessibilityService(
         return reason
     }
 
+    open fun detectUnsafeScreen(snapshot: CabScreenSnapshot? = captureScreenSnapshot()): String? {
+        return detectManualActionRequired(snapshot)
+    }
+
+    open fun readRideOptionCards(snapshot: CabScreenSnapshot? = captureScreenSnapshot()): List<CabFareCandidate> {
+        return snapshot?.fareCandidates.orEmpty()
+    }
+
+    open fun extractPaymentModeText(snapshot: CabScreenSnapshot? = captureScreenSnapshot()): String? {
+        return snapshot?.paymentModeText ?: snapshot?.visibleText?.let(::findPaymentModeText)
+    }
+
+    open fun extractTravelTimeText(snapshot: CabScreenSnapshot? = captureScreenSnapshot()): String? {
+        return snapshot?.travelTimeText ?: snapshot?.visibleText?.let(::findTravelTimeText)
+    }
+
+    open fun extractDriverDetails(snapshot: CabScreenSnapshot? = captureScreenSnapshot()): CabDriverDetails? {
+        val visibleText = snapshot?.visibleText.orEmpty()
+        val driverName = snapshot?.driverNameText ?: findDriverNameText(visibleText)
+        val vehicleNumber = snapshot?.vehicleNumberText ?: findVehicleNumberText(visibleText)
+        val paymentModeText = snapshot?.paymentModeText ?: findPaymentModeText(visibleText)
+        val warningText = snapshot?.warningText ?: findWarningText(visibleText)
+        val travelTimeText = snapshot?.travelTimeText ?: findTravelTimeText(visibleText)
+        val fareText = snapshot?.finalFareText ?: snapshot?.visibleFareText
+
+        return if (driverName == null &&
+            vehicleNumber == null &&
+            paymentModeText == null &&
+            warningText == null &&
+            travelTimeText == null &&
+            fareText == null
+        ) {
+            null
+        } else {
+            CabDriverDetails(
+                driverName = driverName,
+                vehicleNumber = vehicleNumber,
+                paymentModeText = paymentModeText,
+                warningText = warningText,
+                pickupEtaText = travelTimeText ?: snapshot?.etaText,
+                fareText = fareText
+            )
+        }
+    }
+
     open fun fillTripDetails(
         request: CabBookingRequest,
         snapshot: CabScreenSnapshot? = captureScreenSnapshot()
@@ -637,6 +774,10 @@ open class CabAccessibilityService(
     private fun collectVisibleText(node: AccessibilityNodeInfo, out: MutableList<String>) {
         node.text?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
         node.contentDescription?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
+        node.hintText?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            node.stateDescription?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
+        }
 
         for (index in 0 until node.childCount) {
             val child = node.getChild(index) ?: continue
@@ -648,6 +789,7 @@ open class CabAccessibilityService(
         if (node.isEditable || isEditText(node)) {
             node.text?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
             node.contentDescription?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
+            node.hintText?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
             node.className?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
         }
 
@@ -692,6 +834,29 @@ open class CabAccessibilityService(
         return texts.firstOrNull { fareComparator.extractEtaMinutes(it) != null }
     }
 
+    private fun findTravelTimeText(texts: List<String>): String? {
+        return texts.firstOrNull { text ->
+            val normalized = text.lowercase(Locale.US)
+            (normalized.contains("travel time") || normalized.contains("trip time") || normalized.contains("duration")) &&
+                fareComparator.extractTravelTimeMinutes(text) != null
+        } ?: texts.firstOrNull { text ->
+            fareComparator.extractTravelTimeMinutes(text) != null && text.lowercase(Locale.US).contains("min")
+        }
+    }
+
+    private fun findPaymentModeText(texts: List<String>): String? {
+        return texts.firstOrNull { text ->
+            val normalized = text.lowercase(Locale.US)
+            normalized.contains("cash") ||
+                normalized.contains("card") ||
+                normalized.contains("upi") ||
+                normalized.contains("wallet") ||
+                normalized.contains("pay later") ||
+                normalized.contains("online") ||
+                normalized.contains("payment")
+        }
+    }
+
     private fun findRideTypeText(texts: List<String>): String? {
         return texts.firstOrNull { text ->
             val normalized = text.lowercase(Locale.US)
@@ -700,6 +865,38 @@ open class CabAccessibilityService(
                 normalized.contains("mini") ||
                 normalized.contains("sedan") ||
                 normalized.contains("suv")
+        }
+    }
+
+    private fun findDriverNameText(texts: List<String>): String? {
+        return texts.firstOrNull { text ->
+            val normalized = text.lowercase(Locale.US)
+            (normalized.contains("driver") || normalized.contains("captain") || normalized.contains("partner")) &&
+                normalized.split(" ").size <= 8
+        }
+    }
+
+    private fun findVehicleNumberText(texts: List<String>): String? {
+        return texts.firstOrNull { text ->
+            val normalized = text.lowercase(Locale.US)
+            Regex("""\b[a-z]{1,3}\s*\d{1,4}\s*[a-z]{0,3}\b""", RegexOption.IGNORE_CASE).containsMatchIn(normalized) ||
+                normalized.contains("vehicle") ||
+                normalized.contains("car number") ||
+                normalized.contains("vehicle number")
+        }
+    }
+
+    private fun findWarningText(texts: List<String>): String? {
+        return texts.firstOrNull { text ->
+            val normalized = text.lowercase(Locale.US)
+            normalized.contains("surge") ||
+                normalized.contains("cancellation") ||
+                normalized.contains("cancel fee") ||
+                normalized.contains("extra charge") ||
+                normalized.contains("high demand") ||
+                normalized.contains("peak") ||
+                normalized.contains("warning") ||
+                normalized.contains("toll")
         }
     }
 
@@ -733,6 +930,9 @@ open class CabAccessibilityService(
             "payment" to "payment",
             "pay now" to "payment",
             "pay with" to "payment",
+            "wallet top up" to "wallet top-up",
+            "top up wallet" to "wallet top-up",
+            "add money" to "wallet top-up",
             "upi" to "UPI",
             "card" to "card",
             "captcha" to "captcha",
@@ -779,12 +979,22 @@ open class CabAccessibilityService(
         val dropFilled = fillDropIfNeeded(drop)
         val rideTypeFilled = selectRideType(rideType)
         val canContinue = pickupFilled && dropFilled && rideTypeFilled
+        val failureReason = if (canContinue) null else buildTripFailureReason(pickupFilled, dropFilled, rideTypeFilled)
         return CabTripFillResult(
             filledPickup = pickupFilled,
             filledDrop = dropFilled,
             selectedRideType = rideTypeFilled,
             canContinueToFareScreen = canContinue,
-            failureReason = if (canContinue) null else buildTripFailureReason(pickupFilled, dropFilled, rideTypeFilled)
+            failureReason = failureReason,
+            diagnostics = if (failureReason == null) null else captureUiDiagnostics(
+                reason = failureReason,
+                missingControlType = lastMissingControlType,
+                attemptedQueries = buildList {
+                    if (!pickupFilled) addAll(buildPickupKeywords(pickup?.isCurrentLocation == true))
+                    if (!dropFilled) addAll(buildDropKeywords())
+                    if (!rideTypeFilled && rideType != null && rideType != RideType.ANY) add(rideType.displayName())
+                }.distinct()
+            )
         )
     }
 
@@ -812,20 +1022,32 @@ open class CabAccessibilityService(
         val dropFilled = if (drop == null) {
             false
         } else {
-            fillRapidoDestination(drop)
+            fillRapidoDestination(drop, snapshot)
         }
 
         val rideTypeFilled = selectRapidoRideType(rideType)
         val canContinue = pickupFilled && dropFilled
         val warningReason = if (!rideTypeFilled && canContinue) "could not select ride type" else null
+        val failureReason = if (canContinue) null else buildTripFailureReason(pickupFilled, dropFilled, rideTypeFilled)
 
         return CabTripFillResult(
             filledPickup = pickupFilled,
             filledDrop = dropFilled,
             selectedRideType = rideTypeFilled,
             canContinueToFareScreen = canContinue,
-            failureReason = if (canContinue) null else buildTripFailureReason(pickupFilled, dropFilled, rideTypeFilled),
-            warningReason = warningReason
+            failureReason = failureReason,
+            warningReason = warningReason,
+            diagnostics = if (failureReason == null) null else captureUiDiagnostics(
+                provider = CabProvider.RAPIDO,
+                reason = failureReason,
+                snapshot = snapshot,
+                missingControlType = lastMissingControlType,
+                attemptedQueries = buildList {
+                    if (!pickupFilled) addAll(buildPickupKeywords(pickup?.isCurrentLocation == true))
+                    if (!dropFilled) addAll(buildRapidoDestinationKeywords(snapshot))
+                    if (!rideTypeFilled && rideType != null && rideType != RideType.ANY) add(rideType.displayName())
+                }.distinct()
+            )
         )
     }
 
@@ -834,39 +1056,70 @@ open class CabAccessibilityService(
         drop: LocationValue?,
         rideType: RideType?
     ): CabTripFillResult {
+        val snapshot = captureScreenSnapshot()
         val pickupFilled = fillPickupIfNeeded(pickup)
         val dropFilled = if (drop == null) {
             false
         } else {
-            fillOlaDestination(drop)
+            fillOlaDestination(drop, snapshot)
         }
 
         val rideTypeFilled = selectRideType(rideType)
         val canContinue = pickupFilled && dropFilled
         val warningReason = if (!rideTypeFilled && canContinue) "could not select ride type" else null
+        val failureReason = if (canContinue) null else buildTripFailureReason(pickupFilled, dropFilled, rideTypeFilled)
 
         return CabTripFillResult(
             filledPickup = pickupFilled,
             filledDrop = dropFilled,
             selectedRideType = rideTypeFilled,
             canContinueToFareScreen = canContinue,
-            failureReason = if (canContinue) null else buildTripFailureReason(pickupFilled, dropFilled, rideTypeFilled),
-            warningReason = warningReason
+            failureReason = failureReason,
+            warningReason = warningReason,
+            diagnostics = if (failureReason == null) null else captureUiDiagnostics(
+                provider = CabProvider.OLA,
+                reason = failureReason,
+                snapshot = snapshot,
+                missingControlType = lastMissingControlType,
+                attemptedQueries = buildList {
+                    if (!pickupFilled) addAll(buildPickupKeywords(pickup?.isCurrentLocation == true))
+                    if (!dropFilled) addAll(buildOlaDestinationKeywords(snapshot))
+                    if (!rideTypeFilled && rideType != null && rideType != RideType.ANY) add(rideType.displayName())
+                }.distinct()
+            )
         )
     }
 
-    private fun fillRapidoDestination(drop: LocationValue): Boolean {
+    private fun fillRapidoDestination(
+        drop: LocationValue,
+        snapshot: CabScreenSnapshot? = captureScreenSnapshot()
+    ): Boolean {
         val destination = drop.displayText().takeIf { it.isNotBlank() } ?: return false
+        val destinationKeywords = buildRapidoDestinationKeywords(snapshot)
         CabLogger.d(
             "rapido_destination_click_attempt",
-            mapOf("destination" to destination)
+            mapOf(
+                "destination" to destination,
+                "keywords" to destinationKeywords.joinToString(separator = ",")
+            )
         )
 
-        val clickedDestinationField = clickTextOrDescriptionAnyOf(buildRapidoDestinationKeywords())
+        val clickedDestinationField = clickTextOrDescriptionAnyOf(destinationKeywords)
         if (!clickedDestinationField) {
+            lastMissingControlType = "destination"
+            val diagnostics = captureUiDiagnostics(
+                provider = CabProvider.RAPIDO,
+                reason = CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE,
+                snapshot = snapshot,
+                missingControlType = lastMissingControlType,
+                attemptedQueries = destinationKeywords
+            )
             CabLogger.w(
                 "rapido_destination_field_not_found",
-                mapOf("destination" to destination)
+                mapOf(
+                    "destination" to destination,
+                    "diagnostics" to diagnostics?.toSummary()
+                )
             )
             return false
         }
@@ -886,6 +1139,7 @@ open class CabAccessibilityService(
             )
         )
         if (!typed) {
+            lastMissingControlType = "destination"
             return false
         }
 
@@ -909,20 +1163,35 @@ open class CabAccessibilityService(
         return verified || suggestionClicked || typed
     }
 
-    private fun fillOlaDestination(drop: LocationValue): Boolean {
+    private fun fillOlaDestination(
+        drop: LocationValue,
+        snapshot: CabScreenSnapshot? = captureScreenSnapshot()
+    ): Boolean {
         val destination = drop.displayText().takeIf { it.isNotBlank() } ?: return false
+        val destinationKeywords = buildOlaDestinationKeywords(snapshot)
         CabLogger.d(
             "ola_destination_click_attempt",
-            mapOf("destination" to destination)
+            mapOf(
+                "destination" to destination,
+                "keywords" to destinationKeywords.joinToString(separator = ",")
+            )
         )
 
-        val clickedDestinationField = clickTextOrDescriptionAnyOf(buildOlaDestinationKeywords())
+        val clickedDestinationField = clickTextOrDescriptionAnyOf(destinationKeywords)
         if (!clickedDestinationField) {
+            lastMissingControlType = "destination"
+            val diagnostics = captureUiDiagnostics(
+                provider = CabProvider.OLA,
+                reason = CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE,
+                snapshot = snapshot,
+                missingControlType = lastMissingControlType,
+                attemptedQueries = destinationKeywords
+            )
             CabLogger.w(
                 "ola_destination_field_not_found",
                 mapOf(
                     "destination" to destination,
-                    "editableFields" to findEditableFields().joinToString(separator = ",")
+                    "diagnostics" to diagnostics?.toSummary()
                 )
             )
             return false
@@ -943,6 +1212,7 @@ open class CabAccessibilityService(
             )
         )
         if (!typed) {
+            lastMissingControlType = "destination"
             return false
         }
 
@@ -1151,8 +1421,8 @@ open class CabAccessibilityService(
             snapshot.finalFareText != null
     }
 
-    private fun buildRapidoDestinationKeywords(): List<String> {
-        return listOf(
+    private fun buildRapidoDestinationKeywords(snapshot: CabScreenSnapshot? = captureScreenSnapshot()): List<String> {
+        return (listOf(
             "Where do you want to go?",
             "Where to",
             "Where to go",
@@ -1165,11 +1435,11 @@ open class CabAccessibilityService(
             "Drop location",
             "Drop point",
             "Destination"
-        )
+        ) + buildDestinationFieldKeywords(snapshot)).distinct()
     }
 
-    private fun buildOlaDestinationKeywords(): List<String> {
-        return listOf(
+    private fun buildOlaDestinationKeywords(snapshot: CabScreenSnapshot? = captureScreenSnapshot()): List<String> {
+        return (listOf(
             "Where do you want to go?",
             "Where do you want to go",
             "Where to",
@@ -1183,7 +1453,42 @@ open class CabAccessibilityService(
             "Drop point",
             "Destination",
             "Go to"
-        )
+        ) + buildDestinationFieldKeywords(snapshot)).distinct()
+    }
+
+    private fun buildDestinationFieldKeywords(snapshot: CabScreenSnapshot?): List<String> {
+        val labels = buildList {
+            snapshot?.visibleText?.let { addAll(it) }
+            addAll(findEditableFields())
+            addAll(findClickableFields())
+        }
+
+        return labels
+            .map { it.trim() }
+            .filter { it.isNotBlank() && looksLikeDestinationFieldLabel(it) }
+            .distinct()
+            .take(12)
+    }
+
+    private fun looksLikeDestinationFieldLabel(value: String): Boolean {
+        val normalized = FuzzyMatcher.normalize(value)
+        if (normalized.isBlank()) return false
+
+        return listOf(
+            "where do you want to go",
+            "where to",
+            "where to go",
+            "where are you going",
+            "destination",
+            "search destination",
+            "search your destination",
+            "enter destination",
+            "drop",
+            "drop location",
+            "drop point",
+            "go to",
+            "search"
+        ).any { normalized.contains(FuzzyMatcher.normalize(it)) }
     }
 
     private fun destinationVisibleInSnapshot(destination: String): Boolean {
@@ -1193,6 +1498,7 @@ open class CabAccessibilityService(
             addAll(snapshot.visibleText)
             snapshot.sourceText?.let { add(it) }
             addAll(findEditableFields())
+            addAll(findClickableFields())
         }
 
         return visibleTexts.any { text ->
@@ -1245,7 +1551,7 @@ open class CabAccessibilityService(
     ): String {
         val parts = buildList {
             if (!pickupFilled) add(CabFailureReasons.PICKUP_FIELD_NOT_FOUND)
-            if (!dropFilled) add(CabFailureReasons.DESTINATION_FIELD_NOT_FOUND)
+            if (!dropFilled) add(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE)
             if (!rideTypeFilled) add(CabFailureReasons.RIDE_TYPE_NOT_SELECTED)
         }
 
@@ -1271,6 +1577,10 @@ open class CabAccessibilityService(
             "drop off",
             "going to"
         )
+    }
+
+    open fun lastMissingControlType(): String? {
+        return lastMissingControlType
     }
 
     private fun looksLikeFareText(text: String): Boolean {

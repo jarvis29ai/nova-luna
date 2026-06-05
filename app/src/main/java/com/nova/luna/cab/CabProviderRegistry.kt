@@ -4,7 +4,22 @@ import android.content.pm.PackageManager
 
 data class CabProviderDiscovery(
     val installedProviders: List<CabProvider>,
-    val skippedProviders: Map<CabProvider, String>
+    val skippedProviders: Map<CabProvider, String>,
+    val providerInfo: Map<CabProvider, CabProviderInfo> = emptyMap()
+)
+
+data class CabProviderInfo(
+    val provider: CabProvider,
+    val providerId: String,
+    val displayName: String,
+    val packageNames: List<String>,
+    val supportedRideTypes: List<RideType> = emptyList(),
+    val supportsDeepLink: Boolean = false,
+    val supportsSearch: Boolean = false,
+    val remoteBookingSupported: Boolean? = null,
+    val installedPackageName: String? = null,
+    val installed: Boolean = false,
+    val unavailableReason: String? = null
 )
 
 class CabProviderRegistry(
@@ -22,6 +37,28 @@ class CabProviderRegistry(
         return providerSpec(provider).packageNames.firstOrNull { packageName ->
             isLaunchable(packageName)
         }
+    }
+
+    fun providerInfo(provider: CabProvider): CabProviderInfo {
+        val spec = providerSpec(provider)
+        val installedPackage = installedPackageName(provider)
+        return CabProviderInfo(
+            provider = provider,
+            providerId = spec.providerId,
+            displayName = provider.displayName(),
+            packageNames = spec.packageNames,
+            supportedRideTypes = spec.supportedRideTypes,
+            supportsDeepLink = spec.supportsDeepLink,
+            supportsSearch = spec.supportsSearch,
+            remoteBookingSupported = spec.remoteBookingSupported,
+            installedPackageName = installedPackage,
+            installed = installedPackage != null,
+            unavailableReason = installedPackage?.let { null } ?: "app is not installed"
+        )
+    }
+
+    fun providerInfos(): List<CabProviderInfo> {
+        return supportedProviders().map { providerInfo(it) }
     }
 
     fun isInstalled(provider: CabProvider): Boolean {
@@ -59,7 +96,8 @@ class CabProviderRegistry(
 
         return CabProviderDiscovery(
             installedProviders = installed,
-            skippedProviders = skipped
+            skippedProviders = skipped,
+            providerInfo = supportedProviders().associateWith { providerInfo(it) }
         )
     }
 
@@ -74,7 +112,12 @@ class CabProviderRegistry(
     }
 
     private data class CabProviderSpec(
-        val packageNames: List<String>
+        val providerId: String,
+        val packageNames: List<String>,
+        val supportedRideTypes: List<RideType> = emptyList(),
+        val supportsDeepLink: Boolean = false,
+        val supportsSearch: Boolean = false,
+        val remoteBookingSupported: Boolean? = null
     )
 
     companion object {
@@ -87,20 +130,40 @@ class CabProviderRegistry(
 
         private val PROVIDER_SPECS = mapOf(
             CabProvider.UBER to CabProviderSpec(
-                packageNames = listOf(UBER_PACKAGE_NAME)
+                providerId = "uber",
+                packageNames = listOf(UBER_PACKAGE_NAME),
+                supportedRideTypes = listOf(RideType.BIKE, RideType.AUTO, RideType.MINI, RideType.SEDAN, RideType.SUV, RideType.ANY),
+                supportsDeepLink = true,
+                supportsSearch = true,
+                remoteBookingSupported = true
             ),
             CabProvider.OLA to CabProviderSpec(
-                packageNames = listOf(OLA_PACKAGE_NAME)
+                providerId = "ola",
+                packageNames = listOf(OLA_PACKAGE_NAME),
+                supportedRideTypes = listOf(RideType.AUTO, RideType.BIKE, RideType.MINI, RideType.SEDAN, RideType.SUV, RideType.ANY),
+                supportsDeepLink = true,
+                supportsSearch = true,
+                remoteBookingSupported = true
             ),
             CabProvider.RAPIDO to CabProviderSpec(
-                packageNames = listOf(RAPIDO_PACKAGE_NAME)
+                providerId = "rapido",
+                packageNames = listOf(RAPIDO_PACKAGE_NAME),
+                supportedRideTypes = listOf(RideType.BIKE, RideType.AUTO, RideType.MINI, RideType.ANY),
+                supportsDeepLink = false,
+                supportsSearch = true,
+                remoteBookingSupported = false
             ),
             CabProvider.INDRIVE to CabProviderSpec(
+                providerId = "indrive",
                 packageNames = listOf(
                     INDRIVE_PACKAGE_NAME,
                     INDRIVE_PACKAGE_NAME_LOWER,
                     INDRIVE_PACKAGE_NAME_FALLBACK
-                )
+                ),
+                supportedRideTypes = listOf(RideType.AUTO, RideType.MINI, RideType.SEDAN, RideType.SUV, RideType.ANY),
+                supportsDeepLink = false,
+                supportsSearch = true,
+                remoteBookingSupported = null
             )
         )
     }

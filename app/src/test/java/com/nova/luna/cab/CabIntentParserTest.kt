@@ -94,6 +94,25 @@ class CabIntentParserTest {
     }
 
     @Test
+    fun `provider specific cab requests keep ride type and provider preference`() {
+        val ola = parser.parseInitialCabRequest("book Ola mini from current location to DB Mall")
+        val rapido = parser.parseInitialCabRequest("book Rapido bike from Habibganj to DB Mall")
+
+        assertNotNull(ola)
+        assertEquals(CabProvider.OLA, ola?.providerPreference)
+        assertEquals(RideType.MINI, ola?.rideType)
+        assertEquals(PickupMode.CURRENT_LOCATION, ola?.pickupMode)
+        assertEquals("DB Mall", ola?.dropText)
+
+        assertNotNull(rapido)
+        assertEquals(CabProvider.RAPIDO, rapido?.providerPreference)
+        assertEquals(RideType.BIKE, rapido?.rideType)
+        assertEquals(PickupMode.USER_TEXT, rapido?.pickupMode)
+        assertEquals("Habibganj", rapido?.pickupText)
+        assertEquals("DB Mall", rapido?.dropText)
+    }
+
+    @Test
     fun `current location replies resolve as pickup values`() {
         listOf("current location", "use current location", "my location", "from here", "here").forEach { text ->
             val reply = parser.parsePickupReply(text)
@@ -132,5 +151,52 @@ class CabIntentParserTest {
         assertEquals(CabFinalConfirmationReply.DECLINE, parser.parseFinalConfirmationReply("no"))
         assertTrue(parser.isCancel("cancel"))
         assertFalse(parser.isCancel("yes"))
+    }
+
+    @Test
+    fun `compare only and provider specific requests are parsed`() {
+        val parsed = parser.parseInitialCabRequest("Compare Ola and Uber to railway station")
+
+        assertNotNull(parsed)
+        assertTrue(parsed?.isCabBooking == true)
+        assertTrue(parsed?.compareOnly == true)
+        assertEquals(CabProvider.OLA, parsed?.providerPreference)
+        assertEquals("railway station", parsed?.dropText)
+        assertTrue(parser.isTryAnotherAppRequest("try another app"))
+    }
+
+    @Test
+    fun `someone else and schedule later requests are parsed`() {
+        val parsed = parser.parseInitialCabRequest("Book cab for someone else later to DB Mall")
+
+        assertNotNull(parsed)
+        assertTrue(parsed?.isCabBooking == true)
+        assertEquals(CabPassengerMode.SOMEONE_ELSE, parsed?.passengerMode)
+        assertEquals(CabRideTime.SCHEDULED, parsed?.rideTime)
+        assertEquals("later", parsed?.scheduledTimeText)
+    }
+
+    @Test
+    fun `selection shortcuts and preference replies are parsed`() {
+        assertEquals(1, parser.parseSelectionIndexReply("choose first one"))
+        assertEquals(2, parser.parseSelectionIndexReply("choose second"))
+        assertEquals(3, parser.parseSelectionIndexReply("choose third option"))
+        assertEquals(CabRidePreference.FASTEST, parser.parsePreferenceReply("fastest"))
+        assertEquals(CabRidePreference.COMFORTABLE, parser.parsePreferenceReply("comfortable"))
+        assertEquals(CabRidePreference.PROVIDER_SPECIFIC, parser.parsePreferenceReply("preferred app"))
+        assertTrue(parser.isFastestChoice("book fastest"))
+        assertTrue(parser.isComfortableChoice("book comfortable"))
+    }
+
+    @Test
+    fun `manual pickup and change requests are parsed as cab follow ups`() {
+        val manualPickup = parser.parseInitialCabRequest("use manual pickup to DB Mall")
+
+        assertNotNull(manualPickup)
+        assertTrue(manualPickup?.manualPickupRequested == true)
+        assertEquals("DB Mall", manualPickup?.dropText)
+        assertTrue(parser.isChangePickupRequest("change pickup"))
+        assertTrue(parser.isChangeDropRequest("change destination"))
+        assertTrue(parser.isChangeRideTypeRequest("change cab type"))
     }
 }

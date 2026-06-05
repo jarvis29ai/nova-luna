@@ -97,7 +97,7 @@ class CabBookingOrchestratorTest {
         assertEquals(PickupMode.CURRENT_LOCATION, reply.request?.pickupMode)
         assertNull(reply.request?.pickupLocation)
         assertEquals(CabFailureReasons.BLOCKED_BY_LOCATION_PERMISSION, reply.pickupBlockedReason)
-        assertEquals(CabBookingVoiceResponses.currentLocationUnavailable(), reply.message)
+        assertEquals(CabBookingVoiceResponses.currentLocationPermissionRequired(), reply.message)
         assertTrue(orchestrator.isActive())
     }
 
@@ -166,7 +166,7 @@ class CabBookingOrchestratorTest {
         assertTrue(accessibilityService.pickupFillCount > 0)
         assertTrue(accessibilityService.dropFillCount > 0)
         assertTrue(result.manualActionRequired)
-        assertEquals(CabFailureReasons.PICKUP_FIELD_NOT_FOUND + " and " + CabFailureReasons.DESTINATION_FIELD_NOT_FOUND, result.manualActionReason)
+        assertEquals(CabFailureReasons.PICKUP_FIELD_NOT_FOUND + " and " + CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE, result.manualActionReason)
         assertTrue(result.message.contains("destination field is not accessible", ignoreCase = true))
         assertTrue(orchestrator.isActive())
     }
@@ -214,8 +214,9 @@ class CabBookingOrchestratorTest {
         )
 
         assertEquals(CabBookingState.MANUAL_ACTION_REQUIRED, result.state)
-        assertEquals(CabFailureReasons.DESTINATION_FIELD_NOT_FOUND, result.manualActionReason)
+        assertEquals(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE, result.manualActionReason)
         assertTrue(result.message.contains("destination field is not accessible", ignoreCase = true))
+        assertTrue(result.providerDiagnostics[CabProvider.OLA]?.reason?.contains(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE) == true)
         assertTrue(localOrchestrator.isActive())
     }
 
@@ -241,8 +242,9 @@ class CabBookingOrchestratorTest {
         )
 
         assertEquals(CabBookingState.MANUAL_ACTION_REQUIRED, result.state)
-        assertEquals(CabFailureReasons.DESTINATION_FIELD_NOT_FOUND, result.manualActionReason)
+        assertEquals(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE, result.manualActionReason)
         assertTrue(result.message.contains("destination field is not accessible", ignoreCase = true))
+        assertTrue(result.providerDiagnostics[CabProvider.RAPIDO]?.reason?.contains(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE) == true)
         assertTrue(localOrchestrator.isActive())
     }
 
@@ -268,7 +270,7 @@ class CabBookingOrchestratorTest {
         )
 
         assertEquals(CabBookingState.MANUAL_ACTION_REQUIRED, start.state)
-        assertEquals(CabFailureReasons.DESTINATION_FIELD_NOT_FOUND, start.manualActionReason)
+        assertEquals(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE, start.manualActionReason)
 
         localService.dropShouldSucceed = true
         localService.setSnapshotSequence(
@@ -314,7 +316,7 @@ class CabBookingOrchestratorTest {
         )
 
         assertEquals(CabBookingState.MANUAL_ACTION_REQUIRED, start.state)
-        assertEquals(CabFailureReasons.DESTINATION_FIELD_NOT_FOUND, start.manualActionReason)
+        assertEquals(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE, start.manualActionReason)
 
         localService.dropShouldSucceed = true
         localService.setSnapshotSequence(
@@ -545,7 +547,7 @@ class CabBookingOrchestratorTest {
         assertEquals(CabBookingState.WAITING_FOR_FINAL_CONFIRMATION, selection.state)
         assertEquals(CabProvider.RAPIDO, selection.selectedFare?.provider)
         assertEquals(0, accessibilityService.finalTapCount)
-        assertTrue(selection.message.contains("Should I confirm booking?"))
+        assertTrue(selection.message.contains("Please confirm: book"))
 
         val completed = orchestrator.handleUserInput("yes")
 
@@ -883,6 +885,7 @@ class CabBookingOrchestratorTest {
         val capturedPackages = mutableListOf<String?>()
         val fareCollectionPackages = mutableListOf<String?>()
         val fareByProvider = mutableMapOf<CabProvider, CabFareOption?>()
+        val diagnosticsByPackage = mutableMapOf<String, CabUiDiagnostics>()
         private val snapshotSequence = mutableListOf<CabScreenSnapshot>()
         private var snapshotSequenceIndex = 0
         private var snapshotSequenceEnabled = false
@@ -984,20 +987,31 @@ class CabBookingOrchestratorTest {
                     }
                     val dropFilled = if (drop == null) false else fillDropIfNeeded(drop)
                     val rideTypeFilled = selectRideType(rideType)
+                    val failureReason = if (pickupFilled && dropFilled) null else buildString {
+                        val reasons = buildList {
+                            if (!pickupFilled) add(CabFailureReasons.PICKUP_FIELD_NOT_FOUND)
+                            if (!dropFilled) add(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE)
+                            if (!rideTypeFilled) add(CabFailureReasons.RIDE_TYPE_NOT_SELECTED)
+                        }
+                        append(reasons.joinToString(separator = " and "))
+                    }
                     CabTripFillResult(
                         filledPickup = pickupFilled,
                         filledDrop = dropFilled,
                         selectedRideType = rideTypeFilled,
                         canContinueToFareScreen = pickupFilled && dropFilled,
-                        failureReason = if (pickupFilled && dropFilled) null else buildString {
-                            val reasons = buildList {
-                                if (!pickupFilled) add(CabFailureReasons.PICKUP_FIELD_NOT_FOUND)
-                                if (!dropFilled) add(CabFailureReasons.DESTINATION_FIELD_NOT_FOUND)
-                                if (!rideTypeFilled) add(CabFailureReasons.RIDE_TYPE_NOT_SELECTED)
-                            }
-                            append(reasons.joinToString(separator = " and "))
-                        },
-                        warningReason = if (!rideTypeFilled && pickupFilled && dropFilled) "could not select ride type" else null
+                        failureReason = failureReason,
+                        warningReason = if (!rideTypeFilled && pickupFilled && dropFilled) "could not select ride type" else null,
+                        diagnostics = captureUiDiagnostics(
+                            provider = CabProvider.RAPIDO,
+                            reason = failureReason,
+                            attemptedQueries = listOfNotNull(
+                                pickup?.displayText(),
+                                drop?.displayText(),
+                                rideType?.displayName()
+                            ),
+                            snapshot = captureScreenSnapshot()
+                        )
                     )
                 }
 
@@ -1006,22 +1020,55 @@ class CabBookingOrchestratorTest {
                     val dropFilled = fillDropIfNeeded(drop)
                     val rideTypeFilled = selectRideType(rideType)
                     val canContinue = pickupFilled && dropFilled && rideTypeFilled
+                    val failureReason = if (canContinue) null else buildString {
+                        val reasons = buildList {
+                            if (!pickupFilled) add(CabFailureReasons.PICKUP_FIELD_NOT_FOUND)
+                            if (!dropFilled) add(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE)
+                            if (!rideTypeFilled) add(CabFailureReasons.RIDE_TYPE_NOT_SELECTED)
+                        }
+                        append(reasons.joinToString(separator = " and "))
+                    }
                     CabTripFillResult(
                         filledPickup = pickupFilled,
                         filledDrop = dropFilled,
                         selectedRideType = rideTypeFilled,
                         canContinueToFareScreen = canContinue,
-                        failureReason = if (canContinue) null else buildString {
-                            val reasons = buildList {
-                                if (!pickupFilled) add(CabFailureReasons.PICKUP_FIELD_NOT_FOUND)
-                                if (!dropFilled) add(CabFailureReasons.DESTINATION_FIELD_NOT_FOUND)
-                                if (!rideTypeFilled) add(CabFailureReasons.RIDE_TYPE_NOT_SELECTED)
-                            }
-                            append(reasons.joinToString(separator = " and "))
-                        }
+                        failureReason = failureReason,
+                        diagnostics = captureUiDiagnostics(
+                            provider = provider,
+                            reason = failureReason,
+                            attemptedQueries = listOfNotNull(
+                                pickup?.displayText(),
+                                drop?.displayText(),
+                                rideType?.displayName()
+                            ),
+                            snapshot = captureScreenSnapshot()
+                        )
                     )
                 }
             }
+        }
+
+        override fun captureUiDiagnostics(
+            provider: CabProvider?,
+            reason: String?,
+            attemptedQueries: List<String>,
+            missingControlType: String?,
+            snapshot: CabScreenSnapshot?
+        ): CabUiDiagnostics? {
+            val packageName = snapshot?.sourcePackageName ?: foregroundPackage
+            return diagnosticsByPackage[packageName] ?: CabUiDiagnostics(
+                provider = provider,
+                reason = reason,
+                packageName = packageName,
+                screenText = snapshot?.sourceText,
+                screenClassName = "FakeCabScreen",
+                visibleLabels = snapshot?.visibleText.orEmpty(),
+                editableLabels = snapshot?.visibleText.orEmpty().filter { it.contains("search", ignoreCase = true) },
+                clickableLabels = snapshot?.visibleText.orEmpty().filter { it.contains("cart", ignoreCase = true) || it.contains("drop", ignoreCase = true) },
+                attemptedQueries = attemptedQueries,
+                missingControlType = missingControlType
+            )
         }
 
         override fun collectFareOption(

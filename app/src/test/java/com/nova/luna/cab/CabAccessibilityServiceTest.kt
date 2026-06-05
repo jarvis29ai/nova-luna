@@ -112,7 +112,9 @@ class CabAccessibilityServiceTest {
         assertTrue(result.filledPickup)
         assertFalse(result.filledDrop)
         assertFalse(result.canContinueToFareScreen)
-        assertEquals(CabFailureReasons.DESTINATION_FIELD_NOT_FOUND, result.failureReason)
+        assertEquals(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE, result.failureReason)
+        assertEquals(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE, result.diagnostics?.reason)
+        assertTrue(result.diagnostics?.visibleLabels?.isNotEmpty() == true)
         assertFalse(recordingService.typedTexts.contains("DB Mall"))
         assertTrue(
             recordingService.clickQueries.any { queries ->
@@ -151,7 +153,9 @@ class CabAccessibilityServiceTest {
         assertTrue(result.filledPickup)
         assertFalse(result.filledDrop)
         assertFalse(result.canContinueToFareScreen)
-        assertEquals(CabFailureReasons.DESTINATION_FIELD_NOT_FOUND, result.failureReason)
+        assertEquals(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE, result.failureReason)
+        assertEquals(CabFailureReasons.DESTINATION_FIELD_INACCESSIBLE, result.diagnostics?.reason)
+        assertTrue(result.diagnostics?.visibleLabels?.isNotEmpty() == true)
         assertTrue(
             recordingService.clickQueries.any { queries ->
                 queries.any { query -> query.contains("Where do you want to go", ignoreCase = true) || query.contains("Where to", ignoreCase = true) }
@@ -209,6 +213,7 @@ class CabAccessibilityServiceTest {
         var rideTypeShouldSucceed = true
         private val snapshotSequence = mutableListOf<CabScreenSnapshot>()
         private var snapshotIndex = 0
+        var diagnosticsByPackage = mutableMapOf<String, CabUiDiagnostics>()
 
         fun setSnapshots(vararg snapshots: CabScreenSnapshot) {
             snapshotSequence.clear()
@@ -237,6 +242,28 @@ class CabAccessibilityServiceTest {
         override fun clickTextOrDescriptionAnyOf(candidates: List<String>): Boolean {
             clickQueries.add(candidates)
             return clickResultSelector(candidates)
+        }
+
+        override fun captureUiDiagnostics(
+            provider: CabProvider?,
+            reason: String?,
+            attemptedQueries: List<String>,
+            missingControlType: String?,
+            snapshot: CabScreenSnapshot?
+        ): CabUiDiagnostics? {
+            val packageName = snapshot?.sourcePackageName
+            return diagnosticsByPackage[packageName] ?: CabUiDiagnostics(
+                provider = provider,
+                reason = reason,
+                packageName = packageName,
+                screenText = snapshot?.sourceText,
+                screenClassName = "RecordingCabScreen",
+                visibleLabels = snapshot?.visibleText.orEmpty(),
+                editableLabels = snapshot?.visibleText.orEmpty().filter { it.contains("search", ignoreCase = true) },
+                clickableLabels = snapshot?.visibleText.orEmpty().filter { it.contains("drop", ignoreCase = true) || it.contains("go", ignoreCase = true) },
+                attemptedQueries = attemptedQueries,
+                missingControlType = missingControlType
+            )
         }
 
         override fun typeIntoFocusedField(text: String): Boolean {
