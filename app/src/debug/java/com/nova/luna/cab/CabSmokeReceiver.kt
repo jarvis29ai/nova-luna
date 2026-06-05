@@ -131,7 +131,7 @@ class CabSmokeReceiver : BroadcastReceiver() {
             name = "generic_cheapest",
             commands = listOf(
                 "book cab from current location to DB Mall",
-                "auto",
+                "mini",
                 "cheapest",
                 "cancel cab booking"
             )
@@ -142,7 +142,7 @@ class CabSmokeReceiver : BroadcastReceiver() {
                 name = "uber_current_location",
                 commands = listOf(
                     "book Uber from current location to DB Mall",
-                    "auto",
+                    "mini",
                     "Uber",
                     "cancel cab booking"
                 )
@@ -154,7 +154,7 @@ class CabSmokeReceiver : BroadcastReceiver() {
                 name = "rapido_current_location",
                 commands = listOf(
                     "book Rapido from current location to DB Mall",
-                    "auto",
+                    "mini",
                     "Rapido",
                     "cancel cab booking"
                 )
@@ -166,7 +166,7 @@ class CabSmokeReceiver : BroadcastReceiver() {
                 name = "ola_current_location",
                 commands = listOf(
                     "book Ola from current location to DB Mall",
-                    "auto",
+                    "mini",
                     "Ola",
                     "cancel cab booking"
                 )
@@ -178,7 +178,7 @@ class CabSmokeReceiver : BroadcastReceiver() {
                 name = "indrive_current_location",
                 commands = listOf(
                     "book inDrive from current location to DB Mall",
-                    "auto",
+                    "mini",
                     "inDrive",
                     "cancel cab booking"
                 )

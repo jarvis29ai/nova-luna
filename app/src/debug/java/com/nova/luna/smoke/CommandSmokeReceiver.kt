@@ -55,10 +55,30 @@ class CommandSmokeReceiver : BroadcastReceiver() {
     ) {
         val reportFile = File(context.cacheDir, "command-smoke-results.txt")
         reportFile.writeText("")
+        val sharedBrain = if (sections.size == 1 && sections.first() in setOf("food", "grocery")) {
+            CommandBrain(context)
+        } else {
+            null
+        }
+        val effectiveSmokeCases = when {
+            sections.size == 1 && sections.first() == "food" -> listOf(
+                CommandSmokeCase("food", "Luna order paneer pizza"),
+                CommandSmokeCase("food", "from Domino's"),
+                CommandSmokeCase("food", "Zomato"),
+                CommandSmokeCase("food", "cancel food order")
+            )
+            sections.size == 1 && sections.first() == "grocery" -> listOf(
+                CommandSmokeCase("grocery", "Luna order milk and bread"),
+                CommandSmokeCase("grocery", "any brand"),
+                CommandSmokeCase("grocery", "Blinkit"),
+                CommandSmokeCase("grocery", "cancel grocery")
+            )
+            else -> smokeCases
+        }
         CommandSmokeLogger.i(
             "smoke_start",
             mapOf(
-                "count" to smokeCases.size,
+                "count" to effectiveSmokeCases.size,
                 "sections" to sections.joinToString(separator = ",")
             )
         )
@@ -66,14 +86,15 @@ class CommandSmokeReceiver : BroadcastReceiver() {
             reportFile,
             "smoke_start",
             mapOf(
-                "count" to smokeCases.size,
+                "count" to effectiveSmokeCases.size,
                 "sections" to sections.joinToString(separator = ",")
             )
         )
 
-        smokeCases.forEachIndexed { index, smokeCase ->
+        effectiveSmokeCases.forEachIndexed { index, smokeCase ->
             resetUiForSmoke("before_${smokeCase.category}_${index + 1}")
-            val result = CommandBrain(context).process(smokeCase.command)
+            val result = sharedBrain?.process(smokeCase.command)
+                ?: CommandBrain(context).process(smokeCase.command)
             val fields = mapOf(
                 "index" to (index + 1).toString(),
                 "category" to smokeCase.category,
@@ -108,12 +129,12 @@ class CommandSmokeReceiver : BroadcastReceiver() {
 
         CommandSmokeLogger.i(
             "smoke_complete",
-            mapOf("count" to smokeCases.size)
+            mapOf("count" to effectiveSmokeCases.size)
         )
         appendSmokeReport(
             reportFile,
             "smoke_complete",
-            mapOf("count" to smokeCases.size)
+            mapOf("count" to effectiveSmokeCases.size)
         )
     }
 

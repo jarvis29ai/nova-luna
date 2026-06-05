@@ -71,9 +71,11 @@ class BrainServicePhase2Test {
         val action = service.process("book cheapest auto to DB Mall")
 
         assertEquals("cab_booking", action.intent)
-        assertEquals(BrainActionType.PREPARE, action.actionType)
-        assertEquals(BrainRiskLevel.CONFIRMATION_REQUIRED, action.riskLevel)
+        assertEquals(BrainActionType.EXTERNAL_ACTION, action.actionType)
+        assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
+        assertFalse(action.requiresConfirmation)
         assertFalse(action.finalActionAllowed)
+        assertEquals("Where should I pick you up from?", action.nextQuestion)
     }
 
     private class StaticBrainProvider(

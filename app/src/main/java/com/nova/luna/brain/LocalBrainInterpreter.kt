@@ -146,9 +146,9 @@ class LocalBrainInterpreter {
         return BrainAction(
             intent = "cab_booking",
             reply = reply,
-            actionType = BrainActionType.PREPARE,
-            riskLevel = BrainRiskLevel.CONFIRMATION_REQUIRED,
-            requiresConfirmation = true,
+            actionType = BrainActionType.EXTERNAL_ACTION,
+            riskLevel = BrainRiskLevel.SAFE,
+            requiresConfirmation = false,
             finalActionAllowed = false,
             params = params,
             nextQuestion = nextQuestion
@@ -198,9 +198,9 @@ class LocalBrainInterpreter {
         return BrainAction(
             intent = "cab_compare",
             reply = reply,
-            actionType = BrainActionType.PREPARE,
-            riskLevel = BrainRiskLevel.CONFIRMATION_REQUIRED,
-            requiresConfirmation = true,
+            actionType = BrainActionType.EXTERNAL_ACTION,
+            riskLevel = BrainRiskLevel.SAFE,
+            requiresConfirmation = false,
             finalActionAllowed = false,
             params = params,
             nextQuestion = nextQuestion

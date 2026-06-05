@@ -38,8 +38,12 @@ class BrainServicePhase3Test {
         assertTrue(diagnostics.fallbackUsed)
         assertEquals("LocalMockBrainProvider", diagnostics.finalProvider)
         assertEquals("cab_booking", diagnostics.finalBrainAction.intent)
+        assertEquals(BrainActionType.EXTERNAL_ACTION, diagnostics.finalBrainAction.actionType)
+        assertEquals(BrainRiskLevel.SAFE, diagnostics.finalBrainAction.riskLevel)
+        assertFalse(diagnostics.finalBrainAction.requiresConfirmation)
         assertFalse(diagnostics.finalBrainAction.finalActionAllowed)
-        assertTrue(diagnostics.finalSafetyDecision.requiresConfirmation)
+        assertFalse(diagnostics.finalSafetyDecision.requiresConfirmation)
+        assertTrue(diagnostics.finalSafetyDecision.allowed)
         assertNotNull(diagnostics.rawModelResponse)
     }
 
@@ -68,8 +72,8 @@ class BrainServicePhase3Test {
 
         assertEquals("cab_booking", action.intent)
         assertEquals("Where do you want to go?", action.nextQuestion)
-        assertEquals(BrainRiskLevel.CONFIRMATION_REQUIRED, action.riskLevel)
-        assertTrue(action.requiresConfirmation)
+        assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
+        assertFalse(action.requiresConfirmation)
     }
 
     private class StaticBrainProvider(

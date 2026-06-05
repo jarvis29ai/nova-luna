@@ -245,6 +245,7 @@ This is why the repo still guarantees:
 12. `CabBookingModels` converts the request/session/results into structured entities for command history and speech output.
 13. Debug-only `CabSmokeReceiver` validates the flow without performing the final booking or payment action.
 14. The final booking tap always waits for explicit user confirmation.
+15. The latest sectioned smoke run found Ola and Rapido installed, but the current-location flow still stopped at manual-action boundaries because location permission is missing and the provider screens did not expose every field needed for a clean continuation.
 
 ## 7. Food Ordering A-To-Z Flow
 
@@ -276,6 +277,7 @@ This is why the repo still guarantees:
 12. `FoodBookingVoiceResponses` provides the spoken prompts and completions used by the food flow.
 13. Manual-action screens such as payment, OTP, login, CAPTCHA, and password boundaries stop the automation.
 14. The final order tap is only allowed after explicit user confirmation.
+15. The latest sectioned smoke run reached comparison only after a parser-friendly `from Domino's` follow-up, but the supported food providers still did not expose usable search or cart controls on this phone, so food remains PARTIAL and stops before any order or payment.
 
 ## 8. Grocery Booking A-To-Z Flow
 
@@ -311,6 +313,7 @@ This is why the repo still guarantees:
 12. `GroceryBookingVoiceResponses` supplies the spoken prompts, comparison summaries, and completion messages.
 13. Manual-action screens such as payment, OTP, login, CAPTCHA, address friction, replacement selection, and unavailable-item states stay human-only.
 14. The final order tap is only allowed after explicit user confirmation.
+15. The latest sectioned smoke run compared Blinkit, Instamart, and JioMart, then reached final confirmation on Blinkit, but the `cancel grocery` follow-up did not cleanly dismiss the final-confirmation/manual-action state.
 
 ## 9. Accessibility And Screen-Understanding Layer
 
@@ -403,9 +406,15 @@ Result:
 - JVM unit tests passed.
 - Debug build passed.
 - Debug install passed on the connected KB2001 / Android 14 device.
-- Sectioned phone smoke reruns passed for wake-word stripping, cab routing, food flow startup, grocery flow startup, and negative safety boundaries.
+- Sectioned phone smoke snapshot on the current working tree:
+  - basic PASS
+  - cab PARTIAL
+  - food PARTIAL
+  - grocery PARTIAL
+  - negative PASS
+- No final booking/order/payment/OTP/login/CAPTCHA automation happened.
 
-The repo therefore remains in a validated state after this code and documentation change set.
+The repo therefore remains buildable and testable after this code and documentation change set, but the latest phone smoke still shows partial provider-flow blockers that need follow-up work.
 
 ## 12. File / Module Inventory
 

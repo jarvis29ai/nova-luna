@@ -14,13 +14,13 @@ class BrainServicePhase1Test {
     private val codec = BrainActionJsonCodec()
 
     @Test
-    fun `cab booking phrases become confirmation required preparation actions`() {
+    fun `cab booking phrases become safe external session starters`() {
         val action = service.process("book cheapest auto to DB Mall")
 
         assertEquals("cab_booking", action.intent)
-        assertEquals(BrainActionType.PREPARE, action.actionType)
-        assertEquals(BrainRiskLevel.CONFIRMATION_REQUIRED, action.riskLevel)
-        assertTrue(action.requiresConfirmation)
+        assertEquals(BrainActionType.EXTERNAL_ACTION, action.actionType)
+        assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
+        assertFalse(action.requiresConfirmation)
         assertFalse(action.finalActionAllowed)
         assertEquals("DB Mall", action.params["dropLocation"])
         assertEquals("AUTO", action.params["rideType"])
@@ -34,10 +34,11 @@ class BrainServicePhase1Test {
         val action = service.process("compare Ola and Rapido to home")
 
         assertEquals("cab_compare", action.intent)
-        assertEquals(BrainActionType.PREPARE, action.actionType)
-        assertEquals(BrainRiskLevel.CONFIRMATION_REQUIRED, action.riskLevel)
+        assertEquals(BrainActionType.EXTERNAL_ACTION, action.actionType)
+        assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
         assertEquals("OLA,RAPIDO", action.params["providers"])
         assertEquals("home", action.params["destination"])
+        assertFalse(action.requiresConfirmation)
         assertTrue(action.reply.contains("Ola"))
         assertTrue(action.reply.contains("Rapido"))
         assertNotNull(action.nextQuestion)

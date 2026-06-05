@@ -57,18 +57,20 @@ class BrainServicePhase5Test {
         )
 
         val diagnostics = service.diagnose("book cheapest auto to DB Mall")
-        val router = CommandRouter(FakeActionExecutor())
+        val executor = FakeActionExecutor()
+        val router = CommandRouter(executor)
         val commandResult = router.route(diagnostics.finalBrainAction)
 
         assertFalse(diagnostics.validatorResult)
         assertTrue(diagnostics.fallbackUsed)
         assertEquals("LocalMockBrainProvider", diagnostics.finalProvider)
         assertEquals("cab_booking", diagnostics.finalBrainAction.intent)
-        assertTrue(commandResult.awaitingConfirmation)
+        assertFalse(commandResult.awaitingConfirmation)
+        assertEquals(1, executor.executeCount)
     }
 
     @Test
-    fun `safe final action still passes through SafetyGate and does not execute directly`() {
+    fun `safe cab planning action executes and keeps final booking manual`() {
         val service = BrainService()
         val action = service.process("book cab to DB Mall")
         val executor = FakeActionExecutor()
@@ -76,9 +78,10 @@ class BrainServicePhase5Test {
 
         val commandResult = commandRouter.route(action)
 
-        assertTrue(commandResult.awaitingConfirmation)
-        assertEquals(0, executor.executeCount)
-        assertFalse(commandResult.success)
+        assertFalse(commandResult.awaitingConfirmation)
+        assertEquals(1, executor.executeCount)
+        assertTrue(commandResult.success)
+        assertEquals("Where should I pick you up from?", commandResult.message)
     }
 
     @Test
@@ -127,8 +130,13 @@ class BrainServicePhase5Test {
 
         override fun execute(commandIntent: com.nova.luna.model.CommandIntent): CommandResult {
             executeCount += 1
+            val message = if (commandIntent.actionType == com.nova.luna.model.ActionType.CAB_BOOKING) {
+                "Where should I pick you up from?"
+            } else {
+                "Executed"
+            }
             return CommandResult.success(
-                message = "Executed",
+                message = message,
                 intentType = commandIntent.intentType,
                 actionType = commandIntent.actionType,
                 entities = commandIntent.entities

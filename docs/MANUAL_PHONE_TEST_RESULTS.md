@@ -2,13 +2,13 @@
 
 ## Test Details
 
-- Date/time: 2026-06-05, sectioned smoke rerun after the wake-word, cab-routing, and grocery-precedence fixes
+- Date/time: 2026-06-05 04:42:22 +05:30
 - Phone model: OnePlus 8T
 - Device model: KB2001
 - Android version: 14
 - App version: `0.1.0-debug`
 - Build version: `versionCode=1`
-- Git commit tested: current working tree after the wake-word, cab-routing, and grocery-precedence fixes
+- Git commit tested: current working tree on top of `1b87615` with local smoke/source/doc edits
 - Connected device: `7675208c`
 
 ## Permission Status
@@ -16,8 +16,16 @@
 - Microphone permission: Granted
 - Notification permission: Granted
 - Accessibility service: Enabled for `com.nova.luna.debug/com.nova.luna.service.NovaAccessibilityService`
-- Usage access: Missing
+- Usage access: Missing (`adb shell appops get com.nova.luna.debug GET_USAGE_STATS` returned `No operations.`)
 - Location permission: Missing
+
+## Installed Provider Apps
+
+- Cab apps detected: Ola, Rapido
+- Cab apps missing: Uber, inDrive
+- Food apps detected: Swiggy, Zomato
+- Food registry blocker: Toings remained unavailable to the food registry
+- Grocery apps detected: Blinkit, JioMart, Instamart
 
 ## Smoke Commands Used
 
@@ -42,22 +50,25 @@
 
 | Command / Scenario | Result | Notes |
 |---|---|---|
-| `Luna book a cab from current location to DB Mall` | PASS | Routed into the cab flow before the live-info gate, then stopped at the ride-type prompt. No provider opened and no booking or payment happened. |
-| Cab smoke `generic_cheapest` | PASS for routing | Installed providers were available locally, and the flow stayed in the structured cab path instead of falling back to live-info. No fare or ETA was read yet because the flow still needs ride-type input. |
-| Cab smoke manual boundary | PASS | No final booking or payment happened. |
+| `Luna book a cab from current location to DB Mall` | PASS | Routed into the cab flow and stopped at the ride-type prompt. |
+| Cab provider flow | PARTIAL | Ola and Rapido were available locally, but the current-location flow still hit manual-action boundaries on the provider screens. Location permission is missing, and the destination field was not fully accessible. |
+| Cab manual boundary | PASS | No final booking or payment happened. |
 
 ## Food Results
 
-| Command | Result | Notes |
+| Command / Scenario | Result | Notes |
 |---|---|---|
-| `Luna order paneer pizza from Domino's` | PASS | Routed into the food flow. On this phone, supported food apps were not available, so the flow stopped safely without placing an order or payment. |
+| `Luna order paneer pizza from Domino's` | PARTIAL | The restaurant follow-up had to use a parser-friendly `from Domino's` reply, but provider comparison still failed because the supported food apps did not expose usable search/cart controls on this phone. |
+| Food provider flow | PARTIAL | Swiggy and Zomato were detected, but Toings remained unavailable to the registry and the screen-inspection step could not move the flow to a selectable provider. |
 | Food manual boundary | PASS | No final order or payment happened. |
 
 ## Grocery Results
 
-| Command | Result | Notes |
+| Command / Scenario | Result | Notes |
 |---|---|---|
-| `Luna order milk and bread` | PASS | Routed into the grocery flow and asked for brand preference instead of falling into the food branch. No provider opened and no cart/price was read. |
+| `Luna order milk and bread` | PARTIAL | Routed into the grocery flow and asked for brand preference instead of falling into the food branch. |
+| Grocery comparison | PARTIAL | `any brand` advanced to comparison across Blinkit, Instamart, and JioMart, but the provider choice still stopped at the manual final-confirmation boundary. |
+| Grocery cancellation follow-up | FAIL | `cancel grocery` did not cleanly dismiss the final-confirmation/manual-action state in the latest smoke run. |
 | Grocery manual boundary | PASS | No final order or payment happened. |
 
 ## Negative Safety Tests
@@ -74,12 +85,14 @@
 
 - Usage access is still missing.
 - Location permission is still missing, which limits the cab flow.
-- Cab smoke now reaches the cab branch correctly, but it still needs ride-type input before it can progress further.
-- Food smoke reaches the food branch correctly, but this phone does not have a supported food app installed or available for screen inspection.
+- Cab smoke reaches the cab branch correctly, but provider screens still stop at manual-action boundaries before any final booking.
+- Food smoke reaches comparison, but the supported provider screens do not expose usable search/cart controls on this phone.
+- Grocery comparison works, but the cancellation follow-up still does not cleanly exit the final-confirmation/manual-action state.
 
 ## Logs Captured
 
 - `NovaLunaCommandSmoke`
+- `NovaLunaCab`
 
 ## SafetyGate And Boundaries
 

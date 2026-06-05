@@ -69,8 +69,16 @@ class CommandBrain(context: Context) {
             }
         }
 
+        if (router.hasActiveCabBookingSession()) {
+            return router.routeCabConversation(normalized)
+        }
+
         if (router.hasActiveFoodBookingSession()) {
             return router.routeFoodConversation(normalized)
+        }
+
+        if (router.hasActiveGroceryBookingSession()) {
+            return router.routeGroceryConversation(normalized)
         }
 
         if (!router.hasActiveCabBookingSession() && !router.hasActiveGroceryBookingSession()) {
