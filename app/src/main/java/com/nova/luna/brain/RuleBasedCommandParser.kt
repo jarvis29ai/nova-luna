@@ -84,7 +84,15 @@ class RuleBasedCommandParser {
             isOpenSettingsCommand(normalized) -> sensitive(rawText, ActionType.OPEN_SETTINGS, "open_settings")
             isOpenAccessibilitySettingsCommand(normalized) -> sensitive(rawText, ActionType.OPEN_ACCESSIBILITY_SETTINGS, "open_accessibility_settings")
             isOpenUsageAccessSettingsCommand(normalized) -> sensitive(rawText, ActionType.OPEN_USAGE_ACCESS_SETTINGS, "open_usage_access_settings")
-            normalized.startsWith("call ") -> sensitive(rawText, ActionType.CALL_CONTACT, normalized.removePrefix("call ").trim())
+            normalized.startsWith("call ") ||
+            normalized.contains("save") && normalized.contains("contact") ||
+            normalized.contains("create") && normalized.contains("contact") ||
+            normalized.contains("add") && normalized.contains("contact") ||
+            normalized.contains("update") && (normalized.contains("contact") || normalized.contains("number")) ||
+            (normalized.contains("number from") || normalized.contains("number sent by")) &&
+            (normalized.contains("message") || normalized.contains("whatsapp") || normalized.contains("telegram") || normalized.contains("sms"))
+            -> sensitive(rawText, ActionType.CALL_CONTACT, normalized)
+            isCommunicationCommand(normalized) -> communication(rawText)
             normalized.startsWith("open app ") -> openApp(rawText, normalized.removePrefix("open app ").trim())
             normalized.startsWith("open ") -> openApp(rawText, normalized.removePrefix("open ").trim())
             normalized.startsWith("launch ") -> openApp(rawText, normalized.removePrefix("launch ").trim())
@@ -267,6 +275,32 @@ class RuleBasedCommandParser {
             intentType = IntentType.SENSITIVE,
             actionType = actionType,
             entities = mapOf("value" to value)
+        )
+    }
+
+    private fun isCommunicationCommand(normalized: String): Boolean {
+        return normalized.contains("summarize") ||
+               normalized.contains("read my") ||
+               normalized.contains("what did i miss") ||
+               normalized.contains("tell me all") ||
+               normalized.contains("find the message") ||
+               normalized.contains("search all platforms") ||
+               normalized.contains("reply to") ||
+               normalized.contains("draft reply") ||
+               normalized.contains("draft email") ||
+               normalized.contains("write professional email") ||
+               normalized.contains("send it") ||
+               normalized == "send" ||
+               normalized == "yes send" ||
+               normalized == "don't send" ||
+               normalized == "save draft"
+    }
+
+    private fun communication(rawText: String): CommandIntent {
+        return CommandIntent(
+            rawText = rawText,
+            intentType = IntentType.COMMUNICATION,
+            actionType = ActionType.COMMUNICATION
         )
     }
 

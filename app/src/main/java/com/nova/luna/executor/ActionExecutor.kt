@@ -18,6 +18,10 @@ import com.nova.luna.food.FoodProviderLauncher
 import com.nova.luna.food.FoodProviderRegistry
 import com.nova.luna.food.toFoodBookingRequest
 import com.nova.luna.food.toCommandResult as toFoodCommandResult
+import com.nova.luna.phone.PhoneContactOrchestrator
+import com.nova.luna.phone.PhoneContactIntentParser
+import com.nova.luna.phone.toCommandResult as toPhoneCommandResult
+import com.nova.luna.communication.CommunicationOrchestrator
 
 class ActionExecutor(context: Context) {
     private val appLauncher = AppLauncher(context.applicationContext)
@@ -27,6 +31,9 @@ class ActionExecutor(context: Context) {
     private val typeExecutor = TypeExecutor()
     private val settingsExecutor = SettingsExecutor(context.applicationContext)
     private val notificationReader = NotificationReader(context.applicationContext)
+    private val phoneParser = PhoneContactIntentParser()
+    private val phoneOrchestrator = PhoneContactOrchestrator(context.applicationContext, phoneParser)
+    private val communicationOrchestrator = CommunicationOrchestrator(context.applicationContext)
     private val cabProviderRegistry = CabProviderRegistry(context.applicationContext.packageManager)
     private val foodProviderRegistry = FoodProviderRegistry(context.applicationContext.packageManager)
     private val cabOrchestrator = CabBookingOrchestrator(
@@ -74,14 +81,23 @@ class ActionExecutor(context: Context) {
             ActionType.OPEN_SETTINGS -> settingsExecutor.openSettings(commandIntent)
             ActionType.OPEN_ACCESSIBILITY_SETTINGS -> settingsExecutor.openAccessibilitySettings(commandIntent)
             ActionType.OPEN_USAGE_ACCESS_SETTINGS -> settingsExecutor.openUsageAccessSettings(commandIntent)
-            ActionType.CALL_CONTACT -> CommandResult.failure(
-                "Call automation is intentionally not implemented in this starter.",
-                commandIntent.intentType,
-                commandIntent.actionType,
-                commandIntent.entities
-            )
+            ActionType.CALL_CONTACT -> {
+                val phoneRequest = phoneParser.parse(commandIntent.rawText)
+                phoneOrchestrator.start(phoneRequest).toPhoneCommandResult(commandIntent)
+            }
             ActionType.CAB_BOOKING -> cabOrchestrator.start(commandIntent.toCabBookingRequest()).toCommandResult()
             ActionType.FOOD_ORDER -> foodOrchestrator.start(commandIntent.toFoodBookingRequest()).toFoodCommandResult()
+            ActionType.COMMUNICATION -> {
+                val result = communicationOrchestrator.handleRequest(commandIntent.rawText)
+                CommandResult(
+                    success = result.status == com.nova.luna.communication.CommunicationStatus.SUCCESS ||
+                              result.status == com.nova.luna.communication.CommunicationStatus.NEEDS_CONFIRMATION,
+                    message = result.popupText,
+                    intentType = commandIntent.intentType,
+                    actionType = commandIntent.actionType,
+                    entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
+                )
+            }
             ActionType.STOP_SERVICE -> CommandResult.success(
                 message = "Stopping listening.",
                 intentType = commandIntent.intentType,
@@ -107,11 +123,35 @@ class ActionExecutor(context: Context) {
         return foodOrchestrator.isActive()
     }
 
+    fun hasActivePhoneContactSession(): Boolean {
+        return phoneOrchestrator.isActive()
+    }
+
+    fun hasActiveCommunicationSession(): Boolean {
+        return communicationOrchestrator.isActive()
+    }
+
     fun handleCabBookingText(rawText: String): CommandResult {
         return cabOrchestrator.handleUserInput(rawText).toCommandResult()
     }
 
     fun handleFoodBookingText(rawText: String): CommandResult {
         return foodOrchestrator.handleUserInput(rawText).toFoodCommandResult()
+    }
+
+    fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult {
+        return phoneOrchestrator.handleUserInput(rawText).toPhoneCommandResult(commandIntent)
+    }
+
+    fun handleCommunicationText(rawText: String, commandIntent: CommandIntent): CommandResult {
+        val result = communicationOrchestrator.handleRequest(rawText)
+        return CommandResult(
+            success = result.status == com.nova.luna.communication.CommunicationStatus.SUCCESS ||
+                      result.status == com.nova.luna.communication.CommunicationStatus.NEEDS_CONFIRMATION,
+            message = result.popupText,
+            intentType = commandIntent.intentType,
+            actionType = commandIntent.actionType,
+            entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
+        )
     }
 }

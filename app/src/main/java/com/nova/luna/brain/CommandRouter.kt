@@ -19,11 +19,27 @@ class CommandRouter(
         return actionExecutor.hasActiveFoodBookingSession()
     }
 
+    fun hasActivePhoneContactSession(): Boolean {
+        return actionExecutor.hasActivePhoneContactSession()
+    }
+
+    fun hasActiveCommunicationSession(): Boolean {
+        return actionExecutor.hasActiveCommunicationSession()
+    }
+
     fun routeCabConversation(rawText: String): CommandResult {
         return actionExecutor.handleCabBookingText(rawText)
     }
 
     fun routeFoodConversation(rawText: String): CommandResult {
         return actionExecutor.handleFoodBookingText(rawText)
+    }
+
+    fun routePhoneContactConversation(rawText: String): CommandResult {
+        return actionExecutor.handlePhoneContactText(rawText, CommandIntent(rawText))
+    }
+
+    fun routeCommunicationConversation(rawText: String): CommandResult {
+        return actionExecutor.handleCommunicationText(rawText, CommandIntent(rawText))
     }
 }
