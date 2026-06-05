@@ -55,6 +55,10 @@ object FoodBookingVoiceResponses {
         return "I could not complete the food order: $reason."
     }
 
+    fun bookingCancelled(): String {
+        return "Food booking cancelled."
+    }
+
     fun noProvidersAvailable(skippedProviders: Map<FoodProvider, String>): String {
         if (skippedProviders.isEmpty()) {
             return "I could not find any supported food apps installed on this phone."

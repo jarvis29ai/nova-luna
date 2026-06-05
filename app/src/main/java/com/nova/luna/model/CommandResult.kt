@@ -7,6 +7,7 @@ data class CommandResult(
     val actionType: ActionType = ActionType.UNKNOWN,
     val safetyDecision: SafetyDecision = SafetyDecision.allow(),
     val shouldStopListening: Boolean = false,
+    val awaitingConfirmation: Boolean = false,
     val entities: Map<String, String> = emptyMap()
 ) {
     companion object {
@@ -60,6 +61,23 @@ data class CommandResult(
             )
         }
 
+        fun confirmationRequired(
+            message: String,
+            intentType: IntentType = IntentType.UNKNOWN,
+            actionType: ActionType = ActionType.UNKNOWN,
+            entities: Map<String, String> = emptyMap()
+        ): CommandResult {
+            return CommandResult(
+                success = false,
+                message = message,
+                intentType = intentType,
+                actionType = actionType,
+                safetyDecision = SafetyDecision.requireConfirmation(message),
+                awaitingConfirmation = true,
+                entities = entities
+            )
+        }
+
         fun biometricRequired(
             message: String,
             intentType: IntentType = IntentType.SENSITIVE,
@@ -77,4 +95,3 @@ data class CommandResult(
         }
     }
 }
-

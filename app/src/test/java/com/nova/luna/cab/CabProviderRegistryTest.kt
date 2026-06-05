@@ -39,6 +39,18 @@ class CabProviderRegistryTest {
         assertEquals(CabProviderRegistry.UBER_PACKAGE_NAME, registry.packageName(CabProvider.UBER))
     }
 
+    @Test
+    fun `inDrive package name falls back across aliases`() {
+        Mockito.`when`(packageManager.getLaunchIntentForPackage(CabProviderRegistry.INDRIVE_PACKAGE_NAME_LOWER))
+            .thenReturn(Intent(Intent.ACTION_MAIN))
+
+        assertTrue(registry.isInstalled(CabProvider.INDRIVE))
+        assertEquals(
+            CabProviderRegistry.INDRIVE_PACKAGE_NAME_LOWER,
+            registry.installedPackageName(CabProvider.INDRIVE)
+        )
+    }
+
     private class TestContext(
         baseContext: Context,
         private val packageManager: PackageManager

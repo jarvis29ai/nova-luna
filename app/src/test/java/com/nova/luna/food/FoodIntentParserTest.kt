@@ -34,6 +34,15 @@ class FoodIntentParserTest {
     }
 
     @Test
+    fun `wake-word food requests keep the food and restaurant details`() {
+        val request = parser.parse("Luna order paneer pizza from Domino's")
+
+        assertNotNull(request)
+        assertEquals("paneer pizza", request?.foodItem)
+        assertEquals("Domino's", request?.restaurantName)
+    }
+
+    @Test
     fun `Get paneer roll from XYZ restaurant extracts restaurant name`() {
         val request = parser.parse("Get paneer roll from XYZ restaurant")
 
@@ -61,6 +70,11 @@ class FoodIntentParserTest {
     @Test
     fun `Book cheapest is not misread as a brand new food order`() {
         assertNull(parser.parse("Book cheapest"))
+    }
+
+    @Test
+    fun `normal questions are not misclassified as food orders`() {
+        assertNull(parser.parse("Luna what is the weather?"))
     }
 
     @Test

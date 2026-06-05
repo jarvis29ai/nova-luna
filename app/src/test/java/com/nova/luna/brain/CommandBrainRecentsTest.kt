@@ -50,7 +50,8 @@ class CommandBrainRecentsTest {
             "recent apps",
             "recents",
             "show recent apps",
-            "open recents"
+            "open recents",
+            "Luna show recent apps"
         )
 
         phrases.forEach { phrase ->
@@ -73,6 +74,7 @@ class CommandBrainRecentsTest {
 
         assertEquals(
             listOf(
+                AccessibilityService.GLOBAL_ACTION_RECENTS,
                 AccessibilityService.GLOBAL_ACTION_RECENTS,
                 AccessibilityService.GLOBAL_ACTION_RECENTS,
                 AccessibilityService.GLOBAL_ACTION_RECENTS,

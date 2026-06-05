@@ -23,6 +23,23 @@ class FoodBookingOrchestrator(
         return advanceSession()
     }
 
+    fun cancelSession(): FoodComparisonResult {
+        val current = session ?: return FoodComparisonResult(
+            state = FoodBookingState.CANCELLED,
+            message = FoodBookingVoiceResponses.bookingCancelled()
+        )
+
+        current.state = FoodBookingState.CANCELLED
+        val result = buildSessionResult(
+            current = current,
+            state = FoodBookingState.CANCELLED,
+            message = FoodBookingVoiceResponses.bookingCancelled(),
+            finalUserConfirmed = false
+        )
+        clearSession()
+        return result
+    }
+
     fun handleUserInput(rawText: String): FoodComparisonResult {
         val trimmed = rawText.trim()
         if (trimmed.isBlank()) {
@@ -52,6 +69,7 @@ class FoodBookingOrchestrator(
             FoodBookingState.PLACING_ORDER,
             FoodBookingState.COMPLETED,
             FoodBookingState.FAILED,
+            FoodBookingState.CANCELLED,
             FoodBookingState.IDLE -> promptCurrentState()
         }
     }
@@ -123,6 +141,11 @@ class FoodBookingOrchestrator(
                 current,
                 FoodBookingState.FAILED,
                 FoodBookingVoiceResponses.orderFailed("the food order has already failed.")
+            )
+            FoodBookingState.CANCELLED -> buildSessionResult(
+                current,
+                FoodBookingState.CANCELLED,
+                FoodBookingVoiceResponses.bookingCancelled()
             )
             else -> {
                 if (current.request.foodItem.isNullOrBlank()) {

@@ -123,6 +123,7 @@ enum class FoodBookingState {
     PLACING_ORDER,
     COMPLETED,
     FAILED,
+    CANCELLED,
     MANUAL_ACTION_REQUIRED
 }
 

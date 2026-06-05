@@ -23,12 +23,21 @@ class CabAccessibilityServiceManualActionTest {
     }
 
     @Test
+    fun `location update secure and unavailable screens are treated as manual steps`() {
+        assertEquals("permission", detect(listOf("Allow location to continue")))
+        assertEquals("app update required", detect(listOf("Please update app to continue")))
+        assertEquals("provider unavailable", detect(listOf("Provider unavailable right now")))
+        assertEquals("secure or unreadable screen", detect(listOf("Secure screen detected")))
+    }
+
+    @Test
     fun `manual action reason from snapshot is preserved`() {
         assertEquals(
             "manual action required",
             service.detectManualActionRequired(
                 CabScreenSnapshot(
                     visibleText = listOf("manual action required"),
+                    sourcePackageName = CabProviderRegistry.UBER_PACKAGE_NAME,
                     manualActionReason = "manual action required"
                 )
             )

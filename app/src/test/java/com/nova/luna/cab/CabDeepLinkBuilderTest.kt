@@ -6,8 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -51,6 +51,7 @@ class CabDeepLinkBuilderTest {
             packageName = CabProviderRegistry.UBER_PACKAGE_NAME
         )
 
+        Mockito.clearInvocations(packageManager)
         val intent = builder.buildLaunchIntent(CabProvider.UBER, request, selectedOption)
 
         assertNotNull(intent)
@@ -63,6 +64,7 @@ class CabDeepLinkBuilderTest {
         assertEquals(CabProvider.UBER.name, intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_PROVIDER))
         assertEquals("book auto to DB Mall", intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_REQUEST_TEXT))
         assertEquals("Home", intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_PICKUP_LOCATION))
+        assertEquals(PickupMode.USER_TEXT.name, intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_PICKUP_MODE))
         assertEquals("DB Mall", intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_DROP_LOCATION))
         assertEquals(RideType.AUTO.name, intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_RIDE_TYPE))
         assertEquals(CabProvider.UBER.name, intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_SELECTED_PROVIDER))
@@ -73,15 +75,11 @@ class CabDeepLinkBuilderTest {
         assertEquals(124L, intent?.getLongExtra(CabDeepLinkBuilder.EXTRA_FINAL_FARE_AMOUNT, -1L))
         assertEquals("ETA 5 min", intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_ETA_TEXT))
         assertEquals(5, intent?.getIntExtra(CabDeepLinkBuilder.EXTRA_ETA_MINUTES, -1))
-        Mockito.verifyNoInteractions(packageManager)
+        Mockito.verify(packageManager).getLaunchIntentForPackage(CabProviderRegistry.UBER_PACKAGE_NAME)
     }
 
     @Test
-    fun `fallback provider launch intent reuses package manager intent and adds trip extras`() {
-        val launchIntent = Intent(Intent.ACTION_MAIN).setPackage(CabProviderRegistry.OLA_PACKAGE_NAME)
-        Mockito.`when`(packageManager.getLaunchIntentForPackage(CabProviderRegistry.OLA_PACKAGE_NAME))
-            .thenReturn(launchIntent)
-
+    fun `fallback provider launch intent uses geo uri and adds trip extras`() {
         val request = CabBookingRequest(
             rawText = "book cab to DB Mall",
             pickupLocation = "Home",
@@ -93,7 +91,38 @@ class CabDeepLinkBuilderTest {
         val intent = builder.buildLaunchIntent(CabProvider.OLA, request, null)
 
         assertNotNull(intent)
-        assertSame(launchIntent, intent)
+        assertEquals(Intent.ACTION_VIEW, intent?.action)
+        assertEquals(CabProviderRegistry.OLA_PACKAGE_NAME, intent?.`package`)
+        assertTrue(intent?.dataString?.startsWith("geo:0,0?q=") == true)
+        assertTrue(intent?.dataString?.contains("DB%20Mall") == true)
+        assertTrue(intent?.flags?.and(Intent.FLAG_ACTIVITY_NEW_TASK) != 0)
+        assertEquals(CabProvider.OLA.name, intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_PROVIDER))
+        assertEquals("book cab to DB Mall", intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_REQUEST_TEXT))
+        assertEquals("Home", intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_PICKUP_LOCATION))
+        assertEquals(PickupMode.USER_TEXT.name, intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_PICKUP_MODE))
+        assertEquals("DB Mall", intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_DROP_LOCATION))
+        assertEquals(RideType.MINI.name, intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_RIDE_TYPE))
+        assertEquals(CabProvider.OLA.name, intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_PREFERRED_PROVIDER))
+        Mockito.verify(packageManager, Mockito.atLeastOnce()).getLaunchIntentForPackage(CabProviderRegistry.OLA_PACKAGE_NAME)
+    }
+
+    @Test
+    fun `package launch intent helper uses provider launch intent and embeds trip extras`() {
+        Mockito.`when`(packageManager.getLaunchIntentForPackage(CabProviderRegistry.OLA_PACKAGE_NAME))
+            .thenReturn(Intent(Intent.ACTION_MAIN))
+
+        val request = CabBookingRequest(
+            rawText = "book cab to DB Mall",
+            pickupLocation = "Home",
+            dropLocation = "DB Mall",
+            rideType = RideType.MINI,
+            preferredProvider = CabProvider.OLA
+        )
+
+        Mockito.clearInvocations(packageManager)
+        val intent = builder.buildPackageLaunchIntent(CabProvider.OLA, request, null)
+
+        assertNotNull(intent)
         assertEquals(Intent.ACTION_MAIN, intent?.action)
         assertEquals(CabProviderRegistry.OLA_PACKAGE_NAME, intent?.`package`)
         assertTrue(intent?.flags?.and(Intent.FLAG_ACTIVITY_NEW_TASK) != 0)
@@ -102,8 +131,30 @@ class CabDeepLinkBuilderTest {
         assertEquals("Home", intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_PICKUP_LOCATION))
         assertEquals("DB Mall", intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_DROP_LOCATION))
         assertEquals(RideType.MINI.name, intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_RIDE_TYPE))
-        assertEquals(CabProvider.OLA.name, intent?.getStringExtra(CabDeepLinkBuilder.EXTRA_PREFERRED_PROVIDER))
-        Mockito.verify(packageManager).getLaunchIntentForPackage(CabProviderRegistry.OLA_PACKAGE_NAME)
+        Mockito.verify(packageManager, Mockito.atLeastOnce()).getLaunchIntentForPackage(CabProviderRegistry.OLA_PACKAGE_NAME)
+    }
+
+    @Test
+    fun `structured launch plan reports accessibility fallback for package launch`() {
+        val launchIntent = Intent(Intent.ACTION_MAIN).setPackage(CabProviderRegistry.RAPIDO_PACKAGE_NAME)
+        Mockito.`when`(packageManager.getLaunchIntentForPackage(CabProviderRegistry.RAPIDO_PACKAGE_NAME))
+            .thenReturn(launchIntent)
+        Mockito.clearInvocations(packageManager)
+
+        val request = CabBookingRequest(
+            rawText = "book cab to DB Mall",
+            pickupLocation = "Home",
+            dropLocation = "DB Mall",
+            rideType = RideType.AUTO,
+            preferredProvider = CabProvider.RAPIDO
+        )
+
+        val plan = builder.buildLaunchPlan(CabProvider.RAPIDO, request, null)
+
+        assertNotNull(plan.intent)
+        assertFalse(plan.supportsDirectTripIntent)
+        assertTrue(plan.needsAccessibilityFill)
+        assertEquals("geo", plan.launchMode)
     }
 
     private class TestContext(

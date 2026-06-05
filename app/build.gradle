@@ -8,6 +8,10 @@ android {
     namespace 'com.nova.luna'
     compileSdk 34
 
+    buildFeatures {
+        buildConfig true
+    }
+
     testOptions {
         unitTests {
             includeAndroidResources = true
@@ -20,6 +24,32 @@ android {
         targetSdk 34
         versionCode 1
         versionName "0.1.0"
+
+        def brainProvider = (project.findProperty('brain_provider') ?: 'mock').toString()
+        def ollamaBaseUrl = (project.findProperty('ollama_base_url') ?: 'http://127.0.0.1:11434').toString()
+        def ollamaModel = (project.findProperty('ollama_model') ?: 'qwen2.5:3b').toString()
+        def llmEnabled = (project.findProperty('llm_enabled') ?: 'false').toString().toBoolean()
+        def brainCapabilityMode = (project.findProperty('brain_capability_mode') ?: 'offline_only').toString()
+        def gemmaEnabled = (project.findProperty('gemma_enabled') ?: 'false').toString().toBoolean()
+        def gemmaModelAssetPath = (project.findProperty('gemma_model_asset_path') ?: '').toString()
+        def gemmaMaxTokens = (project.findProperty('gemma_max_tokens') ?: '512').toString().toInteger()
+        def gemmaTemperature = (project.findProperty('gemma_temperature') ?: '0.2').toString().toDouble()
+        def gemmaTopK = (project.findProperty('gemma_top_k') ?: '40').toString().toInteger()
+        def gemmaContextWindow = (project.findProperty('gemma_context_window') ?: '8192').toString().toInteger()
+        def gemmaRoleEnabled = (project.findProperty('gemma_role_enabled') ?: 'true').toString().toBoolean()
+
+        buildConfigField "String", "BRAIN_PROVIDER", "\"${brainProvider.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "String", "OLLAMA_BASE_URL", "\"${ollamaBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "String", "OLLAMA_MODEL", "\"${ollamaModel.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "boolean", "LLM_ENABLED", "${llmEnabled}"
+        buildConfigField "String", "BRAIN_CAPABILITY_MODE", "\"${brainCapabilityMode.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "boolean", "GEMMA_ENABLED", "${gemmaEnabled}"
+        buildConfigField "String", "GEMMA_MODEL_ASSET_PATH", "\"${gemmaModelAssetPath.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "int", "GEMMA_MAX_TOKENS", "${gemmaMaxTokens}"
+        buildConfigField "double", "GEMMA_TEMPERATURE", "${gemmaTemperature}"
+        buildConfigField "int", "GEMMA_TOP_K", "${gemmaTopK}"
+        buildConfigField "int", "GEMMA_CONTEXT_WINDOW", "${gemmaContextWindow}"
+        buildConfigField "boolean", "GEMMA_ROLE_ENABLED", "${gemmaRoleEnabled}"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
