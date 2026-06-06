@@ -84,6 +84,10 @@ class CommandBrain(context: Context) {
             return router.routeContentCreationConversation(rawText)
         }
 
+        if (router.hasActiveMediaSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
+            return router.routeMediaConversation(rawText)
+        }
+
         if (parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
             return CommandResult.failure(
                 "I did not understand that command.",

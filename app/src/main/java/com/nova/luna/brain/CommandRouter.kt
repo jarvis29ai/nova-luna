@@ -42,6 +42,10 @@ class CommandRouter(
         return actionExecutor.hasActiveContentCreationSession()
     }
 
+    fun hasActiveMediaSession(): Boolean {
+        return actionExecutor.hasActiveMediaSession()
+    }
+
     fun routeCabConversation(rawText: String): CommandResult {
         return actionExecutor.handleCabBookingText(rawText)
     }
@@ -64,6 +68,10 @@ class CommandRouter(
 
     fun routeContentCreationConversation(rawText: String): CommandResult {
         return actionExecutor.handleContentCreationText(rawText, CommandIntent(rawText))
+    }
+
+    fun routeMediaConversation(rawText: String): CommandResult {
+        return actionExecutor.handleMediaText(rawText, CommandIntent(rawText))
     }
 }
 

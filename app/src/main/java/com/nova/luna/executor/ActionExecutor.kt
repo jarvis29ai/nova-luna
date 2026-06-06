@@ -43,6 +43,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     private val phoneOrchestrator = PhoneContactOrchestrator(context.applicationContext, phoneParser)
     private val communicationOrchestrator = CommunicationOrchestrator(context.applicationContext)
     private val contentCreationOrchestrator = ContentCreationOrchestrator(context.applicationContext)
+    private val mediaOrchestrator = MediaOrchestrator(context.applicationContext)
     private val shoppingOrchestrator = ShoppingOrchestrator(context.applicationContext)
     private val cabProviderRegistry = CabProviderRegistry(context.applicationContext.packageManager)
     private val foodProviderRegistry = FoodProviderRegistry(context.applicationContext.packageManager)
@@ -186,8 +187,20 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
         )
     }
 
-    override fun hasActiveMediaSession(): Boolean = false // Placeholder for broken media
-    override fun handleMediaText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.failure("Not implemented", commandIntent.intentType, commandIntent.actionType, commandIntent.entities)
+    override fun hasActiveMediaSession(): Boolean = mediaOrchestrator.isActive()
+    override fun handleMediaText(rawText: String, commandIntent: CommandIntent): CommandResult {
+        val result = mediaOrchestrator.handleRequest(rawText)
+        return CommandResult(
+            success = result.status == com.nova.luna.media.MediaStatusType.SUCCESS ||
+                      result.status == com.nova.luna.media.MediaStatusType.NEEDS_USER_INPUT ||
+                      result.status == com.nova.luna.media.MediaStatusType.NEEDS_CONFIRMATION ||
+                      result.status == com.nova.luna.media.MediaStatusType.MANUAL_ACTION_REQUIRED,
+            message = result.popupText,
+            intentType = commandIntent.intentType,
+            actionType = commandIntent.actionType,
+            entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
+        )
+    }
 
     override fun hasActiveShoppingSession(): Boolean = shoppingOrchestrator.isActive()
     override fun handleShoppingText(rawText: String, commandIntent: CommandIntent): CommandResult {
