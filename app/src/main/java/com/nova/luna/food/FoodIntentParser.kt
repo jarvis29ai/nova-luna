@@ -42,15 +42,44 @@ class FoodIntentParser {
         )
     }
 
+    private val foodItems = listOf(
+        "pizza", "burger", "biryani", "dosa", "meal", "chicken", "rice", "pasta", "noodles",
+        "sandwich", "salad", "soup", "taco", "sushi", "cake", "dessert", "ice cream",
+        "juice", "shake", "pancakes", "waffle", "paratha", "thali", "momo", "curry", "paneer"
+    )
+
+    private val foodProviders = listOf(
+        "swiggy", "zomato", "toings", "domino", "pizza hut", "kfc", "burger king", "starbucks", "subway"
+    )
+
+    private val foodVerbs = listOf(
+        "order food", "deliver food", "buy food", "get food", "bring food", "eat"
+    )
+
     fun isFoodOrderCommand(rawText: String): Boolean {
         val normalized = normalize(rawText)
         if (normalized.isBlank()) return false
 
-        return listOf(
+        val hasFoodWord = foodItems.any { containsPhrase(normalized, it) } ||
+                foodProviders.any { containsPhrase(normalized, it) } ||
+                foodVerbs.any { containsPhrase(normalized, it) } ||
+                containsPhrase(normalized, "food") ||
+                containsPhrase(normalized, "restaurant")
+
+        val explicitOrderPrefix = listOf(
             Regex("""^(?:i\s+)?want\s+to\s+eat\b""", RegexOption.IGNORE_CASE),
-            Regex("""^(?:i\s+)?want\s+to\s+order\b""", RegexOption.IGNORE_CASE),
-            Regex("""^(?:i\s+)?(?:order|get|buy|book|eat|compare|find|search(?:\s+for)?|bring|deliver)\b""", RegexOption.IGNORE_CASE)
+            Regex("""^(?:i\s+)?want\s+to\s+order\b""", RegexOption.IGNORE_CASE)
         ).any { it.containsMatchIn(normalized) }
+
+        if (explicitOrderPrefix) return true
+
+        val genericVerbPrefix = Regex("""^(?:i\s+)?(?:order|get|buy|book|eat|compare|find|search(?:\s+for)?|bring|deliver|apply|cancel|proceed|use)\b""", RegexOption.IGNORE_CASE)
+
+        if (genericVerbPrefix.containsMatchIn(normalized)) {
+            return hasFoodWord
+        }
+
+        return false
     }
 
     fun extractFoodItem(rawText: String): String? {

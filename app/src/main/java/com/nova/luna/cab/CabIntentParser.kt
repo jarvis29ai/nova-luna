@@ -621,62 +621,45 @@ class CabIntentParser {
         return parseRideTypeReply(beforeDestination)
     }
 
+    private val cabItems = listOf(
+        "cab", "ride", "taxi", "auto", "bike", "rickshaw", "car", "vehicle", "lift", "transport"
+    )
+
+    private val cabProviders = listOf(
+        "uber", "ola", "rapido", "indrive", "in drive"
+    )
+
+    private val cabVerbs = listOf(
+        "book", "hail", "take", "ride to", "cab to", "taxi to"
+    )
+
     private fun containsBookingCue(normalized: String): Boolean {
         if (normalized.isBlank()) return false
 
-        val cuePhrases = listOf(
-            "book",
-            "book cab",
-            "book ride",
-            "book auto",
-            "book bike",
-            "book mini",
-            "book sedan",
-            "book suv",
-            "book uber",
-            "book ola",
-            "book rapido",
-            "book indrive",
-            "get me a ride",
-            "get me ride",
-            "need a cab",
-            "i need a cab",
-            "need a ride",
-            "cab from",
-            "cab to",
-            "ride from",
-            "ride to",
-            "hail a cab",
-            "compare",
-            "compare fares",
-            "compare rides",
-            "find cheapest",
-            "find fastest",
-            "search fares",
-            "search cab",
-            "show fares",
-            "book the cheapest",
-            "book cheapest",
-            "book first one",
-            "book now",
-            "schedule cab",
-            "manual pickup",
-            "use manual pickup",
-            "choose first",
-            "choose second",
-            "choose third",
-            "choose cheapest",
-            "choose fastest",
-            "choose comfortable",
-            "change pickup",
-            "change destination",
-            "change cab type",
-            "try another app",
-            "current location",
-            "use current location"
-        )
+        val hasCabWord = cabItems.any { containsPhrase(normalized, it) } ||
+                cabProviders.any { containsPhrase(normalized, it) } ||
+                cabVerbs.any { containsPhrase(normalized, it) } ||
+                containsPhrase(normalized, "fare")
 
-        return cuePhrases.any { normalized.contains(it) }
+        val explicitBookingPrefix = listOf(
+            "book cab", "book ride", "book auto", "book bike", "book mini", "book sedan", "book suv",
+            "book uber", "book ola", "book rapido", "book indrive", "get me a ride", "get me ride",
+            "need a cab", "i need a cab", "need a ride"
+        ).any { containsPhrase(normalized, it) }
+
+        if (explicitBookingPrefix) return true
+
+        val genericVerb = listOf(
+            "compare", "compare fares", "compare rides", "find cheapest", "find fastest",
+            "search fares", "search cab", "show fares", "book", "choose first", "choose second",
+            "choose third", "choose cheapest", "choose fastest", "choose comfortable"
+        ).any { containsPhrase(normalized, it) }
+
+        if (genericVerb) {
+            return hasCabWord || containsPhrase(normalized, "to") // "to [destination]" is often cab cue
+        }
+
+        return hasCabWord
     }
 
     private fun isLikelyLocationReply(rawText: String): Boolean {

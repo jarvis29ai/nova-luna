@@ -770,27 +770,31 @@ class GroceryIntentParser {
     }
 
     private fun containsGroceryCue(normalized: String): Boolean {
-        return groceryItemKeywords.any { containsPhrase(normalized, it) } ||
-            containsAnyPhrase(
-                normalized,
-                listOf(
-                    "grocery",
-                    "groceries",
-                    "basket",
-                    "cart",
-                    "coupon",
-                    "offers",
-                    "offer",
-                    "compare",
-                    "reorder",
-                    "usual groceries",
-                    "previous list",
-                    "cheapest",
-                    "fastest",
-                    "best quality",
-                    "best overall"
-                )
+        val hasGroceryWord = groceryItemKeywords.any { containsPhrase(normalized, it) } ||
+            groceryProviderPatterns.values.flatten().any { containsPhrase(normalized, it) } ||
+            groceryBrands.any { containsPhrase(normalized, it) } ||
+            containsAnyPhrase(normalized, listOf("grocery", "groceries", "basket", "cart", "usual groceries", "previous list"))
+
+        val genericVerb = containsAnyPhrase(
+            normalized,
+            listOf(
+                "compare",
+                "reorder",
+                "cheapest",
+                "fastest",
+                "best quality",
+                "best overall",
+                "coupon",
+                "offers",
+                "offer"
             )
+        )
+
+        if (genericVerb) {
+            return hasGroceryWord
+        }
+
+        return hasGroceryWord
     }
 
     private fun containsFoodOrderingCue(normalized: String): Boolean {

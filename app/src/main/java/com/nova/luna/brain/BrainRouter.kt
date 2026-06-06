@@ -54,10 +54,14 @@ class BrainRouter(
             )
         }
 
-        if (isFoodPlanning(request.rawText)) {
+        if (request.activeFoodSession || isFoodPlanning(request.rawText)) {
             return decision(
                 role = BrainModelRole.ACTION_JSON,
-                reason = "This request is food planning and should stay structured locally.",
+                reason = if (request.activeFoodSession) {
+                    "An active food session needs structured action JSON continuity."
+                } else {
+                    "This request is food planning and should stay structured locally."
+                },
                 requiresInternet = false,
                 safetyNotes = listOf(
                     "ActionJsonModel may only produce safe BrainAction JSON for food flows.",

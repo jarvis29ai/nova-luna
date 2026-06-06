@@ -99,12 +99,14 @@ class BrainService(
     fun diagnose(
         rawText: String,
         activeCabSession: Boolean = false,
-        activeGrocerySession: Boolean = false
+        activeGrocerySession: Boolean = false,
+        activeFoodSession: Boolean = false
     ): BrainDiagnostics {
         val request = BrainRequest(
             rawText = rawText,
             activeCabSession = activeCabSession,
-            activeGrocerySession = activeGrocerySession
+            activeGrocerySession = activeGrocerySession,
+            activeFoodSession = activeFoodSession
         )
 
         val policyDecision = internetPermissionPolicy.classify(rawText)

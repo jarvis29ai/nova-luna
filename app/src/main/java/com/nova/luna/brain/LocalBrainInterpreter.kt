@@ -3,9 +3,11 @@ package com.nova.luna.brain
 import com.nova.luna.cab.CabIntentParser
 import com.nova.luna.cab.CabProvider
 import com.nova.luna.cab.RideType
+import com.nova.luna.cab.PickupMode
 import com.nova.luna.grocery.GroceryBookingVoiceResponses
 import com.nova.luna.grocery.GroceryIntentParseResult
 import com.nova.luna.grocery.GroceryIntentParser
+import com.nova.luna.food.toEntities
 import com.nova.luna.model.ActionType
 import com.nova.luna.model.BrainAction
 import com.nova.luna.model.BrainActionType
@@ -19,6 +21,7 @@ class LocalBrainInterpreter {
     private val legacyParser = RuleBasedCommandParser()
     private val cabIntentParser = CabIntentParser()
     private val groceryIntentParser = GroceryIntentParser()
+    private val foodIntentParser = com.nova.luna.food.FoodIntentParser()
 
     fun interpret(request: BrainRequest): BrainAction {
         val rawText = request.rawText.trim()
@@ -26,6 +29,10 @@ class LocalBrainInterpreter {
             return buildUnknownAction(rawText)
         }
 
+        // 1. Safety blocked actions
+        parseBlockedAction(rawText)?.let { return it }
+
+        // 2. Active session continuations
         if (request.activeCabSession) {
             return BrainAction(
                 intent = "cab_session",
@@ -50,14 +57,136 @@ class LocalBrainInterpreter {
             )
         }
 
-        parseBlockedAction(rawText)?.let { return it }
-        parseCabComparison(rawText)?.let { return it }
-        parseCabBooking(rawText)?.let { return it }
-        parseGroceryBooking(rawText)?.let { return it }
+        if (request.activeFoodSession) {
+            return BrainAction(
+                intent = "food_session",
+                reply = "Continuing the food flow.",
+                actionType = BrainActionType.EXTERNAL_ACTION,
+                riskLevel = BrainRiskLevel.SAFE,
+                requiresConfirmation = false,
+                finalActionAllowed = false,
+                params = mapOf("rawText" to rawText, "activeFoodSession" to "true")
+            )
+        }
+
+        // 3. Domain Scoring for Initial Routing
+        val normalized = normalize(rawText)
+        val foodScore = calculateFoodScore(normalized)
+        val cabScore = calculateCabScore(normalized)
+        val groceryScore = calculateGroceryScore(normalized)
+
+        val maxScore = maxOf(foodScore, cabScore, groceryScore)
+
+        if (maxScore > 0) {
+            // Prioritize the clear winner
+            if (foodScore == maxScore && foodScore > cabScore && foodScore > groceryScore) {
+                parseFoodBooking(rawText)?.let { return it }
+            }
+            if (cabScore == maxScore && cabScore > foodScore && cabScore > groceryScore) {
+                parseCabComparison(rawText)?.let { return it }
+                parseCabBooking(rawText)?.let { return it }
+            }
+            if (groceryScore == maxScore && groceryScore > foodScore && groceryScore > cabScore) {
+                parseGroceryBooking(rawText)?.let { return it }
+            }
+
+            // If tie or primary failed, try in order of scores
+            val candidates = mutableListOf<Pair<String, Int>>()
+            candidates.add("food" to foodScore)
+            candidates.add("cab" to cabScore)
+            candidates.add("grocery" to groceryScore)
+            candidates.sortByDescending { it.second }
+
+            for (candidate in candidates) {
+                if (candidate.second == 0) break
+                when (candidate.first) {
+                    "food" -> parseFoodBooking(rawText)?.let { return it }
+                    "cab" -> {
+                        parseCabComparison(rawText)?.let { return it }
+                        parseCabBooking(rawText)?.let { return it }
+                    }
+                    "grocery" -> parseGroceryBooking(rawText)?.let { return it }
+                    }
+                    }
+                    }
+
+
+        // 4. Fallbacks
         parsePreparedMessage(rawText)?.let { return it }
         parseLegacyCommand(rawText)?.let { return it }
 
         return buildUnknownAction(rawText)
+    }
+
+    private fun calculateFoodScore(normalized: String): Int {
+        var score = 0
+        val foodItems = listOf(
+            "pizza", "burger", "biryani", "dosa", "meal", "chicken", "rice", "pasta", "noodles",
+            "sandwich", "salad", "soup", "taco", "sushi", "cake", "dessert", "ice cream",
+            "juice", "shake", "pancakes", "waffle", "paratha", "thali", "momo", "curry", "paneer"
+        )
+        val foodProviders = listOf("swiggy", "zomato", "toings", "domino", "pizza hut", "kfc", "burger king", "starbucks", "subway")
+        
+        foodItems.forEach { if (containsPhrase(normalized, it)) score += 2 }
+        foodProviders.forEach { if (containsPhrase(normalized, it)) score += 2 }
+        if (containsPhrase(normalized, "food") || containsPhrase(normalized, "restaurant")) score += 2
+        return score
+    }
+
+    private fun calculateCabScore(normalized: String): Int {
+        var score = 0
+        val cabItems = listOf("cab", "ride", "taxi", "auto", "bike", "rickshaw", "fare")
+        val cabProviders = listOf("uber", "ola", "rapido", "indrive")
+        
+        cabItems.forEach { if (containsPhrase(normalized, it)) score += 2 }
+        cabProviders.forEach { if (containsPhrase(normalized, it)) score += 2 }
+        if (extractDestination(normalized) != null) score += 2
+        return score
+    }
+
+    private fun calculateGroceryScore(normalized: String): Int {
+        var score = 0
+        val groceryItems = listOf("milk", "bread", "sugar", "atta", "dal", "oil", "eggs", "grocery", "groceries", "cart", "basket")
+        val groceryProviders = listOf("blinkit", "zepto", "instamart", "jiomart", "bigbasket")
+        
+        groceryItems.forEach { if (containsPhrase(normalized, it)) score += 2 }
+        groceryProviders.forEach { if (containsPhrase(normalized, it)) score += 2 }
+        return score
+    }
+
+    private fun parseFoodBooking(rawText: String): BrainAction? {
+        val parsed = foodIntentParser.parse(rawText) ?: return null
+        val params = buildMap {
+            putAll(parsed.toEntities())
+            put("rawText", rawText)
+        }
+
+        val compareRequested = parsed.requestedProviders.size > 1 || rawText.lowercase(Locale.US).contains("compare")
+
+        val reply = when {
+            parsed.foodItem.isNullOrBlank() && parsed.restaurantName.isNullOrBlank() ->
+                "I can help with food, but I need to know what you want to eat or from which restaurant."
+            compareRequested -> "I can compare food prices across Swiggy and Zomato for you."
+            else -> "I can help you order ${parsed.foodItem ?: "food"} from ${parsed.restaurantName ?: "a restaurant"}."
+        }
+
+        val nextQuestion = when {
+            parsed.foodItem.isNullOrBlank() && parsed.restaurantName.isNullOrBlank() ->
+                "What would you like to order?"
+            parsed.requestedProviders.isEmpty() -> "Which app should I use, Swiggy or Zomato?"
+            else -> "Say yes and I will prepare the food flow."
+        }
+
+        return BrainAction(
+            intent = "food_order",
+            reply = reply,
+            actionType = BrainActionType.EXTERNAL_ACTION,
+            riskLevel = BrainRiskLevel.SAFE,
+            requiresConfirmation = false,
+            finalActionAllowed = false,
+            params = params,
+            nextQuestion = nextQuestion
+        )
     }
 
     private fun parseBlockedAction(rawText: String): BrainAction? {
@@ -83,15 +212,21 @@ class LocalBrainInterpreter {
             "payment",
             "pay now",
             "pay with",
+            "complete payment",
             "banking",
             "bank transfer",
             "upi",
             "password",
             "otp",
             "one time password",
+            "enter otp",
             "captcha",
+            "solve captcha",
             "login",
             "sign in",
+            "bypass login",
+            "place final order",
+            "place order without",
             "delete",
             "erase",
             "remove account"
@@ -116,83 +251,21 @@ class LocalBrainInterpreter {
         return null
     }
 
-    private fun parseCabBooking(rawText: String): BrainAction? {
-        val parsed = cabIntentParser.parseInitialCabRequest(rawText) ?: return null
-        val params = buildMap {
-            putAll(parsed.toEntities())
-            put("rawText", rawText)
-            parsed.pickupText?.takeIf { it.isNotBlank() }?.let { put("pickupLocation", it) }
-            parsed.dropText?.takeIf { it.isNotBlank() }?.let { put("dropLocation", it) }
-            parsed.rideType?.let { put("rideType", it.name) }
-            parsed.providerPreference?.let { put("preferredProvider", it.name) }
-            put("wantsCheapest", parsed.wantsCheapest.toString())
-            put("wantsFirstOne", parsed.wantsFirstOne.toString())
-        }
-
-        val nextQuestion = when {
-            parsed.pickupText.isNullOrBlank() -> "Where should I pick you up from?"
-            parsed.dropText.isNullOrBlank() -> "Where do you want to go?"
-            parsed.rideType == null -> "Which ride type should I use?"
-            else -> "Say yes and I will prepare the cab flow."
-        }
-
-        val reply = when {
-            parsed.pickupText.isNullOrBlank() -> buildCabReply("I can prepare that cab, but I need your pickup location first.", parsed)
-            parsed.dropText.isNullOrBlank() -> buildCabReply("I can prepare that cab, but I need the destination first.", parsed)
-            parsed.rideType == null -> buildCabReply("I can prepare that cab, but I need the ride type first.", parsed)
-            else -> buildCabReply("I can prepare a cab to ${parsed.dropText}. I will stop before booking or payment.", parsed)
-        }
-
-        return BrainAction(
-            intent = "cab_booking",
-            reply = reply,
-            actionType = BrainActionType.EXTERNAL_ACTION,
-            riskLevel = BrainRiskLevel.SAFE,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
-            params = params,
-            nextQuestion = nextQuestion
-        )
-    }
-
     private fun parseCabComparison(rawText: String): BrainAction? {
         val normalized = normalize(rawText)
         if (!normalized.contains("compare")) return null
 
         val providers = CabProvider.values().filter { provider ->
-            when (provider) {
-                CabProvider.INDRIVE -> normalized.contains("indrive") || normalized.contains("in drive")
-                else -> normalized.contains(provider.name.lowercase(Locale.US))
-            }
+            normalized.contains(provider.name.lowercase(Locale.US))
         }
+
         val destination = extractDestination(rawText)
         if (providers.isEmpty() && destination.isNullOrBlank()) return null
 
-        val providerNames = providers.joinToString(separator = ",") { it.name }
-        val params = buildMap {
-            put("rawText", rawText)
-            if (providerNames.isNotBlank()) {
-                put("providers", providerNames)
-            }
-            destination?.takeIf { it.isNotBlank() }?.let { put("destination", it) }
-        }
-
-        val providerLabel = if (providers.isNotEmpty()) {
-            providers.joinToString(separator = " and ") { it.displayName() }
+        val reply = if (destination != null) {
+            "I'll compare cab options to $destination for you."
         } else {
-            "the installed providers"
-        }
-
-        val reply = if (destination.isNullOrBlank()) {
-            "I can compare ${providerLabel} once you tell me the destination. I will stop before booking."
-        } else {
-            "I can compare ${providerLabel} for $destination. I will stop before booking or payment."
-        }
-
-        val nextQuestion = when {
-            destination.isNullOrBlank() -> "Where do you want to go?"
-            providers.isEmpty() -> "Which ride apps should I compare?"
-            else -> "Say yes and I will compare the fares."
+            "I can compare cab options across available providers."
         }
 
         return BrainAction(
@@ -202,385 +275,144 @@ class LocalBrainInterpreter {
             riskLevel = BrainRiskLevel.SAFE,
             requiresConfirmation = false,
             finalActionAllowed = false,
-            params = params,
+            params = mapOf(
+                "rawText" to rawText,
+                "destination" to (destination ?: ""),
+                "providers" to providers.joinToString { it.name }
+            )
+        )
+    }
+
+    private fun parseCabBooking(rawText: String): BrainAction? {
+        val parsed = cabIntentParser.parseInitialCabRequest(rawText) ?: return null
+        val rideType = parsed.rideType ?: RideType.ANY
+
+        val reply = if (parsed.dropText != null) {
+            "I can help you book a ${rideTypeToDisplay(rideType)} cab to ${parsed.dropText}."
+        } else {
+            "I can help you book a ${rideTypeToDisplay(rideType)} cab."
+        }
+
+        val nextQuestion = when {
+            parsed.dropText == null -> "Where would you like to go?"
+            parsed.pickupMode == PickupMode.UNKNOWN -> "I need your pickup location. Should I use your current location or a manual pickup?"
+            else -> "Should I check available cabs for you?"
+        }
+
+        return BrainAction(
+            intent = "cab_booking",
+            reply = reply,
+            actionType = BrainActionType.EXTERNAL_ACTION,
+            riskLevel = BrainRiskLevel.SAFE,
+            requiresConfirmation = false,
+            finalActionAllowed = false,
+            params = mapOf(
+                "rawText" to rawText,
+                "destination" to (parsed.dropText ?: ""),
+                "rideType" to rideType.name,
+                "pickupMode" to parsed.pickupMode.name
+            ),
+            nextQuestion = nextQuestion
+        )
+    }
+
+    private fun parseGroceryBooking(rawText: String): BrainAction? {
+        val parsed = groceryIntentParser.parseInitialGroceryRequest(rawText) ?: return null
+        
+        val items = parsed.basket.displayText()
+        val reply = if (items.isNotBlank()) {
+            "I can help you order $items from grocery stores."
+        } else {
+            "I can help you with your grocery order."
+        }
+
+        val nextQuestion = if (items.isBlank()) {
+            "What items would you like to add to your cart?"
+        } else {
+            "Should I start searching for these items?"
+        }
+
+        return BrainAction(
+            intent = "grocery_booking",
+            reply = reply,
+            actionType = BrainActionType.EXTERNAL_ACTION,
+            riskLevel = BrainRiskLevel.SAFE,
+            requiresConfirmation = false,
+            finalActionAllowed = false,
+            params = mapOf(
+                "rawText" to rawText,
+                "items" to items
+            ),
             nextQuestion = nextQuestion
         )
     }
 
     private fun parsePreparedMessage(rawText: String): BrainAction? {
         val normalized = normalize(rawText)
-        val messageCue = listOf(
-            "prepare message",
-            "compose message",
-            "draft message",
-            "prepare a message",
-            "compose a message",
-            "draft a message"
-        ).any { normalized.contains(it) }
-        if (!messageCue) return null
-
-        val appName = extractOpenAppName(rawText)
-            ?: if (normalized.contains("whatsapp")) "whatsapp" else null
-        val contact = extractMessageContact(rawText)
-        val message = extractMessageBody(rawText)
-
-        val params = buildMap {
-            put("rawText", rawText)
-            appName?.let {
-                put("appName", it)
-                put("query", it)
-            }
-            contact?.takeIf { it.isNotBlank() }?.let { put("contact", it) }
-            message?.takeIf { it.isNotBlank() }?.let { put("message", it) }
-        }
-
-        val appLabel = appName?.replaceFirstChar { it.titlecase(Locale.US) } ?: "the app"
-        val contactLabel = contact?.takeIf { it.isNotBlank() }?.replaceFirstChar { it.titlecase(Locale.US) }
-            ?: "that contact"
-        val reply = when {
-            message.isNullOrBlank() -> "I can open $appLabel and get a message ready for $contactLabel. What should I draft?"
-            else -> "I can open $appLabel and prepare the message for $contactLabel. I will not send it."
-        }
-
-        return BrainAction(
-            intent = "prepare_message",
-            reply = reply,
-            actionType = BrainActionType.PREPARE,
-            riskLevel = BrainRiskLevel.CONFIRMATION_REQUIRED,
-            requiresConfirmation = true,
-            finalActionAllowed = false,
-            params = params,
-            nextQuestion = if (message.isNullOrBlank()) {
-                "What should I say to $contactLabel?"
-            } else {
-                "Say yes and I will open the app and prepare the draft."
-            }
-        )
-    }
-
-    private fun parseGroceryBooking(rawText: String): BrainAction? {
-        val parsed = groceryIntentParser.parseInitialGroceryRequest(rawText) ?: return null
-        val compareRequested = parsed.compareRequested || parsed.wantsCheapest || parsed.wantsFirstOne
-        val intent = when {
-            compareRequested -> "grocery_compare"
-            else -> "grocery_booking"
-        }
-        val params = buildMap {
-            putAll(parsed.toEntities())
-            parsed.providerPreference?.let { provider ->
-                val providerLabel = provider.name.lowercase(Locale.US)
-                put("preferredProvider", providerLabel)
-                put("providerPreference", providerLabel)
-            }
-            put("rawText", rawText)
-        }
-
-        val reply = when {
-            parsed.basket.items.isEmpty() -> "I can start the grocery flow and ask you for items."
-            compareRequested -> "I can compare grocery providers locally and keep checkout manual."
-            else -> "I can prepare the grocery flow and keep the final step manual."
-        }
-
-        val nextQuestion = when {
-            parsed.basket.items.isEmpty() -> GroceryBookingVoiceResponses.askItems()
-            parsed.requiresBrandQuestion -> GroceryBookingVoiceResponses.askBrandPreference()
-            compareRequested -> "Say yes and I will compare grocery providers."
-            else -> "I will stop before checkout."
-        }
-
-        return BrainAction(
-            intent = intent,
-            reply = reply,
-            actionType = BrainActionType.EXTERNAL_ACTION,
-            riskLevel = BrainRiskLevel.SAFE,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
-            params = params,
-            nextQuestion = nextQuestion
-        )
-    }
-
-    private fun parseLegacyCommand(rawText: String): BrainAction? {
-        val commandIntent = legacyParser.parse(rawText)
-        return when (commandIntent.actionType) {
-            ActionType.STOP_SERVICE -> BrainAction(
-                intent = "stop_service",
-                reply = "Stopping listening.",
-                actionType = BrainActionType.EXTERNAL_ACTION,
+        if (normalized.startsWith("tell ") || normalized.startsWith("say ")) {
+            val message = rawText.substringAfter(" ").trim()
+            return BrainAction(
+                intent = "prepared_message",
+                reply = "I'll say: $message",
+                actionType = BrainActionType.READ_ONLY,
                 riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
-                finalActionAllowed = true,
-                params = commandIntent.entities + mapOf("rawText" to rawText)
-            )
-            ActionType.LAUNCH_APP -> {
-                val appName = commandIntent.entities["appName"]
-                    ?: commandIntent.entities["query"]
-                    ?: rawText
-                BrainAction(
-                    intent = "open_app",
-                    reply = "Opening ${appName.replaceFirstChar { it.titlecase(Locale.US) }}.",
-                    actionType = BrainActionType.EXTERNAL_ACTION,
-                    riskLevel = BrainRiskLevel.SAFE,
-                    requiresConfirmation = false,
-                    finalActionAllowed = true,
-                    params = commandIntent.entities + mapOf(
-                        "rawText" to rawText,
-                        "appName" to appName,
-                        "query" to appName
-                    )
-                )
-            }
-
-            ActionType.GO_HOME -> navigationBrainAction(rawText, commandIntent, "go_home", "Going home.")
-            ActionType.GO_BACK -> navigationBrainAction(rawText, commandIntent, "go_back", "Going back.")
-            ActionType.OPEN_RECENTS -> navigationBrainAction(rawText, commandIntent, "open_recents", "Opening recent apps.")
-            ActionType.OPEN_NOTIFICATIONS -> navigationBrainAction(rawText, commandIntent, "open_notifications", "Opening notifications.")
-            ActionType.READ_NOTIFICATIONS -> navigationBrainAction(rawText, commandIntent, "read_notifications", "Reading notifications.")
-            ActionType.SCROLL_FORWARD -> interactionBrainAction(rawText, commandIntent, "scroll_forward", "Scrolling down.")
-            ActionType.SCROLL_BACKWARD -> interactionBrainAction(rawText, commandIntent, "scroll_backward", "Scrolling up.")
-            ActionType.CLICK_TEXT -> {
-                val target = commandIntent.entities["text"].orEmpty()
-                if (isDangerousFinalText(target)) {
-                    BrainAction(
-                        intent = "human_only",
-                        reply = "That button looks like a final action, so please tap it yourself.",
-                        actionType = BrainActionType.HUMAN_ONLY,
-                        riskLevel = BrainRiskLevel.BLOCKED,
-                        requiresConfirmation = false,
-                        finalActionAllowed = false,
-                        params = commandIntent.entities + mapOf("rawText" to rawText, "text" to target),
-                        nextQuestion = "Please handle that step manually."
-                    )
-                } else {
-                    interactionBrainAction(rawText, commandIntent, "tap_text", "Tapping $target.")
-                }
-            }
-            ActionType.TYPE_TEXT -> {
-                val text = commandIntent.entities["text"].orEmpty()
-                if (isDangerousFinalText(text)) {
-                    BrainAction(
-                        intent = "human_only",
-                        reply = "That text looks sensitive, so please enter it yourself.",
-                        actionType = BrainActionType.HUMAN_ONLY,
-                        riskLevel = BrainRiskLevel.BLOCKED,
-                        requiresConfirmation = false,
-                        finalActionAllowed = false,
-                        params = commandIntent.entities + mapOf("rawText" to rawText, "text" to text),
-                        nextQuestion = "Please type that manually."
-                    )
-                } else {
-                    interactionBrainAction(rawText, commandIntent, "type_text", "Typing text.")
-                }
-            }
-            ActionType.OPEN_SETTINGS -> simpleBrainAction(rawText, commandIntent, "open_settings", "Opening settings.", false)
-            ActionType.OPEN_ACCESSIBILITY_SETTINGS -> simpleBrainAction(rawText, commandIntent, "open_accessibility_settings", "Opening accessibility settings.", false)
-            ActionType.OPEN_USAGE_ACCESS_SETTINGS -> simpleBrainAction(rawText, commandIntent, "open_usage_access_settings", "Opening usage access settings.", false)
-            ActionType.CALL_CONTACT -> BrainAction(
-                intent = "call_contact",
-                reply = "I can prepare a call, but call automation stays manual in this build.",
-                actionType = BrainActionType.PREPARE,
-                riskLevel = BrainRiskLevel.CONFIRMATION_REQUIRED,
-                requiresConfirmation = true,
                 finalActionAllowed = false,
-                params = commandIntent.entities + mapOf("rawText" to rawText),
-                nextQuestion = "Say yes if you want me to prepare the call flow."
+                params = mapOf("message" to message)
             )
-            ActionType.TAKE_SCREENSHOT -> BrainAction(
-                intent = "take_screenshot",
-                reply = "I can try a screenshot, but it needs your confirmation first.",
-                actionType = BrainActionType.PREPARE,
-                riskLevel = BrainRiskLevel.CONFIRMATION_REQUIRED,
-                requiresConfirmation = true,
-                finalActionAllowed = false,
-                params = commandIntent.entities + mapOf("rawText" to rawText),
-                nextQuestion = "Say yes if you want me to continue."
-            )
-            ActionType.BLOCKED -> BrainAction(
-                intent = "human_only",
-                reply = "That action must stay manual.",
-                actionType = BrainActionType.HUMAN_ONLY,
-                riskLevel = BrainRiskLevel.BLOCKED,
-                requiresConfirmation = false,
-                finalActionAllowed = false,
-                params = commandIntent.entities + mapOf("rawText" to rawText),
-                nextQuestion = "Please handle it yourself."
-            )
-            else -> null
         }
+        return null
     }
 
-    private fun navigationBrainAction(
-        rawText: String,
-        commandIntent: CommandIntent,
-        intent: String,
-        reply: String
-    ): BrainAction {
-        return simpleBrainAction(rawText, commandIntent, intent, reply, false)
-    }
+    private fun parseLegacyCommand(rawText: String): BrainAction {
+        val intent = legacyParser.parse(rawText)
+        val reply = when (intent.actionType) {
+            ActionType.LAUNCH_APP -> "Opening ${intent.entities["appName"]}."
+            ActionType.GO_HOME -> "Going home."
+            ActionType.GO_BACK -> "Going back."
+            ActionType.OPEN_RECENTS -> "Opening recent apps."
+            ActionType.OPEN_NOTIFICATIONS -> "Opening notifications."
+            ActionType.SCROLL_FORWARD -> "Scrolling down."
+            ActionType.SCROLL_BACKWARD -> "Scrolling up."
+            ActionType.CLICK_TEXT -> "Tapping on ${intent.entities["text"]}."
+            ActionType.TYPE_TEXT -> "Typing ${intent.entities["text"]}."
+            ActionType.READ_NOTIFICATIONS -> "Reading your notifications."
+            ActionType.CALL_CONTACT -> "Calling ${intent.entities["value"]}."
+            ActionType.STOP_SERVICE -> "Stopping now."
+            ActionType.BLOCKED -> "I cannot perform that sensitive action for your safety."
+            ActionType.UNKNOWN -> "I'm not sure how to help with that yet."
+            else -> "I'll handle that for you."
+        }
 
-    private fun interactionBrainAction(
-        rawText: String,
-        commandIntent: CommandIntent,
-        intent: String,
-        reply: String
-    ): BrainAction {
-        return simpleBrainAction(rawText, commandIntent, intent, reply, false)
-    }
-
-    private fun simpleBrainAction(
-        rawText: String,
-        commandIntent: CommandIntent,
-        intent: String,
-        reply: String,
-        confirmationRequired: Boolean
-    ): BrainAction {
         return BrainAction(
-            intent = intent,
+            intent = intent.intentType.name.lowercase(Locale.US),
             reply = reply,
-            actionType = if (confirmationRequired) BrainActionType.PREPARE else BrainActionType.EXTERNAL_ACTION,
-            riskLevel = if (confirmationRequired) BrainRiskLevel.CONFIRMATION_REQUIRED else BrainRiskLevel.SAFE,
-            requiresConfirmation = confirmationRequired,
-            finalActionAllowed = !confirmationRequired,
-            params = commandIntent.entities + mapOf("rawText" to rawText)
+            actionType = when (intent.actionType) {
+                ActionType.BLOCKED -> BrainActionType.HUMAN_ONLY
+                ActionType.UNKNOWN -> BrainActionType.NONE
+                else -> BrainActionType.EXTERNAL_ACTION
+            },
+            riskLevel = if (intent.actionType == ActionType.BLOCKED) BrainRiskLevel.BLOCKED else BrainRiskLevel.SAFE,
+            requiresConfirmation = false,
+            finalActionAllowed = false,
+            params = intent.entities + mapOf("rawText" to rawText)
         )
     }
 
     private fun buildUnknownAction(rawText: String): BrainAction {
         return BrainAction(
             intent = "unknown",
-            reply = "I did not quite catch that. Please try again.",
+            reply = "I'm not sure how to help with that yet.",
             actionType = BrainActionType.NONE,
             riskLevel = BrainRiskLevel.SAFE,
             requiresConfirmation = false,
             finalActionAllowed = false,
-            params = mapOf("rawText" to rawText),
-            nextQuestion = "What would you like me to do?"
+            params = mapOf("rawText" to rawText)
         )
-    }
-
-    private fun extractOpenAppName(rawText: String): String? {
-        val firstClause = rawText.split(Regex("""\band\b""", RegexOption.IGNORE_CASE), limit = 2).firstOrNull().orEmpty()
-        val normalizedClause = normalize(firstClause)
-        if (!normalizedClause.startsWith("open") &&
-            !normalizedClause.startsWith("launch") &&
-            !normalizedClause.startsWith("start")
-        ) {
-            return null
-        }
-
-        val appName = normalizedClause
-            .removePrefix("open app ")
-            .removePrefix("open ")
-            .removePrefix("launch ")
-            .removePrefix("start ")
-            .trim()
-
-        return appName.takeIf { it.isNotBlank() }
-    }
-
-    private fun extractMessageContact(rawText: String): String? {
-        val normalized = normalize(rawText)
-        val patterns = listOf(
-            Regex("""(?:prepare|compose|draft)\s+message\s+to\s+(.+?)(?=\s+(?:saying|that|with|about|for)\b|$)""", RegexOption.IGNORE_CASE),
-            Regex("""message\s+to\s+(.+?)(?=\s+(?:saying|that|with|about|for)\b|$)""", RegexOption.IGNORE_CASE)
-        )
-
-        for (pattern in patterns) {
-            pattern.find(normalized)?.groupValues?.getOrNull(1)?.let { candidate ->
-                val cleaned = sanitize(candidate)
-                if (cleaned.isNotBlank()) return cleaned
-            }
-        }
-
-        if (normalized.contains("whatsapp") && normalized.contains("mom")) {
-            return "mom"
-        }
-
-        return null
-    }
-
-    private fun extractMessageBody(rawText: String): String? {
-        val quotedPattern = Regex("""["“](.+?)["”]""")
-        quotedPattern.find(rawText)?.groupValues?.getOrNull(1)?.let { quoted ->
-            val cleaned = sanitize(quoted)
-            if (cleaned.isNotBlank()) return cleaned
-        }
-
-        val colonIndex = rawText.indexOf(':')
-        if (colonIndex >= 0 && colonIndex < rawText.lastIndex) {
-            val afterColon = sanitize(rawText.substring(colonIndex + 1))
-            if (afterColon.isNotBlank()) return afterColon
-        }
-
-        val normalized = normalize(rawText)
-        val messageMarkers = listOf("say ", "say that ")
-        for (marker in messageMarkers) {
-            val index = normalized.indexOf(marker)
-            if (index >= 0) {
-                val candidate = sanitize(rawText.substring(index + marker.length))
-                if (candidate.isNotBlank()) return candidate
-            }
-        }
-
-        return null
-    }
-
-    private fun extractDestination(rawText: String): String? {
-        val patterns = listOf(
-            Regex("""\bto\s+(.+)$""", RegexOption.IGNORE_CASE),
-            Regex("""\bdestination\s+is\s+(.+)$""", RegexOption.IGNORE_CASE)
-        )
-
-        for (pattern in patterns) {
-            pattern.find(rawText)?.groupValues?.getOrNull(1)?.let { candidate ->
-                val cleaned = sanitize(candidate)
-                if (cleaned.isNotBlank()) return cleaned
-            }
-        }
-
-        return null
-    }
-
-    private fun isDangerousFinalText(text: String): Boolean {
-        val normalized = normalize(text)
-        val dangerousPatterns = listOf(
-            "send money",
-            "payment",
-            "pay now",
-            "pay with",
-            "banking",
-            "bank transfer",
-            "upi",
-            "password",
-            "otp",
-            "captcha",
-            "login",
-            "sign in",
-            "delete",
-            "erase",
-            "remove account",
-            "confirm booking",
-            "book now",
-            "book ride",
-            "submit",
-            "request ride",
-            "request now",
-            "final booking",
-            "complete payment"
-        )
-
-        return dangerousPatterns.any { containsPhrase(normalized, it) }
     }
 
     private fun normalize(value: String): String {
         return AssistantTextNormalizer.normalize(value)
-    }
-
-    private fun sanitize(value: String): String {
-        return value.trim()
-            .trimEnd('.', ',', '!', '?')
-            .replace(Regex("\\s+"), " ")
-            .trim()
     }
 
     private fun containsPhrase(normalized: String, phrase: String): Boolean {
@@ -589,30 +421,24 @@ class LocalBrainInterpreter {
         return Regex("""\b${Regex.escape(target)}\b""").containsMatchIn(normalized)
     }
 
-    private fun buildCabReply(prefix: String, parsed: com.nova.luna.cab.CabIntentParseResult): String {
-        val extras = buildList {
-            if (parsed.wantsCheapest) {
-                add("I can compare the cheapest options.")
+    private fun extractDestination(rawText: String): String? {
+        val normalized = normalize(rawText)
+        val patterns = listOf(
+            Regex("""\bto\s+(.+)$"""),
+            Regex("""\bto\s+(.+?)\s+on\b"""),
+            Regex("""\bto\s+(.+?)\s+using\b""")
+        )
+
+        for (pattern in patterns) {
+            pattern.find(normalized)?.let { match ->
+                return match.groupValues[1].trim()
             }
-            if (parsed.wantsFirstOne) {
-                add("I can take the first available option.")
-            }
-            parsed.rideType?.let { add("Ride type: ${it.displayName()}.") }
         }
-        return (listOf(prefix) + extras).joinToString(separator = " ").trim()
+        return null
     }
 
-    private fun CabProvider.displayName(): String {
-        return when (this) {
-            CabProvider.UBER -> "Uber"
-            CabProvider.OLA -> "Ola"
-            CabProvider.RAPIDO -> "Rapido"
-            CabProvider.INDRIVE -> "inDrive"
-        }
-    }
-
-    private fun RideType.displayName(): String {
-        return when (this) {
+    private fun rideTypeToDisplay(rideType: RideType): String {
+        return when (rideType) {
             RideType.AUTO -> "Auto"
             RideType.BIKE -> "Bike"
             RideType.MINI -> "Mini"
