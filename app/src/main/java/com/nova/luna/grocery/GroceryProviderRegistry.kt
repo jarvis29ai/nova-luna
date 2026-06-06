@@ -101,14 +101,20 @@ class GroceryProviderRegistry(
 
     companion object {
         const val BLINKIT_PACKAGE_NAME = "com.grofers.customerapp"
+        const val ZEPTO_PACKAGE_NAME = "com.zeptoconsumerapp"
         const val JIOMART_PACKAGE_NAME = "com.jpl.jiomart"
         const val INSTAMART_PACKAGE_NAME = "in.swiggy.android.instamart"
         const val SWIGGY_PACKAGE_NAME = "in.swiggy.android"
+        const val BIGBASKET_PACKAGE_NAME = "com.bigbasket.mobileapp"
 
         private val PROVIDER_SPECS = mapOf(
             GroceryProvider.BLINKIT to GroceryProviderSpec(
                 packageNames = listOf(BLINKIT_PACKAGE_NAME),
                 labelAliases = listOf("blinkit", "grofers")
+            ),
+            GroceryProvider.ZEPTO to GroceryProviderSpec(
+                packageNames = listOf(ZEPTO_PACKAGE_NAME, "com.zepto"),
+                labelAliases = listOf("zepto")
             ),
             GroceryProvider.JIOMART to GroceryProviderSpec(
                 packageNames = listOf(JIOMART_PACKAGE_NAME),
@@ -117,6 +123,10 @@ class GroceryProviderRegistry(
             GroceryProvider.INSTAMART to GroceryProviderSpec(
                 packageNames = listOf(INSTAMART_PACKAGE_NAME, SWIGGY_PACKAGE_NAME),
                 labelAliases = listOf("instamart", "swiggy instamart", "swiggy")
+            ),
+            GroceryProvider.BIGBASKET to GroceryProviderSpec(
+                packageNames = listOf(BIGBASKET_PACKAGE_NAME, "com.bigbasket"),
+                labelAliases = listOf("bigbasket", "big basket")
             )
         )
     }

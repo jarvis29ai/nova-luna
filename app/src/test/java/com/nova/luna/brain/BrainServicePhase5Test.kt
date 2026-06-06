@@ -9,6 +9,7 @@ import com.nova.luna.model.BrainRiskLevel
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.model.IntentType
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,8 +54,25 @@ class BrainServicePhase5Test {
 
     @Test
     fun `flutter module is not added by accident`() {
-        val settingsGradle = java.io.File("settings.gradle").readText()
+        val settingsGradle = locateProjectFile("settings.gradle", "settings.gradle.kts").readText()
         org.junit.Assert.assertFalse(settingsGradle.contains("flutter_app"))
+    }
+
+    private fun locateProjectFile(vararg names: String): File {
+        var current = File(".").canonicalFile
+        while (true) {
+            names.forEach { name ->
+                val candidate = File(current, name)
+                if (candidate.exists()) {
+                    return candidate
+                }
+            }
+
+            val parent = current.parentFile ?: break
+            current = parent
+        }
+
+        error("Unable to locate project file: ${names.joinToString()}")
     }
 
     private class FakeActionExecutor : ActionExecutorGateway {

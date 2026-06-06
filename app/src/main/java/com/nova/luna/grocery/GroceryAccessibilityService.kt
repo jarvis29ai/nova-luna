@@ -10,11 +10,44 @@ import java.util.Locale
 open class GroceryAccessibilityService(
     private val priceComparator: GroceryPriceComparator = GroceryPriceComparator()
 ) : GroceryCouponAutomation {
+    private val couponEngine = GroceryCouponEngine(priceComparator)
     private val providerPackages = setOf(
         GroceryProviderRegistry.BLINKIT_PACKAGE_NAME,
+        GroceryProviderRegistry.ZEPTO_PACKAGE_NAME,
         GroceryProviderRegistry.JIOMART_PACKAGE_NAME,
         GroceryProviderRegistry.INSTAMART_PACKAGE_NAME,
-        GroceryProviderRegistry.SWIGGY_PACKAGE_NAME
+        GroceryProviderRegistry.SWIGGY_PACKAGE_NAME,
+        GroceryProviderRegistry.BIGBASKET_PACKAGE_NAME
+    )
+
+    private val groceryBrands = listOf(
+        "amul",
+        "britannia",
+        "aashirvaad",
+        "fortune",
+        "patanjali",
+        "mother dairy",
+        "dabur",
+        "parle",
+        "nestle",
+        "sunfeast",
+        "maggi",
+        "saffola",
+        "mdh",
+        "everest",
+        "tata",
+        "surf excel",
+        "colgate",
+        "vim",
+        "borosil",
+        "epigamia",
+        "lays",
+        "kellogg",
+        "brooke bond",
+        "tetley",
+        "fresho",
+        "haldiram",
+        "mtr"
     )
 
     open fun captureScreenSnapshot(): GroceryScreenSnapshot? {
@@ -29,16 +62,20 @@ open class GroceryAccessibilityService(
                 visibleText = visibleText,
                 sourceText = sourceText,
                 sourcePackageName = sourcePackageName,
-                searchBoxText = findFirstMatchingText(visibleText, listOf("search", "search products", "search groceries")),
-                productText = findFirstMatchingText(visibleText, listOf("add", "add to cart", "add item")),
+                searchBoxText = findFirstMatchingText(visibleText, listOf("search", "search products", "search groceries", "search store")),
+                productText = findFirstMatchingText(visibleText, listOf("product", "item", "add", "add to cart")),
                 addButtonText = findFirstMatchingText(visibleText, listOf("add", "+", "add to cart")),
-                cartButtonText = findFirstMatchingText(visibleText, listOf("cart", "bag", "view cart")),
-                couponButtonText = findFirstMatchingText(visibleText, listOf("apply coupon", "coupon", "offers", "promo code")),
-                finalPayableText = findFirstMatchingText(visibleText, listOf("pay", "amount to pay", "final amount", "total payable", "grand total")),
+                cartButtonText = findFirstMatchingText(visibleText, listOf("cart", "bag", "view cart", "go to cart")),
+                couponButtonText = findFirstMatchingText(visibleText, listOf("apply coupon", "coupon", "offers", "promo code", "apply offer")),
+                finalPayableText = findFirstMatchingText(visibleText, listOf("pay", "amount to pay", "final amount", "total payable", "grand total", "place order")),
                 itemSubtotalText = findFirstMatchingText(visibleText, listOf("subtotal", "item total", "items total")),
-                deliveryFeeText = findFirstMatchingText(visibleText, listOf("delivery fee", "delivery charges")),
+                deliveryFeeText = findFirstMatchingText(visibleText, listOf("delivery fee", "delivery charges", "shipping fee")),
                 handlingFeeText = findFirstMatchingText(visibleText, listOf("handling fee", "platform fee")),
-                etaText = findFirstMatchingText(visibleText, listOf("eta", "arrives", "delivery by")),
+                etaText = findFirstMatchingText(visibleText, listOf("eta", "arrives", "delivery by", "delivery in")),
+                walletBalanceText = findFirstMatchingText(visibleText, listOf("wallet balance", "available balance", "wallet", "balance")),
+                codAvailabilityText = findFirstMatchingText(visibleText, listOf("cash on delivery", "cod", "pay on delivery")),
+                orderConfirmationText = findFirstMatchingText(visibleText, listOf("order placed", "order confirmed", "order successful", "thank you for your order")),
+                orderIdText = findFirstMatchingText(visibleText, listOf("order id", "order no", "order number", "tracking id")),
                 unavailableItems = detectUnavailableItems(visibleText),
                 replacementItems = detectReplacementItems(visibleText),
                 manualActionReason = detectManualActionReason(visibleText)
@@ -62,7 +99,7 @@ open class GroceryAccessibilityService(
     open fun waitForForegroundPackage(
         expectedPackageNames: Set<String>,
         attempts: Int = 10,
-        totalWaitMs: Long = 5000L
+        totalWaitMs: Long = 5_000L
     ): String? {
         if (expectedPackageNames.isEmpty() || attempts <= 0) return null
 
@@ -150,7 +187,8 @@ open class GroceryAccessibilityService(
                 "Checkout",
                 "Place my order",
                 "Order now",
-                "Complete order"
+                "Complete order",
+                "Pay now"
             )
         )
     }
@@ -189,6 +227,71 @@ open class GroceryAccessibilityService(
         return added
     }
 
+    open fun extractProductOptions(
+        texts: List<String>,
+        basket: GroceryBasket? = null
+    ): List<GroceryProductOption> {
+        val normalizedBasketNames = basket?.items?.map { it.name.lowercase(Locale.US) }.orEmpty()
+        return texts.mapNotNull { text ->
+            val normalized = text.lowercase(Locale.US)
+            val hasPrice = priceComparator.extractAmount(text) != null
+            val hasPackSize = priceComparator.extractPackSize(text) != null
+            val hasRating = priceComparator.extractRating(text) != null
+            val hasEta = priceComparator.extractEtaMinutes(text) != null
+            val hasItemCue = normalizedBasketNames.isEmpty() || normalizedBasketNames.any { normalized.contains(it) } || normalized.anyItemCue()
+
+            if (!hasPrice && !hasPackSize && !hasRating && !hasEta && !hasItemCue) {
+                return@mapNotNull null
+            }
+
+            GroceryProductOption(
+                itemName = basket?.items?.firstOrNull { normalized.contains(it.name.lowercase(Locale.US)) }?.name
+                    ?: text.substringBefore(" - ").trim().ifBlank { text.trim() },
+                title = text.trim(),
+                priceText = priceComparator.extractAmount(text)?.let { "₹$it" } ?: priceComparator.extractAmount(text)?.toString(),
+                priceValue = priceComparator.extractAmount(text),
+                packSizeText = priceComparator.extractPackSize(text),
+                brand = extractBrand(text),
+                ratingText = priceComparator.extractRatingText(text),
+                ratingValue = priceComparator.extractRating(text),
+                deliveryTimeText = priceComparator.extractEtaText(text),
+                deliveryTimeMinutes = priceComparator.extractEtaMinutes(text),
+                available = !containsAny(normalized, listOf("out of stock", "unavailable", "not available")),
+                deliveryFeeText = if (containsAny(normalized, listOf("delivery fee", "delivery charges"))) text.trim() else null,
+                deliveryFeeValue = if (containsAny(normalized, listOf("delivery fee", "delivery charges"))) priceComparator.extractAmount(text) else null,
+                couponText = if (containsAny(normalized, listOf("coupon", "offer", "promo", "discount"))) text.trim() else null,
+                couponSavingValue = if (containsAny(normalized, listOf("coupon", "offer", "promo", "discount", "save"))) priceComparator.extractCouponSaving(text) else null,
+                substitutionOf = if (containsAny(normalized, listOf("replacement", "substitute", "similar item"))) text.trim() else null,
+                notes = null
+            )
+        }
+    }
+
+    open fun collectProviderResult(
+        provider: GroceryProvider,
+        basket: GroceryBasket,
+        requirementProfile: GroceryRequirementProfile? = null,
+        couponCode: String? = null
+    ): GroceryProviderResult {
+        val candidate = collectCartCandidate(
+            provider = provider,
+            basket = basket,
+            couponCode = couponCode,
+            requirementProfile = requirementProfile
+        )
+
+        return candidate.providerResult ?: GroceryProviderResult(
+            provider = provider,
+            productOptions = candidate.productOptions,
+            summary = candidate.summary,
+            blocked = candidate.manualActionReason != null,
+            partial = candidate.summary.partial,
+            blockReason = candidate.manualActionReason?.displayText,
+            manualActionReason = candidate.manualActionReason,
+            searchQueries = candidate.searchQueries
+        )
+    }
+
     open fun collectCartSummary(provider: GroceryProvider): GroceryCartSummary? {
         val snapshot = captureScreenSnapshot() ?: return null
         return buildCartSummary(provider, snapshot)
@@ -197,19 +300,33 @@ open class GroceryAccessibilityService(
     open fun collectCartCandidate(
         provider: GroceryProvider,
         basket: GroceryBasket,
-        couponCode: String? = null
+        couponCode: String? = null,
+        requirementProfile: GroceryRequirementProfile? = null
     ): GroceryCartCandidate {
         val searchedQueries = mutableListOf<String>()
         val unavailable = mutableListOf<String>()
 
         val initialSnapshot = captureScreenSnapshot()
         initialSnapshot?.manualActionReason?.let { reason ->
+            val summary = buildCartSummary(provider, initialSnapshot)
             return GroceryCartCandidate(
                 provider = provider,
                 basket = basket,
-                summary = buildCartSummary(provider, initialSnapshot),
+                summary = summary,
+                productOptions = extractProductOptions(initialSnapshot.visibleText, basket),
                 searchQueries = searchedQueries,
-                manualActionReason = reason
+                manualActionReason = reason,
+                providerResult = GroceryProviderResult(
+                    provider = provider,
+                    productOptions = extractProductOptions(initialSnapshot.visibleText, basket),
+                    summary = summary,
+                    blocked = true,
+                    partial = summary.partial,
+                    blockReason = reason.displayText,
+                    manualActionReason = reason,
+                    searchQueries = searchedQueries
+                ),
+                finalCheckoutReady = false
             )
         }
 
@@ -223,19 +340,37 @@ open class GroceryAccessibilityService(
         }
 
         val afterSearchSnapshot = captureScreenSnapshot()
+        val productOptions = extractProductOptions(afterSearchSnapshot?.visibleText.orEmpty(), basket)
         val manualReason = afterSearchSnapshot?.manualActionReason ?: detectManualActionReason(afterSearchSnapshot?.visibleText.orEmpty())
         if (manualReason != null) {
+            val summary = buildCartSummary(provider, afterSearchSnapshot).copy(
+                productOptions = productOptions,
+                unavailableItems = (afterSearchSnapshot?.unavailableItems.orEmpty() + unavailable).distinct(),
+                partial = true,
+                blocked = true,
+                blockReason = manualReason.displayText
+            )
             return GroceryCartCandidate(
                 provider = provider,
                 basket = basket,
-                summary = buildCartSummary(provider, afterSearchSnapshot),
+                summary = summary,
+                productOptions = productOptions,
                 searchQueries = searchedQueries,
                 manualActionReason = manualReason,
+                providerResult = GroceryProviderResult(
+                    provider = provider,
+                    productOptions = productOptions,
+                    summary = summary,
+                    blocked = true,
+                    partial = true,
+                    blockReason = manualReason.displayText,
+                    manualActionReason = manualReason,
+                    searchQueries = searchedQueries
+                ),
                 finalCheckoutReady = false
             )
         }
 
-        val couponEngine = GroceryCouponEngine()
         val couponResult = couponEngine.applyVisibleCoupon(
             provider = provider,
             snapshot = afterSearchSnapshot,
@@ -248,23 +383,46 @@ open class GroceryAccessibilityService(
             couponApplied = couponResult.applied,
             couponCode = couponResult.couponCode ?: summarySnapshot?.sourceText?.takeIf { couponResult.applied }?.take(20),
             couponText = couponResult.visibleCouponText,
-            unavailableItems = (summarySnapshot?.unavailableItems.orEmpty() + unavailable).distinct()
+            unavailableItems = (summarySnapshot?.unavailableItems.orEmpty() + unavailable).distinct(),
+            replacementItems = (summarySnapshot?.replacementItems.orEmpty()).distinct(),
+            productOptions = productOptions,
+            partial = summarySnapshot == null || productOptions.isEmpty() || couponResult.warning != null || summarySnapshot.finalPayableText == null
         )
 
-        return GroceryCartCandidate(
+        val finalCandidate = GroceryCartCandidate(
             provider = provider,
             basket = basket,
             summary = priceComparator.normalize(
                 GroceryCartCandidate(
                     provider = provider,
                     basket = basket,
-                    summary = summary
+                    summary = summary,
+                    productOptions = productOptions,
+                    searchQueries = searchedQueries
                 )
             ).summary,
+            productOptions = productOptions,
             searchQueries = searchedQueries,
             manualActionReason = null,
+            providerResult = GroceryProviderResult(
+                provider = provider,
+                productOptions = productOptions,
+                cartOption = GroceryCartOption(
+                    provider = provider,
+                    items = productOptions,
+                    summary = summary
+                ),
+                summary = summary,
+                blocked = false,
+                partial = summary.partial,
+                blockReason = summary.blockReason,
+                manualActionReason = null,
+                searchQueries = searchedQueries
+            ),
             finalCheckoutReady = true
         )
+
+        return finalCandidate
     }
 
     open fun detectManualActionReason(texts: List<String>): GroceryManualActionReason? {
@@ -273,16 +431,27 @@ open class GroceryAccessibilityService(
         return when {
             listOf("otp", "one time password").any { normalized.contains(it) } -> GroceryManualActionReason.OTP
             listOf("payment", "pay now", "proceed to pay", "checkout", "place order", "complete payment").any { normalized.contains(it) } -> GroceryManualActionReason.PAYMENT
+            listOf("password").any { normalized.contains(it) } -> GroceryManualActionReason.PASSWORD
             listOf("captcha").any { normalized.contains(it) } -> GroceryManualActionReason.CAPTCHA
             listOf("login", "sign in").any { normalized.contains(it) } -> GroceryManualActionReason.LOGIN
-            listOf("upi", "card", "cvv", "pin").any { normalized.contains(it) } -> GroceryManualActionReason.PAYMENT
-            listOf("allow location", "permission", "location permission").any { normalized.contains(it) } -> GroceryManualActionReason.PERMISSION
+            listOf("upi pin", "upi").any { normalized.contains(it) } -> GroceryManualActionReason.UPI_PIN
+            listOf("cvv", "card security code").any { normalized.contains(it) } -> GroceryManualActionReason.CARD_CVV
+            listOf("net banking", "internet banking").any { normalized.contains(it) } -> GroceryManualActionReason.NET_BANKING
+            listOf("wallet top up", "top up wallet").any { normalized.contains(it) } -> GroceryManualActionReason.WALLET_TOPUP
+            listOf("biometric").any { normalized.contains(it) } -> GroceryManualActionReason.BIOMETRIC
+            listOf("allow location", "location permission", "enable location").any { normalized.contains(it) } -> GroceryManualActionReason.LOCATION_PERMISSION
+            listOf("usage access").any { normalized.contains(it) } -> GroceryManualActionReason.USAGE_ACCESS
+            listOf("accessibility").any { normalized.contains(it) } -> GroceryManualActionReason.ACCESSIBILITY
             listOf("delivery address", "address selection", "select address").any { normalized.contains(it) } -> GroceryManualActionReason.ADDRESS
             listOf("replace item", "replacement", "choose replacement").any { normalized.contains(it) } -> GroceryManualActionReason.REPLACEMENT
             listOf("out of stock", "unavailable", "not available").any { normalized.contains(it) } -> GroceryManualActionReason.UNAVAILABLE_ITEMS
             listOf("manual action", "secure screen", "cannot read", "protected screen").any { normalized.contains(it) } -> GroceryManualActionReason.MANUAL_SCREEN
             else -> null
         }
+    }
+
+    open fun detectUnsafePaymentScreen(texts: List<String>): GroceryManualActionReason? {
+        return detectManualActionReason(texts)
     }
 
     open fun detectUnavailableItems(texts: List<String>): List<String> {
@@ -299,8 +468,77 @@ open class GroceryAccessibilityService(
             val normalized = text.lowercase(Locale.US)
             normalized.contains("replace") ||
                 normalized.contains("replacement") ||
-                normalized.contains("substitute")
+                normalized.contains("substitute") ||
+                normalized.contains("similar item")
         }
+    }
+
+    open fun detectCodAvailability(snapshot: GroceryScreenSnapshot? = null): Boolean? {
+        val text = buildString {
+            snapshot?.codAvailabilityText?.takeIf { it.isNotBlank() }?.let { append(it) }
+            if (isNotBlank()) append(" ")
+            append(snapshot?.visibleText.orEmpty().joinToString(separator = " "))
+        }.lowercase(Locale.US)
+
+        if (text.isBlank()) return null
+        return when {
+            listOf("not available", "unavailable", "no cod", "cash on delivery not", "cod not").any { text.contains(it) } -> false
+            listOf("cash on delivery", "cod", "pay on delivery").any { text.contains(it) } -> true
+            else -> null
+        }
+    }
+
+    open fun detectWalletBalance(snapshot: GroceryScreenSnapshot? = null): Long? {
+        val text = snapshot?.walletBalanceText ?: snapshot?.visibleText?.firstOrNull {
+            val normalized = it.lowercase(Locale.US)
+            normalized.contains("wallet") || normalized.contains("balance")
+        }
+        return priceComparator.extractAmount(text)
+    }
+
+    open fun detectOrderConfirmation(snapshot: GroceryScreenSnapshot? = null): GroceryOrderConfirmation? {
+        val texts = snapshot?.visibleText.orEmpty()
+        val joined = texts.joinToString(separator = " ").lowercase(Locale.US)
+        val placed = listOf("order placed", "order confirmed", "order successful", "thank you for your order").any { joined.contains(it) }
+        val orderId = detectOrderId(snapshot)
+        val finalPrice = priceComparator.extractFinalPayable(snapshot?.finalPayableText ?: snapshot?.sourceText)
+        val savings = priceComparator.extractCouponSaving(snapshot?.sourceText)
+        val deliveryEstimate = snapshot?.etaText ?: priceComparator.extractEtaText(snapshot?.sourceText)
+
+        if (!placed && orderId == null && finalPrice == null && deliveryEstimate == null) return null
+
+        return GroceryOrderConfirmation(
+            orderId = orderId,
+            provider = snapshot?.sourcePackageName?.let { packageName ->
+                when {
+                    packageName.contains(GroceryProviderRegistry.BLINKIT_PACKAGE_NAME, ignoreCase = true) -> GroceryProvider.BLINKIT
+                    packageName.contains(GroceryProviderRegistry.ZEPTO_PACKAGE_NAME, ignoreCase = true) -> GroceryProvider.ZEPTO
+                    packageName.contains(GroceryProviderRegistry.INSTAMART_PACKAGE_NAME, ignoreCase = true) -> GroceryProvider.INSTAMART
+                    packageName.contains(GroceryProviderRegistry.JIOMART_PACKAGE_NAME, ignoreCase = true) -> GroceryProvider.JIOMART
+                    packageName.contains(GroceryProviderRegistry.BIGBASKET_PACKAGE_NAME, ignoreCase = true) -> GroceryProvider.BIGBASKET
+                    else -> null
+                }
+            },
+            deliveryEstimate = deliveryEstimate,
+            finalPrice = finalPrice,
+            totalSavings = savings,
+            placed = placed || orderId != null,
+            manualActionNeeded = false,
+            manualReason = null
+        )
+    }
+
+    open fun detectOrderId(snapshot: GroceryScreenSnapshot? = null): String? {
+        val texts = buildList {
+            snapshot?.orderIdText?.takeIf { it.isNotBlank() }?.let { add(it) }
+            addAll(snapshot?.visibleText.orEmpty())
+        }
+
+        val pattern = Regex("""(?:order\s*(?:id|no|number)|tracking\s*id)\s*[:#-]?\s*([A-Z0-9-]{4,})""", RegexOption.IGNORE_CASE)
+        texts.forEach { text ->
+            pattern.find(text)?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        return null
     }
 
     open fun sleep(delayMs: Long) {
@@ -314,16 +552,21 @@ open class GroceryAccessibilityService(
             return GroceryCartSummary(provider = provider)
         }
 
+        val productOptions = extractProductOptions(snapshot.visibleText)
         val finalText = snapshot.finalPayableText ?: snapshot.sourceText
         val summary = GroceryCartSummary(
             provider = provider,
             itemSubtotal = priceComparator.extractAmount(snapshot.itemSubtotalText),
-            deliveryFee = priceComparator.extractAmount(snapshot.deliveryFeeText),
+            deliveryFee = priceComparator.extractDeliveryFee(snapshot.deliveryFeeText ?: snapshot.sourceText),
             handlingFee = priceComparator.extractAmount(snapshot.handlingFeeText),
-            couponDiscount = null,
-            finalPayableValue = priceComparator.extractAmount(finalText),
-            etaText = snapshot.etaText,
+            couponDiscount = priceComparator.extractCouponSaving(snapshot.sourceText),
+            finalPayableValue = priceComparator.extractFinalPayable(finalText) ?: priceComparator.extractAmount(finalText),
+            etaText = snapshot.etaText ?: priceComparator.extractEtaText(snapshot.sourceText),
             etaMinutes = priceComparator.extractEtaMinutes(snapshot.etaText ?: finalText),
+            packSizeText = priceComparator.extractPackSize(productOptions.firstOrNull()?.title ?: snapshot.sourceText),
+            ratingText = priceComparator.extractRatingText(snapshot.sourceText),
+            ratingValue = priceComparator.extractRating(snapshot.sourceText),
+            productOptions = productOptions,
             unavailableItems = snapshot.unavailableItems,
             replacementItems = snapshot.replacementItems,
             couponCode = null,
@@ -333,13 +576,16 @@ open class GroceryAccessibilityService(
                 normalized.contains("coupon applied") ||
                     normalized.contains("offer applied") ||
                     normalized.contains("promo applied")
-            },
+            } || snapshot.couponButtonText != null,
             packageName = snapshot.sourcePackageName,
-            sourceText = snapshot.sourceText
+            sourceText = snapshot.sourceText,
+            partial = snapshot.visibleText.isEmpty() || snapshot.finalPayableText == null || productOptions.isEmpty(),
+            blocked = snapshot.manualActionReason != null,
+            blockReason = snapshot.manualActionReason?.displayText
         )
 
         return if (summary.finalPayableValue == null) {
-            val candidate = GroceryCartCandidate(provider = provider, basket = GroceryBasket(), summary = summary)
+            val candidate = GroceryCartCandidate(provider = provider, basket = GroceryBasket(), summary = summary, productOptions = productOptions)
             priceComparator.normalize(candidate).summary
         } else {
             summary
@@ -370,5 +616,27 @@ open class GroceryAccessibilityService(
                 text.contains(normalizedCandidate) || FuzzyMatcher.similarity(text, normalizedCandidate) >= 80
             }
         }
+    }
+
+    private fun extractBrand(text: String): String? {
+        val normalized = text.lowercase(Locale.US)
+        return groceryBrands.firstOrNull { brand ->
+            normalized.contains(brand)
+        }?.let { matched ->
+            matched.split(" ").joinToString(" ") { word ->
+                word.replaceFirstChar { char ->
+                    if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
+                }
+            }
+        }
+    }
+
+    private fun String.anyItemCue(): Boolean {
+        val normalized = lowercase(Locale.US)
+        return listOf("milk", "bread", "rice", "atta", "sugar", "dal", "oil", "ghee", "butter", "egg", "eggs", "tea", "coffee", "soap", "shampoo").any { normalized.contains(it) }
+    }
+
+    private fun containsAny(normalized: String, keywords: List<String>): Boolean {
+        return keywords.any { normalized.contains(it.lowercase(Locale.US)) }
     }
 }

@@ -79,6 +79,9 @@ class SafetyGate {
         "card",
         "cvv",
         "pin",
+        "final order",
+        "place final order",
+        "complete order",
         "delete",
         "erase",
         "remove account"
@@ -172,7 +175,9 @@ class SafetyGate {
         }
 
         if (commandIntent.actionType == ActionType.GROCERY_BOOKING) {
-            if (containsGrocerySensitiveKeyword(normalized)) {
+            if (containsGrocerySensitiveKeyword(normalized) &&
+                !containsGroceryPlanningBoundaryPhrase(normalized)
+            ) {
                 return SafetyDecision.block(
                     "Blocked: payments, banking, passwords, OTPs, CAPTCHAs, and card flows must stay manual."
                 )
@@ -422,6 +427,15 @@ class SafetyGate {
         return grocerySensitivePatterns.any { keyword ->
             Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
         }
+    }
+
+    private fun containsGroceryPlanningBoundaryPhrase(normalized: String): Boolean {
+        return listOf(
+            "stop before payment",
+            "stop before final payment",
+            "stop at final confirmation",
+            "manual payment boundary"
+        ).any { phrase -> normalized.contains(phrase) }
     }
 
     private fun containsUnsafeFoodKeyword(normalized: String, params: Map<String, String>): Boolean {

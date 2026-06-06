@@ -6,8 +6,10 @@ import java.util.Locale
 class GroceryIntentParser {
     private val groceryProviderPatterns = mapOf(
         GroceryProvider.BLINKIT to listOf("blinkit", "grofers"),
+        GroceryProvider.ZEPTO to listOf("zepto"),
+        GroceryProvider.INSTAMART to listOf("instamart", "swiggy instamart", "swiggy"),
         GroceryProvider.JIOMART to listOf("jiomart", "jio mart"),
-        GroceryProvider.INSTAMART to listOf("instamart", "swiggy instamart", "swiggy")
+        GroceryProvider.BIGBASKET to listOf("bigbasket", "big basket")
     )
 
     private val groceryItemKeywords = listOf(
@@ -22,7 +24,7 @@ class GroceryIntentParser {
         "ghee",
         "butter",
         "curd",
-        "curd",
+        "yogurt",
         "eggs",
         "egg",
         "tea",
@@ -37,7 +39,15 @@ class GroceryIntentParser {
         "veg",
         "onions",
         "tomatoes",
-        "potatoes"
+        "potatoes",
+        "salt",
+        "spices",
+        "paneer",
+        "cheese",
+        "water",
+        "juice",
+        "curd",
+        "batter"
     )
 
     private val foodDeliveryKeywords = listOf(
@@ -76,16 +86,24 @@ class GroceryIntentParser {
         "surf excel",
         "colgate",
         "vim",
-        "borosil"
+        "borosil",
+        "epigamia",
+        "lays",
+        "kellogg",
+        "brooke bond",
+        "tetley",
+        "fresho",
+        "haldiram",
+        "mtr"
     )
 
     private val quantityPattern = Regex(
-        """^(?:(\d+(?:\.\d+)?)\s*(kg|g|gm|gram|grams|l|litre|liter|ml|pack|packet|packets|bottle|bottles|piece|pieces|pcs|dozen)\s+)?(.+)$""",
+        """^(?:(\d+(?:\.\d+)?)\s*(kg|g|gm|gram|grams|l|litre|liter|ml|pack|packet|packets|packs|bottle|bottles|piece|pieces|pcs|dozen)\s+)?(.+)$""",
         RegexOption.IGNORE_CASE
     )
 
     private val quantitySuffixPattern = Regex(
-        """^\s*(\d+(?:\.\d+)?)\s+(.+?)\s+(kg|g|gm|gram|grams|l|litre|liter|ml|pack|packet|packets|bottle|bottles|piece|pieces|pcs|dozen)\s*$""",
+        """^\s*(\d+(?:\.\d+)?)\s+(.+?)\s+(kg|g|gm|gram|grams|l|litre|liter|ml|pack|packet|packets|packs|bottle|bottles|piece|pieces|pcs|dozen)\s*$""",
         RegexOption.IGNORE_CASE
     )
 
@@ -94,56 +112,158 @@ class GroceryIntentParser {
         if (trimmed.isBlank()) return null
 
         val normalized = normalize(trimmed)
+        if (
+            (normalized.startsWith("what ") ||
+                normalized.startsWith("how ") ||
+                normalized.startsWith("why ") ||
+                normalized.startsWith("when ") ||
+                normalized.startsWith("where ")) &&
+            groceryItemKeywords.none { containsPhrase(normalized, it) } &&
+            parseProviderPreference(normalized) == null &&
+            parseBudgetPreference(normalized) == null &&
+            parseDeliveryUrgency(normalized) == null &&
+            parsePaymentPreference(normalized) == null &&
+            !containsAnyPhrase(normalized, listOf("grocery", "groceries", "basket", "cart", "compare", "reorder", "coupon"))
+        ) {
+            return null
+        }
+        if (isInformationalGroceryInquiry(normalized)) {
+            return null
+        }
+        if (isCommunicationOrContactRequest(normalized)) {
+            return null
+        }
+        if (isNavigationOrSystemRequest(normalized)) {
+            return null
+        }
+        val restaurantName = extractRestaurantName(trimmed)
+        if (
+            containsFoodOrderingCue(normalized) &&
+            (restaurantName != null || containsAnyPhrase(normalized, listOf("pizza", "burger", "biryani", "meal", "lunch", "dinner", "breakfast", "recipe", "cuisine")))
+        ) {
+            return null
+        }
         val groceryCueDetected = containsGroceryCue(normalized)
-        if (containsFoodOrderingCue(normalized) && !containsGroceryCue(normalized)) {
+        if (containsFoodOrderingCue(normalized) && !groceryCueDetected) {
             return null
         }
 
         val providerPreference = parseProviderPreference(normalized)
         val compareRequested = containsPhrase(normalized, "compare") ||
             containsPhrase(normalized, "compare prices") ||
-            containsPhrase(normalized, "compare this basket")
-        val wantsCheapest = containsPhrase(normalized, "cheapest") ||
-            containsPhrase(normalized, "lowest price") ||
-            containsPhrase(normalized, "best price")
-        val wantsFirstOne = containsPhrase(normalized, "first one") ||
-            containsPhrase(normalized, "first available")
-        val applyCouponRequested = containsPhrase(normalized, "apply coupon") ||
-            containsPhrase(normalized, "coupon")
+            containsPhrase(normalized, "compare this basket") ||
+            containsPhrase(normalized, "compare grocery apps") ||
+            containsPhrase(normalized, "compare blinkit")
+        val wantsCheapest = containsAnyPhrase(normalized, listOf("cheapest", "lowest price", "best price", "cheaper"))
+        val wantsFirstOne = containsAnyPhrase(normalized, listOf("first one", "first available", "choose first"))
+        val budgetPreference = parseBudgetPreference(normalized)
+        val deliveryUrgency = parseDeliveryUrgency(normalized)
+        val paymentPreference = parsePaymentPreference(normalized)
+        val reorderMode = containsAnyPhrase(
+            normalized,
+            listOf(
+                "reorder",
+                "buy the same groceries again",
+                "same groceries again",
+                "same order again",
+                "repeat the same groceries",
+                "buy from my previous list",
+                "reorder previous grocery list",
+                "my usual groceries",
+                "usual groceries",
+                "usual grocery list",
+                "previous list"
+            )
+        )
+        val previousListMode = reorderMode || containsAnyPhrase(
+            normalized,
+            listOf(
+                "previous list",
+                "previous grocery list",
+                "past grocery list",
+                "same groceries again",
+                "usual groceries"
+            )
+        )
+        val applyCouponRequested = containsAnyPhrase(normalized, listOf("apply coupon", "coupon", "promo", "offer"))
         val couponCode = extractCouponCode(trimmed)
         val basket = parseBasket(trimmed)
-        val requiresBrandQuestion = basket.items.isNotEmpty() && basket.items.any { it.brand.isNullOrBlank() }
-        val requiresQuantityQuestion = false
-        val hasGrocerySignal = groceryCueDetected ||
+        val deliveryLocation = extractDeliveryLocation(trimmed)
+        val useCurrentLocation = containsAnyPhrase(normalized, listOf("current location", "current address", "use current location"))
+        val allowComparison = compareRequested || providerPreference == null || countProviderMentions(normalized) > 1
+        val parsedBrandPreference = parseBrandPreference(normalized)
+        val brandPreference = parsedBrandPreference ?: if (basket.items.isNotEmpty()) "regular" else null
+
+        val requiresBrandQuestion = basket.items.isNotEmpty() &&
+            basket.items.any { it.brand.isNullOrBlank() } &&
+            parsedBrandPreference == null &&
+            brandPreference == null
+        val requiresQuantityQuestion = basket.items.any { it.quantityText.isNullOrBlank() }
+        val requiresBudgetQuestion = basket.items.isNotEmpty() && budgetPreference == null
+        val requiresDeliveryUrgencyQuestion = basket.items.isNotEmpty() && deliveryUrgency == null
+        val requiresLocationQuestion = basket.items.isNotEmpty() &&
+            deliveryLocation.isNullOrBlank() &&
+            !useCurrentLocation &&
+            !compareRequested
+
+        val isGroceryBooking = basket.items.isNotEmpty() ||
             providerPreference != null ||
             compareRequested ||
             wantsCheapest ||
             wantsFirstOne ||
+            budgetPreference != null ||
+            deliveryUrgency != null ||
+            paymentPreference != null ||
+            reorderMode ||
+            previousListMode ||
             applyCouponRequested ||
-            couponCode != null
-        val isGroceryBooking = (basket.items.isNotEmpty() && hasGrocerySignal) ||
-            providerPreference != null ||
-            compareRequested ||
-            wantsCheapest ||
-            wantsFirstOne ||
-            applyCouponRequested ||
+            couponCode != null ||
             groceryCueDetected
 
         if (!isGroceryBooking) return null
+
+        val requirementProfile = GroceryRequirementProfile(
+            items = basket.items.map { it.toItemRequest() },
+            budgetPreference = budgetPreference ?: GroceryBudgetPreference.BEST_OVERALL,
+            providerPreference = providerPreference,
+            deliveryUrgency = deliveryUrgency ?: GroceryDeliveryUrgency.TODAY,
+            scheduledTime = null,
+            deliveryLocation = deliveryLocation,
+            useCurrentLocation = useCurrentLocation,
+            allowComparison = allowComparison,
+            reorderMode = reorderMode,
+            previousListMode = previousListMode,
+            requiresFinalConfirmation = true,
+            paymentPreference = paymentPreference,
+            safetyNotes = null,
+            allowSubstitutions = true
+        )
 
         return GroceryIntentParseResult(
             rawText = rawText,
             isGroceryBooking = true,
             basket = basket,
+            requirementProfile = requirementProfile,
             providerPreference = providerPreference,
-            wantsCheapest = wantsCheapest,
+            budgetPreference = budgetPreference,
+            deliveryUrgency = deliveryUrgency,
+            deliveryLocation = deliveryLocation,
+            useCurrentLocation = useCurrentLocation,
+            paymentPreference = paymentPreference,
+            allowComparison = allowComparison,
+            reorderMode = reorderMode,
+            previousListMode = previousListMode,
+            wantsCheapest = wantsCheapest || budgetPreference == GroceryBudgetPreference.CHEAPEST,
             wantsFirstOne = wantsFirstOne,
             compareRequested = compareRequested,
             applyCouponRequested = applyCouponRequested,
             couponCode = couponCode,
-            brandPreference = parseBrandPreference(normalized),
+            brandPreference = brandPreference,
             requiresBrandQuestion = requiresBrandQuestion,
-            requiresQuantityQuestion = requiresQuantityQuestion
+            requiresQuantityQuestion = requiresQuantityQuestion,
+            requiresBudgetQuestion = requiresBudgetQuestion,
+            requiresDeliveryUrgencyQuestion = requiresDeliveryUrgencyQuestion,
+            requiresLocationQuestion = requiresLocationQuestion
         )
     }
 
@@ -152,12 +272,67 @@ class GroceryIntentParser {
         if (trimmed.isBlank()) return null
 
         val normalized = normalize(trimmed)
+
         if (isCancel(normalized)) {
             return GroceryFollowUpCommand(rawText = rawText, type = GroceryFollowUpType.CANCEL)
         }
 
         if (isConfirm(normalized)) {
-            return GroceryFollowUpCommand(rawText = rawText, type = GroceryFollowUpType.CONFIRM, finalUserConfirmed = true)
+            return GroceryFollowUpCommand(
+                rawText = rawText,
+                type = GroceryFollowUpType.CONFIRM,
+                finalUserConfirmed = true
+            )
+        }
+
+        if (containsAnyPhrase(normalized, listOf("search again", "try again", "search once more", "compare again"))) {
+            return GroceryFollowUpCommand(
+                rawText = rawText,
+                type = GroceryFollowUpType.SEARCH_AGAIN,
+                searchAgainRequested = true,
+                compareRequested = containsPhrase(normalized, "compare")
+            )
+        }
+
+        if (containsAnyPhrase(normalized, listOf("change item", "change brand", "change quantity", "change budget", "change delivery time", "change provider", "change location"))) {
+            return GroceryFollowUpCommand(
+                rawText = rawText,
+                type = GroceryFollowUpType.REFINEMENT,
+                refineTarget = when {
+                    containsPhrase(normalized, "change item") -> GroceryRefineTarget.ITEM
+                    containsPhrase(normalized, "change brand") -> GroceryRefineTarget.BRAND
+                    containsPhrase(normalized, "change quantity") -> GroceryRefineTarget.QUANTITY
+                    containsPhrase(normalized, "change budget") -> GroceryRefineTarget.BUDGET
+                    containsPhrase(normalized, "change delivery time") -> GroceryRefineTarget.DELIVERY_TIME
+                    containsPhrase(normalized, "change provider") -> GroceryRefineTarget.PROVIDER
+                    containsPhrase(normalized, "change location") -> GroceryRefineTarget.LOCATION
+                    else -> GroceryRefineTarget.SEARCH
+                }
+            )
+        }
+
+        if (containsAnyPhrase(normalized, listOf("replace item", "similar item", "same brand", "cheaper substitute", "better quality", "fastest available substitute"))) {
+            return GroceryFollowUpCommand(
+                rawText = rawText,
+                type = GroceryFollowUpType.REPLACEMENT,
+                replacementRequested = true
+            )
+        }
+
+        if (containsAnyPhrase(normalized, listOf("remove item", "skip item", "remove it", "no replacement", "do not replace", "don't replace"))) {
+            return GroceryFollowUpCommand(
+                rawText = rawText,
+                type = GroceryFollowUpType.REMOVE_ITEM,
+                removeRequested = true
+            )
+        }
+
+        if (containsAnyPhrase(normalized, listOf("compare", "compare prices", "compare apps", "show comparison"))) {
+            return GroceryFollowUpCommand(
+                rawText = rawText,
+                type = GroceryFollowUpType.COMPARE,
+                compareRequested = true
+            )
         }
 
         parseAddItem(normalized, trimmed)?.let { item ->
@@ -173,57 +348,67 @@ class GroceryIntentParser {
             return GroceryFollowUpCommand(
                 rawText = rawText,
                 type = GroceryFollowUpType.REMOVE_ITEM,
-                itemQuery = query
+                itemQuery = query,
+                removeRequested = true
+            )
+        }
+
+        parsePaymentPreference(normalized)?.let { paymentPreference ->
+            return GroceryFollowUpCommand(
+                rawText = rawText,
+                type = GroceryFollowUpType.SELECTION,
+                paymentPreference = paymentPreference
+            )
+        }
+
+        parseSelectionPreference(normalized)?.let { selection ->
+            return GroceryFollowUpCommand(
+                rawText = rawText,
+                type = GroceryFollowUpType.SELECTION,
+                selectionIndex = selection.first,
+                selectionPreference = selection.second,
+                wantsCheapest = selection.second == GrocerySelectionPreference.CHEAPEST,
+                wantsFastest = selection.second == GrocerySelectionPreference.FASTEST,
+                wantsBestQuality = selection.second == GrocerySelectionPreference.BEST_QUALITY,
+                wantsBestOverall = selection.second == GrocerySelectionPreference.BEST_OVERALL,
+                wantsFirstOne = selection.second == GrocerySelectionPreference.FIRST
             )
         }
 
         parseProviderPreference(normalized)?.let { provider ->
-            val wantsCheapest = containsPhrase(normalized, "cheapest")
             return GroceryFollowUpCommand(
                 rawText = rawText,
                 type = GroceryFollowUpType.BOOK_PROVIDER,
                 providerPreference = provider,
-                wantsCheapest = wantsCheapest
+                wantsCheapest = containsPhrase(normalized, "cheapest"),
+                wantsFastest = containsPhrase(normalized, "fastest")
             )
         }
 
-        if (containsPhrase(normalized, "book cheapest") ||
-            containsPhrase(normalized, "cheapest option") ||
-            containsPhrase(normalized, "use the cheapest") ||
-            containsPhrase(normalized, "cheapest platform")
-        ) {
+        if (containsAnyPhrase(normalized, listOf("book cheapest", "cheapest option", "use the cheapest", "cheapest platform"))) {
             return GroceryFollowUpCommand(
                 rawText = rawText,
                 type = GroceryFollowUpType.BOOK_CHEAPEST,
-                wantsCheapest = true
+                wantsCheapest = true,
+                selectionPreference = GrocerySelectionPreference.CHEAPEST
             )
         }
 
-        if (containsPhrase(normalized, "compare") || containsPhrase(normalized, "compare prices")) {
+        if (containsAnyPhrase(normalized, listOf("first one", "second one", "third one", "first available", "choose first"))) {
+            val selection = parseSelectionPreference(normalized)
             return GroceryFollowUpCommand(
                 rawText = rawText,
-                type = GroceryFollowUpType.COMPARE,
-                compareRequested = true
+                type = GroceryFollowUpType.SELECTION,
+                selectionIndex = selection?.first,
+                selectionPreference = selection?.second ?: GrocerySelectionPreference.FIRST,
+                wantsFirstOne = true
             )
         }
 
-        extractCouponCode(trimmed)?.let { code ->
+        if (containsAnyPhrase(normalized, listOf("regular is fine", "regular options", "no brand", "generic options", "best matching regular options"))) {
             return GroceryFollowUpCommand(
                 rawText = rawText,
-                type = GroceryFollowUpType.APPLY_COUPON,
-                couponCode = code
-            )
-        }
-
-        if (containsPhrase(normalized, "regular is fine") ||
-            containsPhrase(normalized, "regular options") ||
-            containsPhrase(normalized, "no brand") ||
-            containsPhrase(normalized, "generic options") ||
-            containsPhrase(normalized, "best matching regular options")
-        ) {
-            return GroceryFollowUpCommand(
-                rawText = rawText,
-                type = GroceryFollowUpType.REGULAR,
+                type = GroceryFollowUpType.BRAND_PREFERENCE,
                 brandPreference = "regular"
             )
         }
@@ -236,7 +421,112 @@ class GroceryIntentParser {
             )
         }
 
+        if (containsAnyPhrase(normalized, listOf("reorder previous grocery list", "buy from my previous list", "my usual groceries", "usual groceries"))) {
+            return GroceryFollowUpCommand(
+                rawText = rawText,
+                type = GroceryFollowUpType.REORDER,
+                reorderRequested = true
+            )
+        }
+
         return null
+    }
+
+    fun parseProviderPreference(rawText: String): GroceryProvider? {
+        val normalized = normalize(rawText)
+        groceryProviderPatterns.forEach { (provider, patterns) ->
+            if (patterns.any { containsPhrase(normalized, it) }) {
+                return provider
+            }
+        }
+        return null
+    }
+
+    fun parseBudgetPreference(rawText: String): GroceryBudgetPreference? {
+        val normalized = normalize(rawText)
+        return when {
+            containsAnyPhrase(normalized, listOf("cheapest", "cheaper", "lowest price", "low price", "budget")) -> GroceryBudgetPreference.CHEAPEST
+            containsAnyPhrase(normalized, listOf("best quality", "best rated", "top quality", "best brand", "quality first")) -> GroceryBudgetPreference.BEST_QUALITY
+            containsAnyPhrase(normalized, listOf("fastest", "fast delivery", "quick delivery", "asap", "urgent")) -> GroceryBudgetPreference.FAST_DELIVERY
+            containsAnyPhrase(normalized, listOf("best overall", "overall best", "best option", "balanced")) -> GroceryBudgetPreference.BEST_OVERALL
+            else -> null
+        }
+    }
+
+    fun parseDeliveryUrgency(rawText: String): GroceryDeliveryUrgency? {
+        val normalized = normalize(rawText)
+        return when {
+            containsAnyPhrase(normalized, listOf("now", "asap", "right away", "urgent", "immediately")) -> GroceryDeliveryUrgency.NOW
+            containsAnyPhrase(normalized, listOf("today", "tonight", "this evening", "later today")) -> GroceryDeliveryUrgency.TODAY
+            containsAnyPhrase(normalized, listOf("scheduled", "later", "tomorrow", "schedule", "book for", "at ")) -> GroceryDeliveryUrgency.SCHEDULED
+            else -> null
+        }
+    }
+
+    fun parsePaymentPreference(rawText: String): GroceryPaymentMethod? {
+        val normalized = normalize(rawText)
+        return when {
+            containsAnyPhrase(normalized, listOf("upi", "gpay", "google pay", "phonepe", "paytm")) -> GroceryPaymentMethod.UPI
+            containsAnyPhrase(normalized, listOf("card", "debit card", "credit card")) -> GroceryPaymentMethod.CARD
+            containsAnyPhrase(normalized, listOf("net banking", "internet banking", "online banking")) -> GroceryPaymentMethod.NET_BANKING
+            containsAnyPhrase(normalized, listOf("wallet", "app wallet")) -> GroceryPaymentMethod.WALLET
+            containsAnyPhrase(normalized, listOf("cash on delivery", "cod")) -> GroceryPaymentMethod.COD
+            else -> null
+        }
+    }
+
+    fun parseSelectionPreference(rawText: String): Pair<Int?, GrocerySelectionPreference?>? {
+        val normalized = normalize(rawText)
+        val selectionPreference = when {
+            containsAnyPhrase(normalized, listOf("second one", "second option", "option 2", "2nd", "second")) -> GrocerySelectionPreference.SECOND
+            containsAnyPhrase(normalized, listOf("third one", "third option", "option 3", "3rd", "third")) -> GrocerySelectionPreference.THIRD
+            containsAnyPhrase(normalized, listOf("first one", "first option", "option 1", "1st", "first", "first available")) -> GrocerySelectionPreference.FIRST
+            containsAnyPhrase(normalized, listOf("cheapest", "lowest price", "cheapest cart", "cheapest option")) -> GrocerySelectionPreference.CHEAPEST
+            containsAnyPhrase(normalized, listOf("fastest", "fastest delivery")) -> GrocerySelectionPreference.FASTEST
+            containsAnyPhrase(normalized, listOf("best quality", "best rated")) -> GrocerySelectionPreference.BEST_QUALITY
+            containsAnyPhrase(normalized, listOf("best overall", "recommended", "best option")) -> GrocerySelectionPreference.BEST_OVERALL
+            parseProviderPreference(normalized) != null -> GrocerySelectionPreference.PROVIDER
+            else -> null
+        }
+
+        if (selectionPreference == null) return null
+        val selectionIndex = when (selectionPreference) {
+            GrocerySelectionPreference.FIRST -> 1
+            GrocerySelectionPreference.SECOND -> 2
+            GrocerySelectionPreference.THIRD -> 3
+            else -> null
+        }
+        return selectionIndex to selectionPreference
+    }
+
+    fun extractPaymentPreference(rawText: String): GroceryPaymentMethod? = parsePaymentPreference(rawText)
+
+    fun extractDeliveryUrgency(rawText: String): GroceryDeliveryUrgency? = parseDeliveryUrgency(rawText)
+
+    fun extractBudgetPreference(rawText: String): GroceryBudgetPreference? = parseBudgetPreference(rawText)
+
+    fun isNegative(rawText: String): Boolean {
+        val normalized = normalize(rawText)
+        return containsAnyPhrase(
+            normalized,
+            listOf("no", "nope", "nah", "cancel", "stop", "not now", "do not", "don't", "dont", "never mind", "nevermind", "go back", "back", "dismiss", "abort")
+        )
+    }
+
+    fun isPositive(rawText: String): Boolean {
+        val normalized = normalize(rawText)
+        return containsAnyPhrase(
+            normalized,
+            listOf("yes", "yep", "yeah", "confirm", "confirm it", "proceed", "ok", "okay", "sure", "book it", "go ahead", "continue")
+        )
+    }
+
+    fun isRefineCommand(rawText: String): Boolean {
+        val normalized = normalize(rawText)
+        return containsAnyPhrase(
+            normalized,
+            listOf("change item", "change brand", "change quantity", "change budget", "change delivery time", "search again", "refine", "adjust", "edit")
+        )
     }
 
     private fun parseBasket(rawText: String): GroceryBasket {
@@ -258,6 +548,22 @@ class GroceryIntentParser {
         var text = AssistantTextNormalizer.stripWakeWords(rawText).trim()
         if (text.isBlank()) return text
 
+        val normalized = normalize(text)
+        if (normalized in setOf(
+                "reorder previous grocery list",
+                "reorder my last grocery order",
+                "buy the same groceries again",
+                "buy from my previous list",
+                "repeat the same groceries",
+                "same groceries again",
+                "same order again",
+                "my usual groceries",
+                "usual groceries",
+                "usual grocery list"
+            )) {
+            return ""
+        }
+
         val leadingPrefixes = listOf(
             "i want ",
             "i need ",
@@ -265,11 +571,35 @@ class GroceryIntentParser {
             "want ",
             "please ",
             "order ",
-            "buy ",
-            "book ",
+            "apply coupon to ",
+            "use wallet balance for ",
+            "use wallet balance ",
+            "reorder previous grocery list",
+            "reorder my last grocery order",
+            "buy the same groceries again",
+            "buy from my previous list",
+            "repeat the same groceries",
+            "same groceries again",
+            "same order again",
+            "buy the same groceries again ",
+            "buy from my previous list ",
+            "reorder previous grocery list ",
+            "reorder my last grocery order ",
+            "repeat the same groceries ",
+            "same groceries again ",
+            "same order again ",
+            "compare prices for ",
+            "compare price for ",
+            "compare the prices for ",
+            "compare the price for ",
             "compare ",
             "add ",
-            "get "
+            "get ",
+            "reorder ",
+            "reorder previous ",
+            "reorder my ",
+            "buy from ",
+            "suggest "
         )
 
         val lower = text.lowercase(Locale.US)
@@ -278,11 +608,20 @@ class GroceryIntentParser {
             text = text.substring(prefix.length).trimStart(',', ':', ' ')
         }
 
-        val providerClauseMarkers = listOf(" on ", " from ", " via ")
+        val providerClauseMarkers = listOf(" on ", " from ", " via ", " in ")
         val marker = providerClauseMarkers.firstOrNull { lower.contains(it) }
         if (marker != null && containsGroceryCue(lower)) {
             text = text.substringBefore(marker, text).trim()
         }
+
+        text = text.replace(
+            Regex("""\s+(?:but\s+)?stop\s+before\s+payment.*$""", RegexOption.IGNORE_CASE),
+            ""
+        ).trim()
+        text = text.replace(
+            Regex("""\s+(?:but\s+)?stop\s+at\s+final\s+confirmation(?:/manual payment boundary)?\s*$""", RegexOption.IGNORE_CASE),
+            ""
+        ).trim()
 
         return text
     }
@@ -290,7 +629,11 @@ class GroceryIntentParser {
     private fun parseItem(segment: String): GroceryItem? {
         val cleaned = cleanSegment(segment)
         if (cleaned.isBlank()) return null
-        if (containsFoodOrderingCue(normalize(cleaned)) && !containsGroceryCue(normalize(cleaned))) return null
+
+        val normalized = normalize(cleaned)
+        if (!containsItemCue(normalized) && !containsQuantityCue(cleaned)) return null
+        if (isProviderOnlySegment(normalized)) return null
+        if (containsFoodOrderingCue(normalized) && !containsGroceryCue(normalized)) return null
 
         var quantityValue: Double? = null
         var unit: String? = null
@@ -304,6 +647,19 @@ class GroceryIntentParser {
             quantityValue = match.groupValues.getOrNull(1)?.toDoubleOrNull()
             unit = match.groupValues.getOrNull(2)?.takeIf { it.isNotBlank() }?.lowercase(Locale.US)
             remainder = match.groupValues.getOrNull(3)?.trim().orEmpty().ifBlank { cleaned }
+        }
+
+        if (quantityValue == null) {
+            Regex("""^\s*(\d+(?:\.\d+)?)\s+(.+)$""", RegexOption.IGNORE_CASE)
+                .matchEntire(cleaned)
+                ?.let { match ->
+                    val candidateQuantity = match.groupValues.getOrNull(1)?.toDoubleOrNull()
+                    val candidateRemainder = match.groupValues.getOrNull(2)?.trim().orEmpty()
+                    if (candidateQuantity != null && candidateRemainder.isNotBlank()) {
+                        quantityValue = candidateQuantity
+                        remainder = candidateRemainder
+                    }
+                }
         }
 
         val brand = extractBrand(remainder)
@@ -336,33 +692,49 @@ class GroceryIntentParser {
     }
 
     private fun parseRemoveItem(normalized: String, rawText: String): String? {
-        val prefixes = listOf("remove ", "remove item ", "delete ", "drop ")
+        val prefixes = listOf("remove ", "remove item ", "delete ", "drop ", "skip ")
         val matched = prefixes.firstOrNull { normalized.startsWith(it) } ?: return null
         val lower = rawText.lowercase(Locale.US)
         val query = rawText.substring(lower.indexOf(matched) + matched.length).trim()
         return query.takeIf { it.isNotBlank() }
     }
 
-    private fun parseProviderPreference(normalized: String): GroceryProvider? {
-        groceryProviderPatterns.forEach { (provider, patterns) ->
-            if (patterns.any { containsPhrase(normalized, it) }) {
-                return provider
-            }
-        }
-        return null
-    }
-
     private fun parseBrandPreference(normalized: String): String? {
-        if (containsPhrase(normalized, "regular is fine") ||
-            containsPhrase(normalized, "no brand") ||
-            containsPhrase(normalized, "generic options")
-        ) {
+        if (containsAnyPhrase(normalized, listOf("regular is fine", "no brand", "generic options"))) {
             return "regular"
         }
 
-        groceryBrands.firstOrNull { brand ->
-            containsPhrase(normalized, brand)
-        }?.let { return it }
+        groceryBrands
+            .sortedByDescending { it.length }
+            .firstOrNull { brand -> containsPhrase(normalized, brand) }
+            ?.let { matched ->
+                return matched.split(" ").joinToString(" ") { word ->
+                    word.replaceFirstChar { char ->
+                        if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
+                    }
+                }
+            }
+
+        return null
+    }
+
+    private fun extractRestaurantName(rawText: String): String? {
+        val trimmed = cleanSegment(rawText)
+        if (trimmed.isBlank()) return null
+
+        val patterns = listOf(
+            Regex("""(?i)\bfrom\s+(.+?)(?=(?:\s+(?:on|to|with|using|via|coupon|promo|code|offer|and|or)\b|[,.!?]|$))"""),
+            Regex("""(?i)\bat\s+(.+?)(?=(?:\s+(?:on|to|with|using|via|coupon|promo|code|offer|and|or)\b|[,.!?]|$))""")
+        )
+
+        patterns.forEach { pattern ->
+            pattern.find(trimmed)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { return it }
+        }
 
         return null
     }
@@ -381,21 +753,103 @@ class GroceryIntentParser {
         return null
     }
 
+    private fun extractDeliveryLocation(rawText: String): String? {
+        val patterns = listOf(
+            Regex("""\b(?:deliver(?: it)? to|delivery to|send to|ship to)\s+(.+?)(?:$|,|\.| and | with )""", RegexOption.IGNORE_CASE),
+            Regex("""\b(?:address|location)\s*[:=]\s*(.+?)(?:$|,|\.| and | with )""", RegexOption.IGNORE_CASE)
+        )
+        patterns.forEach { pattern ->
+            pattern.find(rawText)?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+
+        val normalized = normalize(rawText)
+        return when {
+            containsAnyPhrase(normalized, listOf("current location", "current address", "use current location")) -> "current location"
+            else -> null
+        }
+    }
+
     private fun containsGroceryCue(normalized: String): Boolean {
         return groceryItemKeywords.any { containsPhrase(normalized, it) } ||
-            groceryProviderPatterns.values.flatten().any { containsPhrase(normalized, it) } ||
-            containsPhrase(normalized, "grocery") ||
-            containsPhrase(normalized, "groceries") ||
-            containsPhrase(normalized, "basket") ||
-            containsPhrase(normalized, "cart") ||
-            containsPhrase(normalized, "coupon") ||
-            containsPhrase(normalized, "offers") ||
-            containsPhrase(normalized, "milk") ||
-            containsPhrase(normalized, "bread")
+            containsAnyPhrase(
+                normalized,
+                listOf(
+                    "grocery",
+                    "groceries",
+                    "basket",
+                    "cart",
+                    "coupon",
+                    "offers",
+                    "offer",
+                    "compare",
+                    "reorder",
+                    "usual groceries",
+                    "previous list",
+                    "cheapest",
+                    "fastest",
+                    "best quality",
+                    "best overall"
+                )
+            )
     }
 
     private fun containsFoodOrderingCue(normalized: String): Boolean {
         return foodDeliveryKeywords.any { containsPhrase(normalized, it) }
+    }
+
+    private fun containsItemCue(normalized: String): Boolean {
+        return groceryItemKeywords.any { containsPhrase(normalized, it) } ||
+            groceryBrands.any { containsPhrase(normalized, it) } ||
+            containsAnyPhrase(
+                normalized,
+                listOf(
+                    "milk",
+                    "bread",
+                    "rice",
+                    "dal",
+                    "atta",
+                    "sugar",
+                    "order",
+                    "buy",
+                    "add",
+                    "replace"
+                )
+            )
+    }
+
+    private fun containsQuantityCue(rawText: String): Boolean {
+        val cleaned = cleanSegment(rawText)
+        if (quantitySuffixPattern.containsMatchIn(cleaned)) return true
+        return Regex("""^\s*\d+(?:\.\d+)?\b""", RegexOption.IGNORE_CASE).containsMatchIn(cleaned)
+    }
+
+    private fun isProviderOnlySegment(normalized: String): Boolean {
+        if (parseProviderPreference(normalized) != null && !containsItemCue(normalized) && !containsQuantityCue(normalized)) {
+            return true
+        }
+
+        return containsAnyPhrase(
+            normalized,
+            listOf(
+                "compare",
+                "cheapest",
+                "fastest",
+                "best quality",
+                "best overall",
+                "best rated",
+                "first one",
+                "second one",
+                "third one",
+                "search again",
+                "change item",
+                "change brand",
+                "change quantity",
+                "change budget",
+                "change delivery time",
+                "cancel",
+                "stop"
+            )
+        ) && !containsItemCue(normalized)
     }
 
     private fun cleanSegment(segment: String): String {
@@ -422,59 +876,157 @@ class GroceryIntentParser {
             .sortedByDescending { it.length }
             .firstOrNull { brand -> containsPhrase(lower, brand) }
             ?.let { matched ->
-                val index = lower.indexOf(normalize(matched))
-                if (index == 0 || index in 1..3) {
-                    return matched.split(" ").joinToString(" ") { word ->
-                        word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.US) else it.toString() }
+                return matched.split(" ").joinToString(" ") { word ->
+                    word.replaceFirstChar { char ->
+                        if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
                     }
                 }
             }
-
-        val tokens = remainder.split(Regex("\\s+")).filter { it.isNotBlank() }
-        if (tokens.size >= 2) {
-            val first = tokens.first()
-            val looksLikeBrand = first.firstOrNull()?.isUpperCase() == true &&
-                first.lowercase(Locale.US) !in groceryItemKeywords
-            if (looksLikeBrand) {
-                return first
-            }
-        }
 
         return null
     }
 
     private fun isCancel(normalized: String): Boolean {
-        return listOf(
-            "cancel",
-            "stop",
-            "stop grocery",
-            "cancel grocery",
-            "go back",
-            "back",
-            "dismiss",
-            "never mind",
-            "nevermind",
-            "abort"
-        ).any { containsPhrase(normalized, it) }
+        return containsAnyPhrase(
+            normalized,
+            listOf(
+                "cancel",
+                "stop",
+                "stop grocery",
+                "cancel grocery",
+                "go back",
+                "back",
+                "dismiss",
+                "never mind",
+                "nevermind",
+                "abort"
+            )
+        )
     }
 
     private fun isConfirm(normalized: String): Boolean {
-        return listOf(
-            "confirm",
-            "yes",
-            "yep",
-            "yeah",
-            "proceed",
-            "proceed with this one",
-            "book it",
-            "okay",
-            "ok",
-            "sure"
-        ).any { containsPhrase(normalized, it) }
+        return containsAnyPhrase(
+            normalized,
+            listOf(
+                "confirm",
+                "yes",
+                "yep",
+                "yeah",
+                "proceed",
+                "proceed with this one",
+                "book it",
+                "okay",
+                "ok",
+                "sure"
+            )
+        )
+    }
+
+    private fun isInformationalGroceryInquiry(normalized: String): Boolean {
+        val informationalPhrases = listOf(
+            "tell me about groceries",
+            "tell me about grocery",
+            "what is the price of",
+            "what's the price of",
+            "how much is",
+            "how much are",
+            "price of",
+            "cost of"
+        )
+        if (!containsAnyPhrase(normalized, informationalPhrases)) return false
+
+        val purchaseIntentCues = listOf(
+            "buy",
+            "order",
+            "compare",
+            "cheapest",
+            "cheaper",
+            "basket",
+            "cart",
+            "reorder",
+            "coupon",
+            "promo",
+            "offer",
+            "blinkit",
+            "zepto",
+            "instamart",
+            "jiomart",
+            "bigbasket"
+        )
+
+        return purchaseIntentCues.none { containsPhrase(normalized, it) }
+    }
+
+    private fun isCommunicationOrContactRequest(normalized: String): Boolean {
+        return normalized.startsWith("call ") ||
+            normalized.startsWith("text ") ||
+            normalized.startsWith("message ") ||
+            normalized.startsWith("email ") ||
+            containsAnyPhrase(
+                normalized,
+                listOf(
+                    "reply to",
+                    "draft reply",
+                    "draft email",
+                    "send email",
+                    "send message",
+                    "write professional email",
+                    "summarize my messages",
+                    "what did i miss"
+                )
+            )
+    }
+
+    private fun isNavigationOrSystemRequest(normalized: String): Boolean {
+        return normalized == "go home" ||
+            normalized == "home" ||
+            normalized == "back to home" ||
+            normalized == "go back" ||
+            normalized == "go previous" ||
+            normalized == "back" ||
+            normalized == "previous" ||
+            normalized == "show recent apps" ||
+            normalized == "show recents" ||
+            normalized == "open recents" ||
+            normalized == "open recent apps" ||
+            normalized == "recent apps" ||
+            normalized == "recents" ||
+            normalized == "open notifications" ||
+            normalized == "show notifications" ||
+            normalized == "check notifications" ||
+            normalized == "read notifications" ||
+            normalized == "scroll down" ||
+            normalized == "scroll up" ||
+            normalized == "move down" ||
+            normalized == "move up" ||
+            normalized == "swipe down" ||
+            normalized == "swipe up" ||
+            normalized.startsWith("open app ") ||
+            normalized.startsWith("open ") ||
+            normalized.startsWith("launch ") ||
+            normalized.startsWith("start ") ||
+            normalized.startsWith("tap ") ||
+            normalized.startsWith("tap on ") ||
+            normalized.startsWith("click ") ||
+            normalized.startsWith("click on ") ||
+            normalized.startsWith("press ") ||
+            normalized.startsWith("press on ") ||
+            normalized.startsWith("type ") ||
+            normalized.startsWith("write ") ||
+            normalized.startsWith("enter ") ||
+            normalized.startsWith("input ")
+    }
+
+    private fun countProviderMentions(normalized: String): Int {
+        return groceryProviderPatterns.values.flatten().count { containsPhrase(normalized, it) }
     }
 
     private fun normalize(value: String): String {
         return AssistantTextNormalizer.normalize(value)
+    }
+
+    private fun containsAnyPhrase(normalized: String, phrases: List<String>): Boolean {
+        return phrases.any { containsPhrase(normalized, it) }
     }
 
     private fun containsPhrase(normalized: String, phrase: String): Boolean {

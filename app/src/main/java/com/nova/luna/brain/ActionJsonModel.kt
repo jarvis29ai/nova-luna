@@ -124,6 +124,11 @@ class ActionJsonModel(
         val params = buildMap {
             put("rawText", request.rawText)
             groceryResult?.let { putAll(it.toEntities()) }
+            groceryResult?.providerPreference?.let { provider ->
+                val providerLabel = provider.name.lowercase(Locale.US)
+                put("preferredProvider", providerLabel)
+                put("providerPreference", providerLabel)
+            }
             put("activeGrocerySession", activeSession.toString())
         }
         val nextQuestion = when {

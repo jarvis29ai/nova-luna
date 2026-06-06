@@ -23,7 +23,14 @@ class RuleBasedCommandParser {
         "upi",
         "password",
         "otp",
-        "captcha"
+        "captcha",
+        "login",
+        "bypass login",
+        "sign in",
+        "delete",
+        "erase",
+        "remove account",
+        "transfer money"
     )
 
     fun parse(rawText: String): CommandIntent {

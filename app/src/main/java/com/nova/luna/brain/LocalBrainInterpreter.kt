@@ -51,8 +51,8 @@ class LocalBrainInterpreter {
         }
 
         parseBlockedAction(rawText)?.let { return it }
-        parseCabBooking(rawText)?.let { return it }
         parseCabComparison(rawText)?.let { return it }
+        parseCabBooking(rawText)?.let { return it }
         parseGroceryBooking(rawText)?.let { return it }
         parsePreparedMessage(rawText)?.let { return it }
         parseLegacyCommand(rawText)?.let { return it }
@@ -267,6 +267,11 @@ class LocalBrainInterpreter {
         }
         val params = buildMap {
             putAll(parsed.toEntities())
+            parsed.providerPreference?.let { provider ->
+                val providerLabel = provider.name.lowercase(Locale.US)
+                put("preferredProvider", providerLabel)
+                put("providerPreference", providerLabel)
+            }
             put("rawText", rawText)
         }
 

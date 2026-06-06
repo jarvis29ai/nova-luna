@@ -30,6 +30,7 @@ open class GroceryDeepLinkBuilder(
 
         val launchIntent = buildProviderOpenIntent(provider, launchPackageName)
         val searchIntents = buildSearchIntents(provider, request.basket, launchPackageName)
+        val installed = providerRegistry.isInstalled(provider)
 
         return GroceryDeepLinkResult(
             provider = provider,
@@ -38,8 +39,12 @@ open class GroceryDeepLinkBuilder(
             launched = launchIntent != null,
             supportsDirectBasketIntent = false,
             needsAccessibilityFill = true,
-            failureReason = null,
-            launchMode = if (providerRegistry.isInstalled(provider)) "search" else "market"
+            failureReason = when {
+                launchIntent == null && !installed -> "app is not installed"
+                launchIntent == null -> "launch intent unavailable"
+                else -> null
+            },
+            launchMode = if (installed) "search" else "market"
         )
     }
 
