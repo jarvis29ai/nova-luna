@@ -18,7 +18,14 @@ class NovaAccessibilityService : AccessibilityService() {
         private const val TAG = "NovaAccessibilitySvc"
     }
 
+    data class NotificationSnapshot(
+        val packageName: String,
+        val text: String,
+        val timestampMillis: Long
+    )
+
     private val recentNotifications = ArrayDeque<String>()
+    private val capturedNotifications = mutableListOf<NotificationSnapshot>()
     private val notificationLock = Any()
 
     override fun onServiceConnected() {
@@ -48,6 +55,17 @@ class NovaAccessibilityService : AccessibilityService() {
                         recentNotifications.removeFirst()
                     }
                     recentNotifications.addLast(summary)
+
+                    capturedNotifications.add(
+                        NotificationSnapshot(
+                            packageName = event.packageName?.toString() ?: "unknown",
+                            text = summary,
+                            timestampMillis = System.currentTimeMillis()
+                        )
+                    )
+                    if (capturedNotifications.size > 50) {
+                        capturedNotifications.removeAt(0)
+                    }
                 }
             }
         }
@@ -62,6 +80,21 @@ class NovaAccessibilityService : AccessibilityService() {
             instance = null
         }
         super.onDestroy()
+    }
+
+    fun getCapturedNotifications(platform: String? = null): List<NotificationSnapshot> {
+        return synchronized(notificationLock) {
+            if (platform == null) {
+                capturedNotifications.toList()
+            } else {
+                val pkgPart = when (platform.lowercase()) {
+                    "whatsapp" -> "whatsapp"
+                    "telegram" -> "telegram"
+                    else -> platform.lowercase()
+                }
+                capturedNotifications.filter { it.packageName.contains(pkgPart, ignoreCase = true) }
+            }
+        }
     }
 
     fun latestNotificationSummary(): String? {

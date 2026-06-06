@@ -84,3 +84,26 @@
 - `flutter_app/` stays untracked until explicitly added later.
 - Local LLM setup instructions live in `docs/LOCAL_LLM_SETUP.md`.
 - Phone-only runtime notes live in `docs/PHONE_ONLY_RUNTIME.md`.
+
+## Communication Model Update (Phase 1.2)
+
+- The Communication Model has been fully implemented, hardened with real local integrations, and frozen.
+- **Real SMS Reader**: Implemented using `ContentResolver` and gated by `READ_SMS`.
+- **WhatsApp/Telegram Reader**: Implemented using `NovaAccessibilityService` notification snapshots (safe surfaces only).
+- **Draft Handoff**: Implemented via Android `Intents` (`ACTION_SEND`/`ACTION_SENDTO`) for safe user-confirmed dispatch.
+- **Crash-Free Safety**: Verified that missing permissions, services, or target apps return clean `BLOCKED` or `FAILED` states instead of crashing.
+- **Build System**: Added Foojay JDK resolver to `settings.gradle` to ensure JDK 17 availability for the `shared` module.
+- **Validation**: Smoke tested on device (KB2001 Android 14) and passed targeted unit tests.
+- See `docs/COMMUNICATION_MODEL_REPORT.md` for full details.
+
+## Content Creation Model Update (Phase 1.0)
+
+- The Content Creation Model has been implemented from scratch and achieved **FULL PASS** on real-device smoke tests.
+- **7-Path Flow**: Supports PPT, Image, Video, Document, Excel, PDF, and "Other" formats with specialized drafting and requirement gathering.
+- **State Machine**: Orchestrator manages the full lifecycle from raw idea expansion to final export and sharing.
+- **Intelligent Detail Gathering**: Automatically asks for missing topics, slide counts, audience, or styles; maps direct user replies back to active requirements.
+- **App Registry & Selection**: Intelligently selects best-fit apps (Canva, Gemini, Google Sheets, etc.) based on `<queries>` detection.
+- **Safety & Privacy**: Sharing on WhatsApp/Gmail requires explicit user confirmation. Final sends are handled via manual handoff. Blocked keywords (OTP, Pay, etc.) are correctly intercepted.
+- **Validation**: Smoke tested on OnePlus KB2001 (Android 14). Unit tests (13/13 green) verify parsing and state transitions.
+- **Architecture**: Integrated cleanly into `CommandBrain` and `ActionExecutor` without rewriting core systems.
+

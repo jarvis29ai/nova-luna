@@ -4,13 +4,11 @@ import android.content.Context
 import com.nova.luna.model.ActionType
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
-import com.nova.luna.cab.AndroidCabPickupLocationResolver
-import com.nova.luna.cab.CabAccessibilityService
 import com.nova.luna.cab.CabBookingOrchestrator
 import com.nova.luna.cab.CabDeepLinkBuilder
 import com.nova.luna.cab.CabProviderRegistry
 import com.nova.luna.cab.toCabBookingRequest
-import com.nova.luna.cab.toCommandResult
+import com.nova.luna.cab.toCabCommandResult
 import com.nova.luna.food.FoodAccessibilityService
 import com.nova.luna.food.FoodBookingOrchestrator
 import com.nova.luna.food.FoodDeepLinkBuilder
@@ -22,8 +20,9 @@ import com.nova.luna.phone.PhoneContactOrchestrator
 import com.nova.luna.phone.PhoneContactIntentParser
 import com.nova.luna.phone.toCommandResult as toPhoneCommandResult
 import com.nova.luna.communication.CommunicationOrchestrator
+import com.nova.luna.content.ContentCreationOrchestrator
 
-class ActionExecutor(context: Context) {
+class ActionExecutor(context: Context) : ActionExecutorGateway {
     private val appLauncher = AppLauncher(context.applicationContext)
     private val navExecutor = NavExecutor()
     private val tapExecutor = TapExecutor()
@@ -34,13 +33,14 @@ class ActionExecutor(context: Context) {
     private val phoneParser = PhoneContactIntentParser()
     private val phoneOrchestrator = PhoneContactOrchestrator(context.applicationContext, phoneParser)
     private val communicationOrchestrator = CommunicationOrchestrator(context.applicationContext)
+    private val contentCreationOrchestrator = ContentCreationOrchestrator(context.applicationContext)
     private val cabProviderRegistry = CabProviderRegistry(context.applicationContext.packageManager)
     private val foodProviderRegistry = FoodProviderRegistry(context.applicationContext.packageManager)
+
     private val cabOrchestrator = CabBookingOrchestrator(
         providerRegistry = cabProviderRegistry,
         deepLinkBuilder = CabDeepLinkBuilder(context.applicationContext, cabProviderRegistry),
-        accessibilityService = CabAccessibilityService(),
-        pickupLocationResolver = AndroidCabPickupLocationResolver(context.applicationContext),
+        pickupLocationResolver = com.nova.luna.cab.AndroidCabLocationResolver(context.applicationContext),
         providerLauncher = { intent ->
             runCatching {
                 context.applicationContext.startActivity(intent)
@@ -48,6 +48,7 @@ class ActionExecutor(context: Context) {
             }.getOrDefault(false)
         }
     )
+
     private val foodOrchestrator = FoodBookingOrchestrator(
         providerRegistry = foodProviderRegistry,
         deepLinkBuilder = FoodDeepLinkBuilder(context.applicationContext, foodProviderRegistry),
@@ -60,7 +61,7 @@ class ActionExecutor(context: Context) {
         }
     )
 
-    fun execute(commandIntent: CommandIntent): CommandResult {
+    override fun execute(commandIntent: CommandIntent): CommandResult {
         return when (commandIntent.actionType) {
             ActionType.LAUNCH_APP -> appLauncher.launchApp(commandIntent)
             ActionType.GO_HOME -> navExecutor.goHome(commandIntent)
@@ -85,8 +86,10 @@ class ActionExecutor(context: Context) {
                 val phoneRequest = phoneParser.parse(commandIntent.rawText)
                 phoneOrchestrator.start(phoneRequest).toPhoneCommandResult(commandIntent)
             }
-            ActionType.CAB_BOOKING -> cabOrchestrator.start(commandIntent.toCabBookingRequest()).toCommandResult()
+            ActionType.CAB_BOOKING -> cabOrchestrator.start(commandIntent.toCabBookingRequest()).toCabCommandResult()
             ActionType.FOOD_ORDER -> foodOrchestrator.start(commandIntent.toFoodBookingRequest()).toFoodCommandResult()
+            ActionType.GROCERY_BOOKING -> CommandResult.failure("Grocery booking is scaffolded.", commandIntent.intentType, commandIntent.actionType, commandIntent.entities)
+            ActionType.CONTENT_CREATION -> handleContentCreationText(commandIntent.rawText, commandIntent)
             ActionType.COMMUNICATION -> {
                 val result = communicationOrchestrator.handleRequest(commandIntent.rawText)
                 CommandResult(
@@ -115,39 +118,42 @@ class ActionExecutor(context: Context) {
         }
     }
 
-    fun hasActiveCabBookingSession(): Boolean {
-        return cabOrchestrator.isActive()
-    }
+    override fun hasActiveCabBookingSession(): Boolean = cabOrchestrator.isActive()
+    override fun cancelCabBookingSession(): CommandResult = CommandResult.success("Cancelled")
+    override fun handleCabBookingText(rawText: String): CommandResult = cabOrchestrator.handleUserInput(rawText).toCabCommandResult()
 
-    fun hasActiveFoodBookingSession(): Boolean {
-        return foodOrchestrator.isActive()
-    }
+    override fun hasActiveFoodBookingSession(): Boolean = foodOrchestrator.isActive()
+    override fun cancelFoodBookingSession(): CommandResult = CommandResult.success("Cancelled")
+    override fun handleFoodBookingText(rawText: String): CommandResult = foodOrchestrator.handleUserInput(rawText).toFoodCommandResult()
 
-    fun hasActivePhoneContactSession(): Boolean {
-        return phoneOrchestrator.isActive()
-    }
+    override fun hasActiveGroceryBookingSession(): Boolean = false
+    override fun cancelGroceryBookingSession(): CommandResult = CommandResult.success("Cancelled")
+    override fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean): CommandResult = CommandResult.failure("Scaffolded")
 
-    fun hasActiveCommunicationSession(): Boolean {
-        return communicationOrchestrator.isActive()
-    }
+    override fun hasActivePhoneContactSession(): Boolean = phoneOrchestrator.isActive()
+    override fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult = phoneOrchestrator.handleUserInput(rawText).toPhoneCommandResult(commandIntent)
 
-    fun handleCabBookingText(rawText: String): CommandResult {
-        return cabOrchestrator.handleUserInput(rawText).toCommandResult()
-    }
-
-    fun handleFoodBookingText(rawText: String): CommandResult {
-        return foodOrchestrator.handleUserInput(rawText).toFoodCommandResult()
-    }
-
-    fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult {
-        return phoneOrchestrator.handleUserInput(rawText).toPhoneCommandResult(commandIntent)
-    }
-
-    fun handleCommunicationText(rawText: String, commandIntent: CommandIntent): CommandResult {
+    override fun hasActiveCommunicationSession(): Boolean = communicationOrchestrator.isActive()
+    override fun handleCommunicationText(rawText: String, commandIntent: CommandIntent): CommandResult {
         val result = communicationOrchestrator.handleRequest(rawText)
         return CommandResult(
             success = result.status == com.nova.luna.communication.CommunicationStatus.SUCCESS ||
                       result.status == com.nova.luna.communication.CommunicationStatus.NEEDS_CONFIRMATION,
+            message = result.popupText,
+            intentType = commandIntent.intentType,
+            actionType = commandIntent.actionType,
+            entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
+        )
+    }
+
+    override fun hasActiveContentCreationSession(): Boolean = contentCreationOrchestrator.isActive()
+    override fun handleContentCreationText(rawText: String, commandIntent: CommandIntent): CommandResult {
+        val result = contentCreationOrchestrator.handleRequest(rawText)
+        return CommandResult(
+            success = result.status == com.nova.luna.content.ContentCreationStatus.SUCCESS ||
+                      result.status == com.nova.luna.content.ContentCreationStatus.NEEDS_USER_INPUT ||
+                      result.status == com.nova.luna.content.ContentCreationStatus.NEEDS_CONFIRMATION ||
+                      result.status == com.nova.luna.content.ContentCreationStatus.MANUAL_ACTION_REQUIRED,
             message = result.popupText,
             intentType = commandIntent.intentType,
             actionType = commandIntent.actionType,

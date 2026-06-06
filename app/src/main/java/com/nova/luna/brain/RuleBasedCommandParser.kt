@@ -93,6 +93,7 @@ class RuleBasedCommandParser {
             (normalized.contains("message") || normalized.contains("whatsapp") || normalized.contains("telegram") || normalized.contains("sms"))
             -> sensitive(rawText, ActionType.CALL_CONTACT, normalized)
             isCommunicationCommand(normalized) -> communication(rawText)
+            isContentCreationCommand(normalized) -> contentCreation(rawText)
             normalized.startsWith("open app ") -> openApp(rawText, normalized.removePrefix("open app ").trim())
             normalized.startsWith("open ") -> openApp(rawText, normalized.removePrefix("open ").trim())
             normalized.startsWith("launch ") -> openApp(rawText, normalized.removePrefix("launch ").trim())
@@ -301,6 +302,29 @@ class RuleBasedCommandParser {
             rawText = rawText,
             intentType = IntentType.COMMUNICATION,
             actionType = ActionType.COMMUNICATION
+        )
+    }
+
+    private fun isContentCreationCommand(normalized: String): Boolean {
+        return normalized.contains("create") ||
+               normalized.contains("make") ||
+               normalized.contains("generate") ||
+               normalized.contains("write a") ||
+               normalized.contains("ppt") ||
+               normalized.contains("presentation") ||
+               normalized.contains("spreadsheet") ||
+               normalized.contains("excel") ||
+               normalized.contains("image") ||
+               normalized.contains("video") ||
+               normalized.contains("document") ||
+               normalized.contains("pdf")
+    }
+
+    private fun contentCreation(rawText: String): CommandIntent {
+        return CommandIntent(
+            rawText = rawText,
+            intentType = IntentType.CONTENT_CREATION,
+            actionType = ActionType.CONTENT_CREATION
         )
     }
 

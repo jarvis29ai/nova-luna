@@ -61,6 +61,24 @@ object AccessibilityNodeUtils {
         return null
     }
 
+    fun collectClickableNodeLabels(root: AccessibilityNodeInfo?, labels: MutableSet<String> = mutableSetOf()): List<String> {
+        if (root == null) return labels.toList()
+
+        if (root.isClickable) {
+            val text = root.text?.toString()?.trim()
+            val description = root.contentDescription?.toString()?.trim()
+            if (!text.isNullOrBlank()) labels.add(text)
+            if (!description.isNullOrBlank()) labels.add(description)
+        }
+
+        for (i in 0 until root.childCount) {
+            val child = root.getChild(i) ?: continue
+            collectClickableNodeLabels(child, labels)
+        }
+
+        return labels.toList()
+    }
+
     private fun AccessibilityNodeInfo.findClickableAncestor(): AccessibilityNodeInfo? {
         var current: AccessibilityNodeInfo? = this
         while (current != null) {
@@ -80,4 +98,3 @@ object AccessibilityNodeUtils {
         return className.contains("edittext") || className.contains("textfield")
     }
 }
-

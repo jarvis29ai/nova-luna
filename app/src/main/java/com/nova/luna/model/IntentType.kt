@@ -11,6 +11,8 @@ enum class IntentType {
     CAB_BOOKING,
     FOOD_ORDER,
     GROCERY_BOOKING,
+    COMMUNICATION,
+    CONTENT_CREATION,
     BLOCKED,
     UNKNOWN
 }

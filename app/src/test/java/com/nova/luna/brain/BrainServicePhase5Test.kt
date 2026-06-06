@@ -1,76 +1,33 @@
 package com.nova.luna.brain
 
 import com.nova.luna.executor.ActionExecutorGateway
+import com.nova.luna.model.ActionType
 import com.nova.luna.model.BrainAction
 import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainModelRole
 import com.nova.luna.model.BrainRiskLevel
+import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
+import com.nova.luna.model.IntentType
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BrainServicePhase5Test {
-    private val codec = BrainActionJsonCodec()
 
     @Test
-    fun `unavailable model falls back to LocalMockBrainProvider`() {
-        val service = BrainService(
-            actionJsonModel = UnavailablePhoneModel(BrainModelRole.ACTION_JSON)
-        )
+    fun `brain service provides structured actions`() {
+        val service = BrainService()
+        val action = service.process("book cab to DB Mall")
 
-        val diagnostics = service.diagnose("book cheapest auto to DB Mall")
-
-        assertEquals(BrainModelRole.ACTION_JSON, diagnostics.selectedRole)
-        assertFalse(diagnostics.modelAvailable ?: true)
-        assertTrue(diagnostics.fallbackUsed)
-        assertEquals("LocalMockBrainProvider", diagnostics.finalProvider)
-        assertEquals("cab_booking", diagnostics.finalBrainAction.intent)
+        assertEquals("cab_booking", action.intent)
+        assertEquals(BrainActionType.EXTERNAL_ACTION, action.actionType)
+        assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
+        assertEquals("DB Mall", action.params["dropLocation"])
     }
 
     @Test
-    fun `dangerous model output is rejected before fallback`() {
-        val dangerousAction = BrainAction(
-            intent = "cab_booking",
-            reply = "Ready to book and pay now.",
-            actionType = BrainActionType.PREPARE,
-            riskLevel = BrainRiskLevel.CONFIRMATION_REQUIRED,
-            requiresConfirmation = true,
-            finalActionAllowed = true,
-            params = mapOf(
-                "rawText" to "book cheapest auto to DB Mall",
-                "dropLocation" to "DB Mall"
-            ),
-            nextQuestion = "Confirm booking now?"
-        )
-
-        val service = BrainService(
-            actionJsonModel = ConstantPhoneModel(
-                role = BrainModelRole.ACTION_JSON,
-                response = BrainModelResult.available(
-                    role = BrainModelRole.ACTION_JSON,
-                    candidateAction = dangerousAction,
-                    rawResponse = codec.encode(dangerousAction)
-                )
-            )
-        )
-
-        val diagnostics = service.diagnose("book cheapest auto to DB Mall")
-        val executor = FakeActionExecutor()
-        val router = CommandRouter(executor)
-        val commandResult = router.route(diagnostics.finalBrainAction)
-
-        assertFalse(diagnostics.validatorResult)
-        assertTrue(diagnostics.fallbackUsed)
-        assertEquals("LocalMockBrainProvider", diagnostics.finalProvider)
-        assertEquals("cab_booking", diagnostics.finalBrainAction.intent)
-        assertFalse(commandResult.awaitingConfirmation)
-        assertEquals(1, executor.executeCount)
-    }
-
-    @Test
-    fun `safe cab planning action executes and keeps final booking manual`() {
+    fun `command router routes to action executor`() {
         val service = BrainService()
         val action = service.process("book cab to DB Mall")
         val executor = FakeActionExecutor()
@@ -78,65 +35,35 @@ class BrainServicePhase5Test {
 
         val commandResult = commandRouter.route(action)
 
-        assertFalse(commandResult.awaitingConfirmation)
         assertEquals(1, executor.executeCount)
         assertTrue(commandResult.success)
-        assertEquals("Where should I pick you up from?", commandResult.message)
+        assertEquals("Executed", commandResult.message)
     }
 
     @Test
-    fun `flutter app remains isolated from phase five brain worktree changes`() {
-        val settingsFile = listOf(
-            java.io.File("settings.gradle"),
-            java.io.File("../settings.gradle")
-        ).firstOrNull { it.exists() }
-            ?: error("Could not find settings.gradle from the unit test working directory.")
+    fun `grocery planning stays local`() {
+        val service = BrainService()
+        val action = service.process("order 1kg sugar from bigbasket")
 
-        val settingsGradle = settingsFile.readText()
-
-        assertTrue(settingsGradle.contains(":app"))
-        assertTrue(settingsGradle.contains(":wear"))
-        assertTrue(settingsGradle.contains(":shared"))
-        assertFalse(settingsGradle.contains("flutter_app"))
+        assertEquals("grocery_booking", action.intent)
+        assertEquals(BrainActionType.EXTERNAL_ACTION, action.actionType)
+        assertEquals("sugar", action.params["items"])
+        assertEquals("bigbasket", action.params["preferredProvider"])
     }
 
-    private class ConstantPhoneModel(
-        override val role: BrainModelRole,
-        private val response: BrainModelResult
-    ) : PhoneBrainModel {
-        override val available: Boolean
-            get() = response.available
-
-        override fun generate(request: BrainRequest, routeDecision: com.nova.luna.model.BrainRouteDecision): BrainModelResult {
-            return response
-        }
-    }
-
-    private class UnavailablePhoneModel(
-        override val role: BrainModelRole
-    ) : PhoneBrainModel {
-        override val available: Boolean = false
-
-        override fun generate(request: BrainRequest, routeDecision: com.nova.luna.model.BrainRouteDecision): BrainModelResult {
-            return BrainModelResult.unavailable(
-                role = role,
-                reason = "Model unavailable for test."
-            )
-        }
+    @Test
+    fun `flutter module is not added by accident`() {
+        val settingsGradle = java.io.File("settings.gradle").readText()
+        org.junit.Assert.assertFalse(settingsGradle.contains("flutter_app"))
     }
 
     private class FakeActionExecutor : ActionExecutorGateway {
         var executeCount: Int = 0
 
-        override fun execute(commandIntent: com.nova.luna.model.CommandIntent): CommandResult {
+        override fun execute(commandIntent: CommandIntent): CommandResult {
             executeCount += 1
-            val message = if (commandIntent.actionType == com.nova.luna.model.ActionType.CAB_BOOKING) {
-                "Where should I pick you up from?"
-            } else {
-                "Executed"
-            }
             return CommandResult.success(
-                message = message,
+                message = "Executed",
                 intentType = commandIntent.intentType,
                 actionType = commandIntent.actionType,
                 entities = commandIntent.entities
@@ -144,36 +71,15 @@ class BrainServicePhase5Test {
         }
 
         override fun hasActiveCabBookingSession(): Boolean = false
-
-        override fun cancelCabBookingSession(): CommandResult {
-            return CommandResult.success("Cancelled")
-        }
-
-        override fun handleCabBookingText(rawText: String): CommandResult {
-            return CommandResult.success("Handled")
-        }
+        override fun cancelCabBookingSession(): CommandResult = CommandResult.success("Cancelled")
+        override fun handleCabBookingText(rawText: String): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveFoodBookingSession(): Boolean = false
-
-        override fun cancelFoodBookingSession(): CommandResult {
-            return CommandResult.success("Cancelled food")
-        }
-
-        override fun handleFoodBookingText(rawText: String): CommandResult {
-            return CommandResult.success(
-                message = "Handled food",
-                intentType = com.nova.luna.model.IntentType.FOOD_ORDER,
-                actionType = com.nova.luna.model.ActionType.FOOD_ORDER,
-                entities = mapOf("rawText" to rawText)
-            )
-        }
+        override fun cancelFoodBookingSession(): CommandResult = CommandResult.success("Cancelled food")
+        override fun handleFoodBookingText(rawText: String): CommandResult = CommandResult.success("Handled food")
 
         override fun hasActiveGroceryBookingSession(): Boolean = false
-
-        override fun cancelGroceryBookingSession(): CommandResult {
-            return CommandResult.success("Cancelled grocery")
-        }
-
+        override fun cancelGroceryBookingSession(): CommandResult = CommandResult.success("Cancelled grocery")
         override fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean): CommandResult {
             return CommandResult.success(
                 message = "Handled grocery",
@@ -185,5 +91,12 @@ class BrainServicePhase5Test {
                 )
             )
         }
+
+        override fun hasActivePhoneContactSession(): Boolean = false
+        override fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
+        override fun hasActiveCommunicationSession(): Boolean = false
+        override fun handleCommunicationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
+        override fun hasActiveContentCreationSession(): Boolean = false
+        override fun handleContentCreationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
     }
 }

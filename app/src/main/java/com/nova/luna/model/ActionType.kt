@@ -20,6 +20,8 @@ enum class ActionType {
     FOOD_ORDER,
     CAB_BOOKING,
     GROCERY_BOOKING,
+    COMMUNICATION,
+    CONTENT_CREATION,
     BLOCKED,
     UNKNOWN
 }

@@ -6,6 +6,7 @@ import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainModelRole
 import com.nova.luna.model.BrainRiskLevel
 import com.nova.luna.model.BrainRouteDecision
+import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import java.io.File
 import org.junit.Assert.assertEquals
@@ -241,7 +242,7 @@ class BrainServicePhase6Test {
     private class FakeActionExecutor : ActionExecutorGateway {
         var executeCount: Int = 0
 
-        override fun execute(commandIntent: com.nova.luna.model.CommandIntent): CommandResult {
+        override fun execute(commandIntent: CommandIntent): CommandResult {
             executeCount += 1
             return CommandResult.success(
                 message = "Executed",
@@ -252,46 +253,22 @@ class BrainServicePhase6Test {
         }
 
         override fun hasActiveCabBookingSession(): Boolean = false
-
-        override fun cancelCabBookingSession(): CommandResult {
-            return CommandResult.success("Cancelled")
-        }
-
-        override fun handleCabBookingText(rawText: String): CommandResult {
-            return CommandResult.success("Handled")
-        }
+        override fun cancelCabBookingSession(): CommandResult = CommandResult.success("Cancelled")
+        override fun handleCabBookingText(rawText: String): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveFoodBookingSession(): Boolean = false
-
-        override fun cancelFoodBookingSession(): CommandResult {
-            return CommandResult.success("Cancelled food")
-        }
-
-        override fun handleFoodBookingText(rawText: String): CommandResult {
-            return CommandResult.success(
-                message = "Handled food",
-                intentType = com.nova.luna.model.IntentType.FOOD_ORDER,
-                actionType = com.nova.luna.model.ActionType.FOOD_ORDER,
-                entities = mapOf("rawText" to rawText)
-            )
-        }
+        override fun cancelFoodBookingSession(): CommandResult = CommandResult.success("Cancelled food")
+        override fun handleFoodBookingText(rawText: String): CommandResult = CommandResult.success("Handled food")
 
         override fun hasActiveGroceryBookingSession(): Boolean = false
+        override fun cancelGroceryBookingSession(): CommandResult = CommandResult.success("Cancelled grocery")
+        override fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean): CommandResult = CommandResult.success("Handled grocery")
 
-        override fun cancelGroceryBookingSession(): CommandResult {
-            return CommandResult.success("Cancelled grocery")
-        }
-
-        override fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean): CommandResult {
-            return CommandResult.success(
-                message = "Handled grocery",
-                intentType = com.nova.luna.model.IntentType.GROCERY_BOOKING,
-                actionType = com.nova.luna.model.ActionType.GROCERY_BOOKING,
-                entities = mapOf(
-                    "rawText" to rawText,
-                    "finalUserConfirmed" to userConfirmed.toString()
-                )
-            )
-        }
+        override fun hasActivePhoneContactSession(): Boolean = false
+        override fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
+        override fun hasActiveCommunicationSession(): Boolean = false
+        override fun handleCommunicationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
+        override fun hasActiveContentCreationSession(): Boolean = false
+        override fun handleContentCreationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
     }
 }

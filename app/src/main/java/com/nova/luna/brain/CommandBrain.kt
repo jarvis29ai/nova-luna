@@ -33,8 +33,12 @@ class CommandBrain(context: Context) {
             parsed.actionType == ActionType.CAB_BOOKING ||
             parsed.intentType == IntentType.FOOD_ORDER ||
             parsed.actionType == ActionType.FOOD_ORDER ||
+            parsed.intentType == IntentType.GROCERY_BOOKING ||
+            parsed.actionType == ActionType.GROCERY_BOOKING ||
             parsed.intentType == IntentType.COMMUNICATION ||
-            parsed.actionType == ActionType.COMMUNICATION
+            parsed.actionType == ActionType.COMMUNICATION ||
+            parsed.intentType == IntentType.CONTENT_CREATION ||
+            parsed.actionType == ActionType.CONTENT_CREATION
         ) {
             val resolved = resolver.resolve(parsed)
             val decision = safetyGate.evaluate(resolved)
@@ -74,6 +78,10 @@ class CommandBrain(context: Context) {
 
         if (router.hasActiveCommunicationSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
             return router.routeCommunicationConversation(rawText)
+        }
+
+        if (router.hasActiveContentCreationSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
+            return router.routeContentCreationConversation(rawText)
         }
 
         if (parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
