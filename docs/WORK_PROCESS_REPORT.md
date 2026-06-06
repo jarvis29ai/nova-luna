@@ -85,6 +85,13 @@
 - Local LLM setup instructions live in `docs/LOCAL_LLM_SETUP.md`.
 - Phone-only runtime notes live in `docs/PHONE_ONLY_RUNTIME.md`.
 
+## Communication Model Update (Phase 2.0)
+
+- **Gmail Integration**: Implementing safe reading and search using Android `AccountManager` and OAuth2 (`gmail.readonly`).
+- **Local-First**: No backend used; tokens and data stay on-device.
+- **Safety**: Draft handoff remains user-visible; no auto-send.
+- **Redaction**: Gmail content is subject to OTP/password redaction.
+
 ## Communication Model Update (Phase 1.2)
 
 - The Communication Model has been fully implemented, hardened with real local integrations, and frozen.
