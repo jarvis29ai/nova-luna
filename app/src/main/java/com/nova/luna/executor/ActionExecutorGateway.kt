@@ -20,4 +20,8 @@ interface ActionExecutorGateway {
     fun handleCommunicationText(rawText: String, commandIntent: CommandIntent): CommandResult
     fun hasActiveContentCreationSession(): Boolean
     fun handleContentCreationText(rawText: String, commandIntent: CommandIntent): CommandResult
+    fun hasActiveMediaSession(): Boolean
+    fun handleMediaText(rawText: String, commandIntent: CommandIntent): CommandResult
+    fun hasActiveShoppingSession(): Boolean
+    fun handleShoppingText(rawText: String, commandIntent: CommandIntent): CommandResult
 }

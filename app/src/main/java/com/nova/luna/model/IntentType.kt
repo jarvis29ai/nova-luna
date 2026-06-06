@@ -13,6 +13,8 @@ enum class IntentType {
     GROCERY_BOOKING,
     COMMUNICATION,
     CONTENT_CREATION,
+    MEDIA_CONTROL,
+    SHOPPING,
     BLOCKED,
     UNKNOWN
 }

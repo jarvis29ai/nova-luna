@@ -27,6 +27,8 @@ import com.nova.luna.phone.PhoneContactIntentParser
 import com.nova.luna.phone.toCommandResult as toPhoneCommandResult
 import com.nova.luna.communication.CommunicationOrchestrator
 import com.nova.luna.content.ContentCreationOrchestrator
+import com.nova.luna.shopping.ShoppingOrchestrator
+import com.nova.luna.shopping.ShoppingStatus
 import com.nova.luna.util.AccessibilityReadiness
 
 class ActionExecutor(context: Context) : ActionExecutorGateway {
@@ -41,6 +43,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     private val phoneOrchestrator = PhoneContactOrchestrator(context.applicationContext, phoneParser)
     private val communicationOrchestrator = CommunicationOrchestrator(context.applicationContext)
     private val contentCreationOrchestrator = ContentCreationOrchestrator(context.applicationContext)
+    private val shoppingOrchestrator = ShoppingOrchestrator(context.applicationContext)
     private val cabProviderRegistry = CabProviderRegistry(context.applicationContext.packageManager)
     private val foodProviderRegistry = FoodProviderRegistry(context.applicationContext.packageManager)
     private val groceryProviderRegistry = GroceryProviderRegistry(context.applicationContext.packageManager)
@@ -121,6 +124,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
                     entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
                 )
             }
+            ActionType.SHOPPING -> handleShoppingText(commandIntent.rawText, commandIntent)
             ActionType.STOP_SERVICE -> CommandResult.success(
                 message = "Stopping listening.",
                 intentType = commandIntent.intentType,
@@ -129,7 +133,8 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
                 shouldStopListening = true
             )
             ActionType.BLOCKED,
-            ActionType.UNKNOWN -> CommandResult.failure(
+            ActionType.UNKNOWN,
+            ActionType.MEDIA_CONTROL -> CommandResult.failure(
                 "I could not map that command to a safe action.",
                 commandIntent.intentType,
                 commandIntent.actionType,
@@ -177,6 +182,21 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             message = result.popupText,
             intentType = commandIntent.intentType,
             actionType = commandIntent.actionType,
+            entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
+        )
+    }
+
+    override fun hasActiveMediaSession(): Boolean = false // Placeholder for broken media
+    override fun handleMediaText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.failure("Not implemented", commandIntent.intentType, commandIntent.actionType, commandIntent.entities)
+
+    override fun hasActiveShoppingSession(): Boolean = shoppingOrchestrator.isActive()
+    override fun handleShoppingText(rawText: String, commandIntent: CommandIntent): CommandResult {
+        val result = shoppingOrchestrator.handleRequest(rawText)
+        return CommandResult(
+            success = result.status != ShoppingStatus.FAILED && result.status != ShoppingStatus.CANCELLED,
+            message = result.popupText,
+            intentType = commandIntent.intentType,
+            actionType = ActionType.SHOPPING,
             entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
         )
     }

@@ -7,11 +7,14 @@ import com.nova.luna.cab.CabIntentParser
 import com.nova.luna.cab.toEntities
 import com.nova.luna.food.FoodIntentParser
 import com.nova.luna.food.toEntities as toFoodEntities
+import com.nova.luna.grocery.GroceryIntentParser
+import com.nova.luna.util.AssistantTextNormalizer
 import java.util.Locale
 
 class RuleBasedCommandParser {
     private val cabIntentParser = CabIntentParser()
     private val foodIntentParser = FoodIntentParser()
+    private val groceryIntentParser = GroceryIntentParser()
     private val blockedKeywords = listOf(
         "send money",
         "pay",
@@ -22,20 +25,14 @@ class RuleBasedCommandParser {
         "bank",
         "upi",
         "password",
-        "otp",
-        "captcha",
-        "login",
         "bypass login",
-        "sign in",
-        "delete",
-        "erase",
-        "remove account",
-        "transfer money"
+        "otp",
+        "captcha"
     )
 
     fun parse(rawText: String): CommandIntent {
         val raw = rawText.trim()
-        val normalized = raw.lowercase(Locale.US)
+        val normalized = AssistantTextNormalizer.normalize(rawText)
         if (raw.isBlank()) {
             return CommandIntent(rawText = rawText)
         }
@@ -46,6 +43,15 @@ class RuleBasedCommandParser {
                 intentType = IntentType.CONTROL,
                 actionType = ActionType.STOP_SERVICE,
                 entities = mapOf("command" to "stop")
+            )
+        }
+
+        groceryIntentParser.parseInitialGroceryRequest(rawText)?.let { groceryRequest ->
+            return CommandIntent(
+                rawText = rawText,
+                intentType = IntentType.GROCERY_BOOKING,
+                actionType = ActionType.GROCERY_BOOKING,
+                entities = groceryRequest.toEntities()
             )
         }
 
@@ -101,6 +107,8 @@ class RuleBasedCommandParser {
             -> sensitive(rawText, ActionType.CALL_CONTACT, normalized)
             isCommunicationCommand(normalized) -> communication(rawText)
             isContentCreationCommand(normalized) -> contentCreation(rawText)
+            isShoppingCommand(normalized) -> shopping(rawText)
+            isMediaCommand(normalized) -> media(rawText)
             normalized.startsWith("open app ") -> openApp(rawText, normalized.removePrefix("open app ").trim())
             normalized.startsWith("open ") -> openApp(rawText, normalized.removePrefix("open ").trim())
             normalized.startsWith("launch ") -> openApp(rawText, normalized.removePrefix("launch ").trim())
@@ -332,6 +340,53 @@ class RuleBasedCommandParser {
             rawText = rawText,
             intentType = IntentType.CONTENT_CREATION,
             actionType = ActionType.CONTENT_CREATION
+        )
+    }
+
+    private fun isShoppingCommand(normalized: String): Boolean {
+        // Exclude grocery and other specific domain keywords
+        val isGrocery = normalized.contains("milk") || normalized.contains("vegetables") || 
+                        normalized.contains("fruits") || normalized.contains("groceries")
+        if (isGrocery) return false
+        
+        return normalized.contains("buy ") ||
+               normalized.contains("shop ") ||
+               normalized.contains("purchase ") ||
+               normalized.contains("deal") ||
+               normalized.contains("coupon") ||
+               normalized.contains("amazon") ||
+               normalized.contains("flipkart") ||
+               normalized.contains("croma") ||
+               normalized.contains("reliance digital")
+    }
+
+    private fun shopping(rawText: String): CommandIntent {
+        return CommandIntent(
+            rawText = rawText,
+            intentType = IntentType.SHOPPING,
+            actionType = ActionType.SHOPPING
+        )
+    }
+
+    private fun isMediaCommand(normalized: String): Boolean {
+        return normalized == "play" ||
+               normalized == "pause" ||
+               normalized == "stop music" ||
+               normalized == "next" ||
+               normalized == "previous" ||
+               normalized == "previous episode" ||
+               normalized == "next reel" ||
+               normalized == "next short" ||
+               normalized.contains("watchlist") ||
+               normalized.contains("my list") ||
+               normalized.contains("download")
+    }
+
+    private fun media(rawText: String): CommandIntent {
+        return CommandIntent(
+            rawText = rawText,
+            intentType = IntentType.MEDIA_CONTROL,
+            actionType = ActionType.MEDIA_CONTROL
         )
     }
 
