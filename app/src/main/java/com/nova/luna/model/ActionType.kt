@@ -24,6 +24,7 @@ enum class ActionType {
     CONTENT_CREATION,
     MEDIA_CONTROL,
     SHOPPING,
+    MUSIC,
     BLOCKED,
     UNKNOWN
 }

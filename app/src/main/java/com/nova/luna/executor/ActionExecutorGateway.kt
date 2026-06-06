@@ -24,4 +24,6 @@ interface ActionExecutorGateway {
     fun handleMediaText(rawText: String, commandIntent: CommandIntent): CommandResult
     fun hasActiveShoppingSession(): Boolean
     fun handleShoppingText(rawText: String, commandIntent: CommandIntent): CommandResult
+    fun hasActiveMusicSession(): Boolean
+    fun handleMusicText(rawText: String, commandIntent: CommandIntent): CommandResult
 }

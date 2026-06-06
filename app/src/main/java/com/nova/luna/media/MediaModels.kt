@@ -76,7 +76,7 @@ enum class MediaCommandType {
 }
 
 enum class MediaScrollDirection {
-    UP, DOWN, NONE
+    UP, DOWN, LEFT, RIGHT, NONE
 }
 
 enum class MediaSocialAction {
@@ -92,7 +92,7 @@ enum class MediaSettingAction {
 }
 
 enum class MediaPlaybackControl {
-    PLAY, PAUSE, RESUME, FORWARD, BACKWARD, FULL_SCREEN, EXIT_FULL_SCREEN, NEXT, PREVIOUS, NONE
+    PLAY, PAUSE, RESUME, FORWARD, BACKWARD, FULL_SCREEN, EXIT_FULL_SCREEN, NEXT, PREVIOUS, STOP, NONE
 }
 
 data class MediaSession(
@@ -151,6 +151,13 @@ enum class MediaFlowState {
     MANUAL_ACTION_REQUIRED
 }
 
+data class MediaVisibleItem(
+    val title: String,
+    val creator: String? = null,
+    val index: Int,
+    val nodeId: String? = null
+)
+
 data class MediaSearchResult(
     val title: String,
     val creator: String? = null,
@@ -158,13 +165,6 @@ data class MediaSearchResult(
     val index: Int,
     val isOfficial: Boolean = false,
     val metadata: String? = null
-)
-
-data class MediaVisibleItem(
-    val title: String,
-    val creator: String? = null,
-    val index: Int,
-    val nodeId: String? = null
 )
 
 enum class MediaPlaybackState {
@@ -175,7 +175,7 @@ data class MediaStatus(
     val status: MediaStatusType,
     val popupText: String,
     val voiceText: String,
-    val metadata: Map<String, Any> = emptyList<Pair<String, Any>>().toMap()
+    val metadata: Map<String, Any> = emptyMap()
 )
 
 enum class MediaStatusType {

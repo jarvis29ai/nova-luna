@@ -27,9 +27,10 @@ import com.nova.luna.phone.PhoneContactIntentParser
 import com.nova.luna.phone.toCommandResult as toPhoneCommandResult
 import com.nova.luna.communication.CommunicationOrchestrator
 import com.nova.luna.content.ContentCreationOrchestrator
+import com.nova.luna.media.MediaOrchestrator
 import com.nova.luna.shopping.ShoppingOrchestrator
 import com.nova.luna.shopping.ShoppingStatus
-import com.nova.luna.util.AccessibilityReadiness
+import com.nova.luna.music.*
 
 class ActionExecutor(context: Context) : ActionExecutorGateway {
     private val appLauncher = AppLauncher(context.applicationContext)
@@ -48,6 +49,21 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     private val cabProviderRegistry = CabProviderRegistry(context.applicationContext.packageManager)
     private val foodProviderRegistry = FoodProviderRegistry(context.applicationContext.packageManager)
     private val groceryProviderRegistry = GroceryProviderRegistry(context.applicationContext.packageManager)
+    private val musicProviderRegistry = MusicProviderRegistry(context.applicationContext.packageManager)
+    private val musicDeepLinkBuilder = MusicDeepLinkBuilder(context.applicationContext)
+    private val musicAppLauncher = MusicAppLauncher(context.applicationContext, musicDeepLinkBuilder, musicProviderRegistry)
+    private val musicOrchestrator = MusicOrchestrator(
+        context = context.applicationContext,
+        parser = MusicIntentParser(),
+        registry = musicProviderRegistry,
+        launcher = musicAppLauncher,
+        searchEngine = MusicSearchEngine(),
+        matcher = MusicResultMatcher(),
+        safetyDetector = MusicSafetyDetector(),
+        playbackController = MusicPlaybackController(context.applicationContext),
+        responses = MusicVoiceResponses(),
+        cardBuilder = MusicMiniCardBuilder()
+    )
 
     private val cabOrchestrator = CabBookingOrchestrator(
         providerRegistry = cabProviderRegistry,
@@ -114,6 +130,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             ActionType.FOOD_ORDER -> foodOrchestrator.start(commandIntent.toFoodBookingRequest()).toFoodCommandResult()
             ActionType.GROCERY_BOOKING -> groceryOrchestrator.start(commandIntent.toGroceryBookingRequest()).toGroceryCommandResult()
             ActionType.CONTENT_CREATION -> handleContentCreationText(commandIntent.rawText, commandIntent)
+            ActionType.MUSIC -> handleMusicText(commandIntent.rawText, commandIntent)
             ActionType.COMMUNICATION -> {
                 val result = communicationOrchestrator.handleRequest(commandIntent.rawText)
                 CommandResult(
@@ -212,5 +229,11 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             actionType = ActionType.SHOPPING,
             entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
         )
+    }
+
+    override fun hasActiveMusicSession(): Boolean = musicOrchestrator.isActive()
+    override fun handleMusicText(rawText: String, commandIntent: CommandIntent): CommandResult {
+        val result = musicOrchestrator.handleRequest(rawText)
+        return result.toCommandResult(commandIntent)
     }
 }

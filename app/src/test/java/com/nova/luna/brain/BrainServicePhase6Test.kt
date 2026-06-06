@@ -274,5 +274,7 @@ class BrainServicePhase6Test {
         override fun handleMediaText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
         override fun hasActiveShoppingSession(): Boolean = false
         override fun handleShoppingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
+        override fun hasActiveMusicSession(): Boolean = false
+        override fun handleMusicText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled music")
     }
 }
