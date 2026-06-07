@@ -18,7 +18,7 @@ class BrainRouter(
 
     fun route(request: BrainRequest): BrainRouteDecision {
         val normalized = normalize(request.rawText)
-        if (normalized.isBlank()) {
+        if (normalized.isBlank() && !containsNonLatinScript(request.rawText)) {
             return decision(
                 role = BrainModelRole.MOCK_FALLBACK,
                 reason = "Empty input stays on the guaranteed fallback path.",
@@ -81,6 +81,21 @@ class BrainRouter(
                 safetyNotes = listOf(
                     "ActionJsonModel may only produce safe BrainAction JSON for food flows.",
                     "Payment, OTP, login, CAPTCHA, and other sensitive steps must remain manual."
+                )
+            )
+        }
+
+        if (isFlexibleReasoningRequest(request.rawText, normalized)) {
+            val internetDecision = internetPermissionPolicy.classify(request.rawText)
+            return decision(
+                role = BrainModelRole.GEMMA_REASONING,
+                reason = "This is a fuzzy, multilingual, or natural-language request that should stay on the local reasoning model.",
+                requiresInternet = internetDecision.category == InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO ||
+                    internetDecision.category == InternetPermissionCategory.INTERNET_OPTIONAL,
+                safetyNotes = listOf(
+                    "Gemma is the final on-device reasoning model for fuzzy or multilingual prompts.",
+                    "Any action it suggests must still pass BrainActionValidator.",
+                    "SafetyGate must still control any sensitive step."
                 )
             )
         }
@@ -425,6 +440,93 @@ class BrainRouter(
         val target = normalize(phrase)
         if (target.isBlank()) return false
         return normalized.contains(target)
+    }
+
+    private fun isFlexibleReasoningRequest(rawText: String, normalized: String): Boolean {
+        if (normalized.isBlank()) {
+            return containsNonLatinScript(rawText)
+        }
+
+        if (containsNonLatinScript(rawText)) {
+            return true
+        }
+
+        val wordCount = normalized.split(Regex("\\s+")).count { it.isNotBlank() }
+        if (wordCount == 0) {
+            return false
+        }
+
+        val phraseSignals = listOf(
+            "help me",
+            "please help",
+            "can you help",
+            "could you help",
+            "would you help",
+            "can you please",
+            "could you please",
+            "would you please",
+            "please explain",
+            "explain this",
+            "summarize this",
+            "rewrite this",
+            "translate this",
+            "draft this",
+            "compare these",
+            "compare this",
+            "what should i",
+            "what do you think",
+            "how should i",
+            "how can i",
+            "kya karu",
+            "kaise karu",
+            "kya tum",
+            "batao",
+            "samjhao",
+            "please batao",
+            "please samjhao",
+            "thoda help",
+            "thoda sa help",
+            "make this",
+            "improve this",
+            "check this"
+        )
+
+        if (phraseSignals.any { containsPhrase(normalized, it) }) {
+            return true
+        }
+
+        if (wordCount == 1) {
+            return normalized in setOf(
+                "help",
+                "explain",
+                "translate",
+                "rewrite",
+                "summarize",
+                "draft",
+                "recommend",
+                "suggest",
+                "analyze",
+                "samjhao",
+                "batao",
+                "kya",
+                "kaise",
+                "kyu",
+                "please"
+            )
+        }
+
+        return normalized.contains("please") ||
+            normalized.contains("help") ||
+            normalized.contains("explain") ||
+            normalized.contains("translate") ||
+            normalized.contains("rewrite") ||
+            normalized.contains("summarize") ||
+            normalized.contains("recommend") ||
+            normalized.contains("suggest")
+    }
+
+    private fun containsNonLatinScript(rawText: String): Boolean {
+        return rawText.any { character -> character.code > 127 }
     }
 
     private fun normalize(value: String): String {

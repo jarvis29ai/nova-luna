@@ -7,9 +7,9 @@ class NetworkAwareBrainSelector {
     fun select(
         capabilityMode: BrainCapabilityMode,
         internetAvailable: Boolean,
-        localModelAvailable: Boolean,
+        localModelAvailable: Boolean = false,
         phoneBrainProvider: PhoneBrainProvider,
-        localLlmProvider: BrainProvider?,
+        localLlmProvider: PhoneBrainProvider?,
         fallbackProvider: BrainProvider = LocalMockBrainProvider()
     ): BrainRuntimeSelection {
         return when (capabilityMode) {
@@ -70,14 +70,14 @@ class NetworkAwareBrainSelector {
             }
 
             BrainCapabilityMode.LOCAL_LLM_DEV -> {
-                if (localLlmProvider != null && localModelAvailable) {
+                if (localModelAvailable && localLlmProvider?.available == true) {
                     buildSelection(
                         provider = localLlmProvider,
                         capabilityMode = capabilityMode,
                         internetAvailable = internetAvailable,
                         localModelAvailable = true,
                         fallbackActive = false,
-                        reason = "Local LLM dev mode is enabled for desktop testing."
+                        reason = "Phone-local LLM mode is enabled."
                     )
                 } else {
                     buildSelection(
@@ -86,7 +86,7 @@ class NetworkAwareBrainSelector {
                         internetAvailable = internetAvailable,
                         localModelAvailable = false,
                         fallbackActive = true,
-                        reason = "Local LLM dev mode is requested, but no local model is available, so LocalMockBrainProvider is used."
+                        reason = "Phone-local LLM mode is requested, but no local model is available, so LocalMockBrainProvider is used."
                     )
                 }
             }

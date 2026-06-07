@@ -9,7 +9,13 @@ data class BrainModelResult(
     val candidateAction: BrainAction? = null,
     val rawResponse: String? = null,
     val reason: String,
-    val safetyNotes: List<String> = emptyList()
+    val safetyNotes: List<String> = emptyList(),
+    val localModelId: PhoneLocalLlmModelId? = null,
+    val localModelDisplayName: String? = null,
+    val localModelStatus: PhoneLocalLlmStatus? = null,
+    val promptBuilt: Boolean = false,
+    val jsonParsed: Boolean = false,
+    val latencyMillis: Long? = null
 ) {
     val hasCandidate: Boolean
         get() = available && candidateAction != null
@@ -18,15 +24,29 @@ data class BrainModelResult(
         fun unavailable(
             role: BrainModelRole,
             reason: String,
-            safetyNotes: List<String> = emptyList()
+            safetyNotes: List<String> = emptyList(),
+            candidateAction: BrainAction? = null,
+            localModelId: PhoneLocalLlmModelId? = null,
+            localModelDisplayName: String? = null,
+            localModelStatus: PhoneLocalLlmStatus? = null,
+            promptBuilt: Boolean = false,
+            jsonParsed: Boolean = false,
+            latencyMillis: Long? = null,
+            rawResponse: String? = null
         ): BrainModelResult {
             return BrainModelResult(
                 role = role,
                 available = false,
-                candidateAction = null,
-                rawResponse = null,
+                candidateAction = candidateAction,
+                rawResponse = rawResponse,
                 reason = reason,
-                safetyNotes = safetyNotes
+                safetyNotes = safetyNotes,
+                localModelId = localModelId,
+                localModelDisplayName = localModelDisplayName,
+                localModelStatus = localModelStatus,
+                promptBuilt = promptBuilt,
+                jsonParsed = jsonParsed,
+                latencyMillis = latencyMillis
             )
         }
 
@@ -35,7 +55,13 @@ data class BrainModelResult(
             candidateAction: BrainAction,
             rawResponse: String? = null,
             reason: String = "Phone model candidate ready.",
-            safetyNotes: List<String> = emptyList()
+            safetyNotes: List<String> = emptyList(),
+            localModelId: PhoneLocalLlmModelId? = null,
+            localModelDisplayName: String? = null,
+            localModelStatus: PhoneLocalLlmStatus? = null,
+            promptBuilt: Boolean = false,
+            jsonParsed: Boolean = false,
+            latencyMillis: Long? = null
         ): BrainModelResult {
             return BrainModelResult(
                 role = role,
@@ -43,7 +69,13 @@ data class BrainModelResult(
                 candidateAction = candidateAction,
                 rawResponse = rawResponse,
                 reason = reason,
-                safetyNotes = safetyNotes
+                safetyNotes = safetyNotes,
+                localModelId = localModelId,
+                localModelDisplayName = localModelDisplayName,
+                localModelStatus = localModelStatus,
+                promptBuilt = promptBuilt,
+                jsonParsed = jsonParsed,
+                latencyMillis = latencyMillis
             )
         }
     }

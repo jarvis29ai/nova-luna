@@ -89,6 +89,14 @@ class BrainService(
             return primaryAttempt.parsedAction!!
         }
 
+        if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING) {
+            return localModelFallbackAction(
+                rawText = rawText,
+                routeDecision = routeDecision,
+                reason = primaryAttempt.reason ?: gemmaRuntime.localReadinessStatus().reason
+            )
+        }
+
         val fallbackAttempt = if (routeDecision.selectedRole == BrainModelRole.MOCK_FALLBACK) {
             null
         } else {
@@ -223,17 +231,30 @@ class BrainService(
             evaluateProvider(fallbackProvider, request)
         }
         val fallbackAccepted = isAccepted(fallbackAttempt?.parsedAction)
-
-        val finalAttempt = when {
-            primaryAccepted -> primaryAttempt
-            fallbackAccepted && fallbackAttempt != null -> fallbackAttempt
-            else -> null
+        val localFallbackAction = if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING && !primaryAccepted) {
+            localModelFallbackAction(
+                rawText = rawText,
+                routeDecision = routeDecision,
+                reason = primaryAttempt.reason ?: gemmaRuntime.localReadinessStatus().reason
+            )
+        } else {
+            null
         }
 
-        val finalAction = finalAttempt?.parsedAction ?: fallback(rawText)
-        val finalProvider = finalAttempt?.providerName
-            ?: fallbackAttempt?.providerName
-            ?: providerName(fallbackProvider)
+        val finalAction = when {
+            primaryAccepted -> primaryAttempt.parsedAction!!
+            localFallbackAction != null -> localFallbackAction
+            fallbackAccepted && fallbackAttempt != null -> fallbackAttempt.parsedAction!!
+            else -> fallback(rawText)
+        }
+
+        val finalProvider = when {
+            primaryAccepted -> primaryAttempt.providerName
+            localFallbackAction != null -> fallbackAttempt?.providerName ?: providerName(fallbackProvider)
+            fallbackAccepted && fallbackAttempt != null -> fallbackAttempt.providerName
+            else -> fallbackAttempt?.providerName
+                ?: providerName(fallbackProvider)
+        }
         val fallbackUsed = !primaryAccepted && routeDecision.selectedRole != BrainModelRole.MOCK_FALLBACK
         val gemmaReadiness = gemmaRuntime.readinessStatus(
             selectedBrainRole = routeDecision.selectedRole,
@@ -246,6 +267,13 @@ class BrainService(
             modelFileExists = if (gemmaStatusApplies) gemmaReadiness.modelFileExists else false,
             runtimeAvailable = if (gemmaStatusApplies) gemmaReadiness.runtimeAvailable else false,
             modelLoaded = if (gemmaStatusApplies) gemmaReadiness.modelLoaded else false,
+            selectedLocalModelId = if (gemmaStatusApplies) primaryAttempt.localModelId ?: runtimeState.selectedLocalModelId else runtimeState.selectedLocalModelId,
+            selectedLocalModelDisplayName = if (gemmaStatusApplies) primaryAttempt.localModelDisplayName ?: runtimeState.selectedLocalModelDisplayName else runtimeState.selectedLocalModelDisplayName,
+            selectedLocalModelStatus = if (gemmaStatusApplies) primaryAttempt.localModelStatus ?: runtimeState.selectedLocalModelStatus else runtimeState.selectedLocalModelStatus,
+            selectedLocalModelAssetMissing = if (gemmaStatusApplies) !gemmaReadiness.modelFileExists else runtimeState.selectedLocalModelAssetMissing,
+            promptBuilt = if (gemmaStatusApplies) primaryAttempt.promptBuilt else runtimeState.promptBuilt,
+            jsonParseSucceeded = if (gemmaStatusApplies) primaryAttempt.jsonParsed else runtimeState.jsonParseSucceeded,
+            modelLatencyMillis = if (gemmaStatusApplies) primaryAttempt.latencyMillis else runtimeState.modelLatencyMillis,
             fallbackActive = fallbackUsed || runtimeState.fallbackActive,
             reason = runtimeReason(
                 policyDecision = policyDecision,
@@ -328,7 +356,13 @@ class BrainService(
             extractedJson = result.rawResponse,
             parsedAction = result.candidateAction,
             available = result.available,
-            reason = result.reason
+            reason = result.reason,
+            localModelId = result.localModelId?.wireValue,
+            localModelDisplayName = result.localModelDisplayName,
+            localModelStatus = result.localModelStatus?.wireValue,
+            promptBuilt = result.promptBuilt,
+            jsonParsed = result.jsonParsed,
+            latencyMillis = result.latencyMillis
         )
     }
 
@@ -372,6 +406,7 @@ class BrainService(
     }
 
     private fun runtimeBaseStatus(policyDecision: InternetPermissionDecision): BrainRuntimeStatus {
+        val localReadiness = gemmaRuntime.localReadinessStatus()
         val baseStatus = if (provider != null) {
             BrainRuntimeStatus(
                 selectedProvider = providerName(provider),
@@ -380,11 +415,19 @@ class BrainService(
                 localModelAvailable = runtimeConfig.useLocalLlm(),
                 fallbackActive = false,
                 reason = runtimeReason(policyDecision, fallbackUsed = false, routeDecision = null, finalProvider = providerName(provider)),
-                safetyChainActive = true
+                safetyChainActive = true,
+                selectedLocalModelId = localReadiness.selectedModelId?.wireValue,
+                selectedLocalModelDisplayName = localReadiness.selectedModelDisplayName,
+                selectedLocalModelStatus = localReadiness.status.wireValue,
+                selectedLocalModelAssetMissing = localReadiness.assetMissing
             )
         } else {
             runtimeSelection.runtimeStatus.copy(
-                reason = runtimeReason(policyDecision, fallbackUsed = false, routeDecision = null, finalProvider = runtimeSelection.runtimeStatus.selectedProvider)
+                reason = runtimeReason(policyDecision, fallbackUsed = false, routeDecision = null, finalProvider = runtimeSelection.runtimeStatus.selectedProvider),
+                selectedLocalModelId = localReadiness.selectedModelId?.wireValue,
+                selectedLocalModelDisplayName = localReadiness.selectedModelDisplayName,
+                selectedLocalModelStatus = localReadiness.status.wireValue,
+                selectedLocalModelAssetMissing = localReadiness.assetMissing
             )
         }
 
@@ -438,6 +481,35 @@ class BrainService(
         }
     }
 
+    private fun localModelFallbackAction(
+        rawText: String,
+        routeDecision: BrainRouteDecision,
+        reason: String
+    ): BrainAction {
+        val readiness = gemmaRuntime.localReadinessStatus()
+        return BrainAction(
+            intent = "local_model_unavailable",
+            reply = "Local AI model is not ready yet, but I can still handle basic commands.",
+            actionType = BrainActionType.NONE,
+            riskLevel = BrainRiskLevel.SAFE,
+            requiresConfirmation = false,
+            finalActionAllowed = false,
+            params = buildMap {
+                put("rawText", rawText)
+                put("routeRole", routeDecision.selectedRole.wireValue)
+                put("routeReason", routeDecision.reason)
+                put("localModelStatus", readiness.status.wireValue)
+                put("localModelAvailable", readiness.available.toString())
+                put("runtimeAvailable", readiness.runtimeAvailable.toString())
+                put("assetMissing", readiness.assetMissing.toString())
+                readiness.selectedModelId?.wireValue?.let { put("localModelId", it) }
+                readiness.selectedModelDisplayName?.takeIf { it.isNotBlank() }?.let { put("localModelDisplayName", it) }
+                put("reason", reason)
+            },
+            nextQuestion = "Try a simple command like open app, home, or stop listening."
+        )
+    }
+
     private fun blockedHumanOnlyAction(rawText: String, reason: String): BrainAction {
         return BrainAction(
             intent = "human_only",
@@ -489,6 +561,12 @@ class BrainService(
         val extractedJson: String?,
         val parsedAction: BrainAction?,
         val available: Boolean,
-        val reason: String? = null
+        val reason: String? = null,
+        val localModelId: String? = null,
+        val localModelDisplayName: String? = null,
+        val localModelStatus: String? = null,
+        val promptBuilt: Boolean = false,
+        val jsonParsed: Boolean = false,
+        val latencyMillis: Long? = null
     )
 }

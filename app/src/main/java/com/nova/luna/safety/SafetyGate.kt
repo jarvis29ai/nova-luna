@@ -59,6 +59,47 @@ class SafetyGate {
         "complete payment"
     )
 
+    private val manualOnlyPatterns = listOf(
+        "payment",
+        "pay now",
+        "pay with",
+        "bank",
+        "banking",
+        "upi",
+        "password",
+        "otp",
+        "one time password",
+        "captcha",
+        "login",
+        "sign in",
+        "login bypass",
+        "delete account",
+        "remove account",
+        "delete data",
+        "biometric",
+        "fingerprint",
+        "face unlock"
+    )
+
+    private val confirmationRequiredPatterns = listOf(
+        "send message",
+        "send email",
+        "post",
+        "share",
+        "follow",
+        "subscribe",
+        "comment",
+        "place order",
+        "confirm order",
+        "book ride",
+        "confirm booking",
+        "final booking",
+        "complete payment",
+        "book now",
+        "request ride",
+        "request now"
+    )
+
     private val grocerySensitivePatterns = listOf(
         "send money",
         "transfer money",
@@ -410,6 +451,7 @@ class SafetyGate {
 
         if (brainAction.actionType == BrainActionType.HUMAN_ONLY ||
             brainAction.riskLevel == BrainRiskLevel.BLOCKED ||
+            containsManualOnlyKeyword(normalized) ||
             containsBlockedKeyword(normalized)
         ) {
             return SafetyDecision.humanOnly(
@@ -438,6 +480,17 @@ class SafetyGate {
         ) {
             return SafetyDecision.humanOnly(
                 "That final step must stay manual."
+            )
+        }
+
+        if (containsConfirmationRequiredKeyword(normalized) &&
+            !userConfirmed
+        ) {
+            return SafetyDecision.requireConfirmation(
+                brainAction.nextQuestion?.takeIf { it.isNotBlank() }
+                    ?: brainAction.reply.ifBlank {
+                        "Please confirm to continue."
+                    }
             )
         }
 
@@ -531,6 +584,18 @@ class SafetyGate {
 
     private fun containsDangerousFinalKeyword(normalized: String): Boolean {
         return dangerousFinalPatterns.any { keyword ->
+            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
+        }
+    }
+
+    private fun containsManualOnlyKeyword(normalized: String): Boolean {
+        return manualOnlyPatterns.any { keyword ->
+            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
+        }
+    }
+
+    private fun containsConfirmationRequiredKeyword(normalized: String): Boolean {
+        return confirmationRequiredPatterns.any { keyword ->
             Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
         }
     }

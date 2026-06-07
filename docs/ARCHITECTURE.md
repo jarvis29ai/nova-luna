@@ -14,7 +14,8 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Nova and Luna are local TTS profiles that tune pitch and speech rate only; exact voice availability still depends on the installed Android TTS engine
 - Local structured BrainService layer that turns user text into a JSON-shaped BrainAction before anything is executed
 - Phone-only multi-model brain routing with `BrainRouter` selecting `GemmaBrainModel`, `ActionJsonModel`, `LiteCommandModel`, `ScreenUnderstandingModel`, or the guaranteed `LocalMockBrainProvider` fallback
-- `PhoneGemmaRuntime` is the production phone reasoning scaffold for Gemma, and `GemmaBrainModel` delegates to it when runtime readiness passes
+- `PhoneLocalLlmRuntime` is the shared phone-local reasoning bridge. It resolves the configured model stack, checks asset readiness, builds the strict `BrainAction` prompt, parses strict JSON output, and reports structured readiness diagnostics
+- `PhoneGemmaRuntime` is the production phone reasoning scaffold for Gemma-style local models, and `GemmaBrainModel` delegates to it when runtime readiness passes
 - `ActionJsonModel` creates strict safe BrainAction JSON for cab, food, and task planning and stays validator-bound even if Gemma reasoning is supplied later
 - `LiteCommandModel` handles fast offline commands like stop, cancel, go home, and open app
 - Accessibility-first screen understanding built on `NovaAccessibilityService`, `AccessibilityNodeUtils`, `ScreenStateReader`, `ScreenStateAnalyzer`, `ScreenRecoveryAdvisor`, and `ScreenStateVerifier`
@@ -42,6 +43,7 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Keep local LLM output opt-in, local-only, and strictly structured; reject invalid JSON or dangerous final actions before routing.
 - Keep Ollama-compatible desktop LLMs dev-only and outside the production brain path.
 - Keep the phone-only model roles local-first and keep `LocalMockBrainProvider` as the guaranteed fallback when a phone model is unavailable or rejected.
+- Keep phone-local model assets readiness-checked before the brain path can emit structured actions.
 - Keep `SafetyGate` as the final authority before any action reaches the executor.
 - Keep screen understanding local, accessibility-based, and read-only; do not replace it with OCR, cloud vision, or another backend dependency by default.
 - Keep phone-only runtime modes explicit so offline-first behavior remains the default and online behavior stays lookup-only.

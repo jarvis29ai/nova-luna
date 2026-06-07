@@ -1,6 +1,14 @@
 # Local LLM Setup
 
-This project keeps the brain layer local-first. The Ollama-compatible provider is optional, dev-only, and only runs when explicitly enabled by build flags. Production is moving toward the phone Gemma runtime scaffold, not a desktop LLM brain.
+This project keeps the brain layer local-first. The phone-local model stack is now the production direction when model assets are present. The Ollama-compatible provider is still optional, dev-only, and only runs when explicitly enabled by build flags.
+
+## Phone-Local Model Stack
+
+- `PhoneGemmaRuntime` delegates through `PhoneLocalLlmRuntime`, which is the shared bridge for phone-resident model files.
+- The runtime resolves the configured model stack from `gemma_*` build flags, checks whether the model asset exists, and refuses to guess when the prompt or output is unsafe.
+- The default stack is ordered by priority as `gemma-3n`, `qwen-3-small`, `gemma-3-270m`, and `phi-4-mini`, with only `gemma-3n` enabled by default.
+- The runtime only accepts strict `BrainAction` JSON and still passes through `BrainActionValidator` and `SafetyGate` before anything can execute.
+- If the configured model asset is missing, disabled, or oversized for the prompt, `BrainService` falls back to deterministic behavior instead of forcing a partial answer.
 
 ## 1. Install Ollama
 
@@ -37,7 +45,7 @@ Build flag meanings:
 - `ollama_base_url=http://127.0.0.1:11434`
 - `ollama_model=qwen2.5:3b`
 
-Gemma phone runtime flags:
+Gemma / phone-local runtime flags:
 
 - `gemma_enabled=true | false`
 - `gemma_model_asset_path=<path or asset path>`

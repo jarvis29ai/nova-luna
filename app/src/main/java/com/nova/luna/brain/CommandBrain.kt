@@ -125,7 +125,7 @@ class CommandBrain(
             return router.routeMediaConversation(rawText)
         }
 
-        if (shouldUseBrainService(parsed)) {
+        if (shouldUseBrainService(parsed, rawText)) {
             val brainAction = brainService.process(
                 rawText = rawText,
                 activeCabSession = router.hasActiveCabBookingSession(),
@@ -263,10 +263,11 @@ class CommandBrain(
             normalized == "volume down"
     }
 
-    private fun shouldUseBrainService(parsed: CommandIntent): Boolean {
+    private fun shouldUseBrainService(parsed: CommandIntent, rawText: String): Boolean {
         if (parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
             return isPlanningHeuristicCommand(parsed.normalizedText) ||
-                isConversationHeuristicCommand(parsed.normalizedText)
+                isConversationHeuristicCommand(parsed.normalizedText) ||
+                isFlexibleReasoningHeuristic(rawText, parsed.normalizedText)
         }
 
         return when {
@@ -341,6 +342,71 @@ class CommandBrain(
         }
     }
 
+    private fun isFlexibleReasoningHeuristic(rawText: String, normalizedText: String): Boolean {
+        if (normalizedText.isBlank()) {
+            return containsNonLatinScript(rawText)
+        }
+
+        if (containsNonLatinScript(rawText)) {
+            return true
+        }
+
+        val flexiblePhrases = listOf(
+            "help me",
+            "please help",
+            "can you help",
+            "could you help",
+            "would you help",
+            "can you please",
+            "could you please",
+            "would you please",
+            "please explain",
+            "explain this",
+            "summarize this",
+            "rewrite this",
+            "translate this",
+            "draft this",
+            "compare these",
+            "compare this",
+            "what should i",
+            "what do you think",
+            "how should i",
+            "how can i",
+            "kya karu",
+            "kaise karu",
+            "kya tum",
+            "batao",
+            "samjhao",
+            "please batao",
+            "please samjhao",
+            "thoda help",
+            "thoda sa help",
+            "make this",
+            "improve this",
+            "check this"
+        )
+
+        return flexiblePhrases.any { phrase ->
+            normalizedText.contains(phrase)
+        } || normalizedText in setOf(
+            "help",
+            "explain",
+            "translate",
+            "rewrite",
+            "summarize",
+            "draft",
+            "recommend",
+            "suggest",
+            "analyze",
+            "samjhao",
+            "batao",
+            "kya",
+            "kaise",
+            "kyu",
+            "please"
+        )
+    }
+
     private fun isQuestionLike(normalizedText: String): Boolean {
         return normalizedText.endsWith("?") ||
             normalizedText.startsWith("who ") ||
@@ -367,6 +433,10 @@ class CommandBrain(
         return draftingKeywords.any { phrase ->
             normalizedText.contains(phrase)
         }
+    }
+
+    private fun containsNonLatinScript(rawText: String): Boolean {
+        return rawText.any { character -> character.code > 127 }
     }
 
     private fun handleBrainServiceAction(brainAction: BrainAction): CommandResult? {

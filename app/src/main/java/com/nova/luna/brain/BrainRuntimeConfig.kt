@@ -7,7 +7,7 @@ private fun inferCapabilityMode(
     brainProvider: String,
     llmEnabled: Boolean
 ): BrainCapabilityMode {
-    return if (llmEnabled && brainProvider.trim().equals("ollama", ignoreCase = true)) {
+    return if (llmEnabled) {
         BrainCapabilityMode.LOCAL_LLM_DEV
     } else {
         BrainCapabilityMode.OFFLINE_ONLY
@@ -22,9 +22,7 @@ data class BrainRuntimeConfig(
     val capabilityMode: BrainCapabilityMode = inferCapabilityMode(brainProvider, llmEnabled)
 ) {
     fun useLocalLlm(): Boolean {
-        return llmEnabled &&
-            brainProvider.trim().equals("ollama", ignoreCase = true) &&
-            capabilityMode == BrainCapabilityMode.LOCAL_LLM_DEV
+        return llmEnabled && capabilityMode == BrainCapabilityMode.LOCAL_LLM_DEV
     }
 
     companion object {

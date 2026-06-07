@@ -22,9 +22,10 @@ object BrainProviderFactory {
         phoneBrainProvider: PhoneBrainProvider = UnavailablePhoneBrainProvider()
     ): BrainRuntimeSelection {
         val localLlmProvider = if (config.useLocalLlm()) {
-            LocalLlmBrainProvider(
-                config = config,
-                client = client
+            PhoneLocalLlmProvider(
+                runtime = PhoneLocalLlmRuntime(
+                    config = PhoneLocalLlmConfig.fromBuildConfig()
+                )
             )
         } else {
             null
@@ -33,7 +34,7 @@ object BrainProviderFactory {
         return NetworkAwareBrainSelector().select(
             capabilityMode = config.capabilityMode,
             internetAvailable = internetAvailable,
-            localModelAvailable = localLlmProvider != null,
+            localModelAvailable = localLlmProvider?.available == true,
             phoneBrainProvider = phoneBrainProvider,
             localLlmProvider = localLlmProvider,
             fallbackProvider = LocalMockBrainProvider()

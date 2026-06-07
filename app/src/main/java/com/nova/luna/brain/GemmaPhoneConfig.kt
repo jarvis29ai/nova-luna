@@ -27,6 +27,62 @@ data class GemmaPhoneConfig(
         )
     }
 
+    fun toPhoneLocalLlmConfig(): PhoneLocalLlmConfig {
+        val sanitized = sanitized()
+        return PhoneLocalLlmConfig(
+            enabled = sanitized.gemmaEnabled && sanitized.gemmaRoleEnabled,
+            maxInputTokens = sanitized.gemmaMaxTokens,
+            maxPromptChars = sanitized.gemmaContextWindow,
+            timeoutMs = 5_000,
+            models = listOf(
+                PhoneLocalLlmModelConfig(
+                    id = PhoneLocalLlmModelId.GEMMA_3N,
+                    enabled = sanitized.gemmaEnabled && sanitized.gemmaRoleEnabled,
+                    assetPath = sanitized.gemmaModelAssetPath,
+                    quantizedFileName = PhoneLocalLlmModelId.GEMMA_3N.defaultQuantizedFileName,
+                    minimumRamMb = PhoneLocalLlmModelId.GEMMA_3N.minimumRamMbHint,
+                    maxInputTokens = sanitized.gemmaMaxTokens,
+                    maxPromptChars = sanitized.gemmaContextWindow,
+                    timeoutMs = 5_000,
+                    priority = PhoneLocalLlmModelId.GEMMA_3N.priority
+                ),
+                PhoneLocalLlmModelConfig(
+                    id = PhoneLocalLlmModelId.QWEN_3_SMALL,
+                    enabled = false,
+                    assetPath = "",
+                    quantizedFileName = PhoneLocalLlmModelId.QWEN_3_SMALL.defaultQuantizedFileName,
+                    minimumRamMb = PhoneLocalLlmModelId.QWEN_3_SMALL.minimumRamMbHint,
+                    maxInputTokens = 4_096,
+                    maxPromptChars = 6_144,
+                    timeoutMs = 5_000,
+                    priority = PhoneLocalLlmModelId.QWEN_3_SMALL.priority
+                ),
+                PhoneLocalLlmModelConfig(
+                    id = PhoneLocalLlmModelId.GEMMA_3_270M,
+                    enabled = false,
+                    assetPath = "",
+                    quantizedFileName = PhoneLocalLlmModelId.GEMMA_3_270M.defaultQuantizedFileName,
+                    minimumRamMb = PhoneLocalLlmModelId.GEMMA_3_270M.minimumRamMbHint,
+                    maxInputTokens = 2_048,
+                    maxPromptChars = 4_096,
+                    timeoutMs = 5_000,
+                    priority = PhoneLocalLlmModelId.GEMMA_3_270M.priority
+                ),
+                PhoneLocalLlmModelConfig(
+                    id = PhoneLocalLlmModelId.PHI_4_MINI,
+                    enabled = false,
+                    assetPath = "",
+                    quantizedFileName = PhoneLocalLlmModelId.PHI_4_MINI.defaultQuantizedFileName,
+                    minimumRamMb = PhoneLocalLlmModelId.PHI_4_MINI.minimumRamMbHint,
+                    maxInputTokens = 2_048,
+                    maxPromptChars = 4_096,
+                    timeoutMs = 5_000,
+                    priority = PhoneLocalLlmModelId.PHI_4_MINI.priority
+                )
+            )
+        ).sanitized()
+    }
+
     companion object {
         fun fromBuildConfig(): GemmaPhoneConfig {
             return GemmaPhoneConfig(

@@ -43,11 +43,19 @@
 - Debug cab smoke now resets the foreground UI to Home before the preflight snapshot and between scenarios so stale provider screens do not leak across smoke cases.
 - Debug brain smoke can be triggered in the debug build with `com.nova.luna.debug.ACTION_RUN_BRAIN_SMOKE` and logs the selected provider, raw response, parsed BrainAction, fallback usage, and final safety decision.
 - Debug command smoke can be triggered in the debug build with `com.nova.luna.debug.ACTION_RUN_COMMAND_SMOKE` and records exact command handling for basic, cab, food, grocery, and negative safety phrases. The debug receiver also writes a cached report in app storage so the phone-side results can be reviewed deterministically. The latest sectioned rerun landed as basic PASS, cab BLOCKED_BY_LOCATION_PERMISSION, food BLOCKED_BY_PROVIDER_UI, grocery PASS, and negative PASS.
-- The brain runtime now tracks phone-only capability modes, role-based routing, offline behavior, Gemma phone runtime readiness, and online-assisted lookup-only preparation without adding a backend.
+- The brain runtime now tracks phone-only capability modes, role-based routing, the shared phone-local LLM stack, model readiness, strict JSON parsing, and online-assisted lookup-only preparation without adding a backend.
 - The screen understanding brain now uses deterministic accessibility snapshots, local screen-state analysis, and post-action screen verification instead of OCR, cloud vision, or any backend dependency.
 - `flutter_app/` remains untouched and must not be added yet.
 - Usage-access settings remains explicit and safety-aware.
 - Sectioned command smoke reruns are used when a single full pass would otherwise stall on a later section, so each family can be verified independently without changing production behavior. In the latest run, the cab flow reported missing location permission cleanly, the food flow still stopped because supported search/cart controls were not available, and the grocery flow now dismisses the final-confirmation state cleanly on cancel.
+
+## Phase 4 Update (Phone-Local LLM)
+
+- The phone-local model bridge is now implemented with `PhoneLocalLlmConfig`, `ModelAssetLocator`, `ModelReadinessChecker`, `PhoneLocalLlmPromptBuilder`, `PhoneLocalLlmOutputParser`, `PhoneLocalLlmRuntime`, and `PhoneLocalLlmProvider`.
+- Local reasoning requests stay strict: the runtime only accepts `BrainAction` JSON, rejects malformed or oversized prompts, and still routes every result through `BrainActionValidator` and `SafetyGate`.
+- `BrainService` now records local model readiness, prompt build status, JSON parse success, and model latency in diagnostics so the local path is visible instead of hidden.
+- `LocalMockBrainProvider` remains the guaranteed fallback, which keeps the app usable offline when a configured model is missing, disabled, or unsafe.
+- `PhoneGemmaRuntime` now delegates through the shared phone-local runtime bridge rather than acting as a separate parallel path.
 
 ## Verified Test Command
 
@@ -72,6 +80,7 @@
 3. Keep the sectioned smoke docs synchronized with the actual phone results.
 4. Add or improve tests around the most important assistant behaviors as new fixes land.
 5. Extend the screen-understanding recovery prompts only if new accessibility states show up in real device testing.
+6. Continue device-level tuning for the phone-local LLM stack, especially model asset packaging, prompt limits, and latency on target hardware.
 
 ## Verification Checklist
 

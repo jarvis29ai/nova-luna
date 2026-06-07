@@ -55,6 +55,76 @@ class PhoneGemmaRuntime(
     }
 ) {
     private val runtimeConfig = config.sanitized()
+    private val localRuntime = PhoneLocalLlmRuntime(
+        config = runtimeConfig.toPhoneLocalLlmConfig(),
+        engine = object : PhoneLocalLlmEngine {
+            override val engineName: String = backend.backendName
+
+            override fun available(): Boolean = backend.isRuntimeAvailable()
+
+            override fun readinessStatus(): PhoneLocalLlmStatus {
+                return if (backend.isRuntimeAvailable()) {
+                    PhoneLocalLlmStatus.READY
+                } else {
+                    PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE
+                }
+            }
+
+            override fun modelId(): PhoneLocalLlmModelId? = PhoneLocalLlmModelId.GEMMA_3N
+
+            override fun modelDisplayName(): String? = PhoneLocalLlmModelId.GEMMA_3N.displayName
+
+            override fun maxInputTokens(): Int = runtimeConfig.gemmaMaxTokens
+
+            override fun generate(prompt: String, timeoutMs: Long): PhoneLocalLlmGenerationResult {
+                if (!backend.isRuntimeAvailable()) {
+                    return PhoneLocalLlmGenerationResult.unavailable(
+                        status = PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE,
+                        reason = "No phone Gemma inference backend is wired yet.",
+                        modelId = PhoneLocalLlmModelId.GEMMA_3N,
+                        modelDisplayName = PhoneLocalLlmModelId.GEMMA_3N.displayName
+                    )
+                }
+
+                return runCatching {
+                    val response = backend.generate(prompt, runtimeConfig).trim()
+                    if (response.isBlank()) {
+                        PhoneLocalLlmGenerationResult.unavailable(
+                            status = PhoneLocalLlmStatus.OUTPUT_PARSE_FAILED,
+                            reason = "Gemma backend returned an empty response.",
+                            modelId = PhoneLocalLlmModelId.GEMMA_3N,
+                            modelDisplayName = PhoneLocalLlmModelId.GEMMA_3N.displayName
+                        )
+                    } else {
+                        PhoneLocalLlmGenerationResult(
+                            status = PhoneLocalLlmStatus.READY,
+                            text = response,
+                            reason = "Gemma backend returned a response.",
+                            modelId = PhoneLocalLlmModelId.GEMMA_3N,
+                            modelDisplayName = PhoneLocalLlmModelId.GEMMA_3N.displayName,
+                            jsonOnly = true
+                        )
+                    }
+                }.getOrElse {
+                    PhoneLocalLlmGenerationResult.unavailable(
+                        status = PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE,
+                        reason = "Gemma backend failed: ${it.message.orEmpty()}",
+                        modelId = PhoneLocalLlmModelId.GEMMA_3N,
+                        modelDisplayName = PhoneLocalLlmModelId.GEMMA_3N.displayName
+                    )
+                }
+            }
+
+            override fun cancel(): Boolean = false
+
+            override fun diagnostics(): String = "backend=${backend.backendName}, available=${backend.isRuntimeAvailable()}"
+        },
+        assetLocator = ModelAssetLocator(modelPathExists),
+        readinessChecker = ModelReadinessChecker(ModelAssetLocator(modelPathExists)),
+        promptBuilder = PhoneLocalLlmPromptBuilder(),
+        outputParser = PhoneLocalLlmOutputParser(BrainActionJsonCodec(), BrainActionValidator()),
+        codec = BrainActionJsonCodec()
+    )
 
     fun readinessStatus(
         selectedBrainRole: BrainModelRole = BrainModelRole.GEMMA_REASONING,
@@ -90,7 +160,49 @@ class PhoneGemmaRuntime(
         return readinessStatus().modelLoaded
     }
 
+    fun localReadinessStatus(): PhoneLocalLlmReadiness = localRuntime.readinessStatus()
+
+    fun modelId(): PhoneLocalLlmModelId? = localRuntime.modelId()
+
+    fun modelDisplayName(): String? = localRuntime.modelDisplayName()
+
+    fun maxInputTokens(): Int = localRuntime.maxInputTokens()
+
     fun buildPrompt(request: BrainRequest, routeDecision: BrainRouteDecision): String {
+        return localRuntime.buildPrompt(request, routeDecision)
+    }
+
+    fun buildSafeTextPrompt(request: BrainRequest, routeDecision: BrainRouteDecision): String {
+        return localRuntime.buildSafeTextPrompt(request, routeDecision)
+    }
+
+    fun generateJson(prompt: String): PhoneLocalLlmGenerationResult {
+        return localRuntime.generateJson(prompt)
+    }
+
+    fun generateBrainAction(request: BrainRequest, routeDecision: BrainRouteDecision): BrainModelResult {
+        val result = localRuntime.generateBrainAction(request, routeDecision)
+        if (result.available) {
+            return result
+        }
+
+        val legacyReason = when {
+            !runtimeConfig.gemmaEnabled -> "Gemma phone runtime is disabled."
+            !runtimeConfig.gemmaRoleEnabled -> "Gemma reasoning role is disabled."
+            !runtimeConfig.modelPathConfigured -> "Gemma model asset path is not configured."
+            !modelPathExists(runtimeConfig.gemmaModelAssetPath) -> "Gemma model asset does not exist at the configured path."
+            !backend.isRuntimeAvailable() -> "No phone Gemma inference backend is wired yet."
+            else -> result.reason
+        }
+
+        return result.copy(reason = legacyReason)
+    }
+
+    fun cancel(): Boolean = localRuntime.cancel()
+
+    fun diagnostics(): String = localRuntime.diagnostics()
+
+    private fun buildLegacyPrompt(request: BrainRequest, routeDecision: BrainRouteDecision): String {
         return promptBuilder(request, routeDecision, runtimeConfig)
     }
 
@@ -101,7 +213,7 @@ class PhoneGemmaRuntime(
         }
 
         return runCatching {
-            backend.generate(buildPrompt(request, routeDecision), runtimeConfig).trim().takeIf { it.isNotBlank() }
+            backend.generate(buildLegacyPrompt(request, routeDecision), runtimeConfig).trim().takeIf { it.isNotBlank() }
         }.getOrNull()
     }
 
