@@ -1,0 +1,19 @@
+package com.nova.luna.agent
+
+enum class AgentLoopStep {
+    READ_SCREEN,
+    LOAD_MEMORY_CONTEXT,
+    PLAN_NEXT_STEP,
+    VALIDATE_ACTION,
+    SAFETY_CHECK,
+    EXECUTE_ACTION,
+    VERIFY_RESULT,
+    UPDATE_MEMORY,
+    RECOVER,
+    ASK_USER,
+    WAIT_FOR_CONFIRMATION,
+    MANUAL_HANDOFF,
+    COMPLETE,
+    FAILED,
+    STOPPED
+}

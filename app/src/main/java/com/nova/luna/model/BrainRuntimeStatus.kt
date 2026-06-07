@@ -1,5 +1,6 @@
 package com.nova.luna.model
 
+import com.nova.luna.agent.AgentLoopStopReason
 import com.nova.luna.memory.BrainSessionType
 
 data class BrainRuntimeStatus(
@@ -26,5 +27,11 @@ data class BrainRuntimeStatus(
     val activeSessionType: BrainSessionType? = null,
     val pendingConfirmationCount: Int = 0,
     val memoryLoaded: Boolean = false,
-    val memorySessionCount: Int = 0
+    val memorySessionCount: Int = 0,
+    val agentLoopCandidate: Boolean = false,
+    val agentLoopStarted: Boolean = false,
+    val agentLoopId: String? = null,
+    val agentLoopStepCount: Int = 0,
+    val agentLoopStopReason: AgentLoopStopReason? = null,
+    val agentLoopRecoveryUsed: Boolean = false
 )

@@ -19,6 +19,8 @@ import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.model.IntentType
 import com.nova.luna.safety.SafetyGate
+import com.nova.luna.agent.AgentLoop
+import com.nova.luna.agent.TaskLoopCoordinator
 
 class CommandBrain(
     context: Context,
@@ -32,6 +34,12 @@ class CommandBrain(
     private val brainActionValidator = BrainActionValidator()
     private val router = CommandRouter(ActionExecutor(context.applicationContext))
     private val sessionManager = BrainSessionManager(brainMemoryStore)
+    private val brainActionRuntime = BrainActionRuntime(router, safetyGate, brainActionValidator)
+    private val taskLoopCoordinator: TaskLoopCoordinator = AgentLoop(
+        brainService = brainService,
+        brainActionRuntime = brainActionRuntime,
+        brainSessionManager = sessionManager
+    )
 
     fun process(rawText: String): CommandResult {
         val parsed = parser.parse(rawText)
@@ -42,12 +50,15 @@ class CommandBrain(
         val followUpResolution = sessionManager.resolveFollowUp(rawText, activeSessionType)
 
         fun finish(result: CommandResult, sessionTypeHint: BrainSessionType? = result.memorySessionType ?: activeSessionType): CommandResult {
-            sessionManager.recordCommandResult(
-                rawText = rawText,
-                commandIntent = parsed,
-                result = result,
-                sessionTypeHint = sessionTypeHint
-            )
+            val loopRecorded = result.memoryMetadata["agentLoopRecorded"]?.equals("true", ignoreCase = true) == true
+            if (!loopRecorded) {
+                sessionManager.recordCommandResult(
+                    rawText = rawText,
+                    commandIntent = parsed,
+                    result = result,
+                    sessionTypeHint = sessionTypeHint
+                )
+            }
             return result
         }
 
@@ -253,6 +264,24 @@ class CommandBrain(
             return finish(router.routeMediaConversation(rawText), sessionTypeHint = BrainSessionType.MEDIA)
         }
 
+        if (shouldUseAgentLoop(parsed, rawText, activeSessionType, activePendingConfirmation, memorySnapshot)) {
+            val loopResult = taskLoopCoordinator.run(
+                rawText = rawText,
+                commandIntent = parsed,
+                activeCabSession = router.hasActiveCabBookingSession(),
+                activeGrocerySession = router.hasActiveGroceryBookingSession(),
+                activeFoodSession = router.hasActiveFoodBookingSession(),
+                activeSessionType = activeSessionType,
+                pendingConfirmation = activePendingConfirmation,
+                onlineConsentGiven = false,
+                memorySnapshot = memorySnapshot
+            )
+            return finish(
+                loopResult.finalCommandResult,
+                sessionTypeHint = loopResult.state.domainSessionType ?: activeSessionType
+            )
+        }
+
         if (shouldUseBrainService(parsed, rawText)) {
             val brainAction = brainService.process(
                 rawText = rawText,
@@ -456,6 +485,26 @@ class CommandBrain(
         }
     }
 
+    private fun shouldUseAgentLoop(
+        parsed: CommandIntent,
+        rawText: String,
+        activeSessionType: BrainSessionType?,
+        pendingConfirmation: PendingConfirmation?,
+        memorySnapshot: com.nova.luna.memory.BrainMemorySnapshot
+    ): Boolean {
+        val taskPlan = brainService.buildTaskPlan(
+            rawText = rawText,
+            commandIntent = parsed,
+            activeCabSession = router.hasActiveCabBookingSession(),
+            activeGrocerySession = router.hasActiveGroceryBookingSession(),
+            activeFoodSession = router.hasActiveFoodBookingSession(),
+            activeSessionType = activeSessionType,
+            pendingConfirmation = pendingConfirmation ?: memorySnapshot.activePendingConfirmation,
+            screenState = null
+        )
+        return taskPlan.loopCapable
+    }
+
     private fun isPlanningHeuristicCommand(normalizedText: String): Boolean {
         val planningKeywords = listOf(
             "plan",
@@ -626,101 +675,13 @@ class CommandBrain(
         pendingConfirmation: PendingConfirmation? = null,
         userConfirmed: Boolean = false
     ): CommandResult? {
-        if (!brainActionValidator.isAcceptable(brainAction)) {
-            return null
-        }
-
-        val safetyDecision = safetyGate.evaluate(
-            brainAction,
+        return brainActionRuntime.execute(
+            brainAction = brainAction,
+            rawText = rawText,
+            parsed = parsed,
             pendingConfirmation = pendingConfirmation,
             userConfirmed = userConfirmed
         )
-        val resultIntentType = resultIntentType(brainAction)
-        val resultActionType = resultActionType(brainAction)
-        val sessionType = sessionTypeForBrainAction(brainAction) ?: pendingConfirmation?.sessionType
-        val confirmationType = confirmationTypeForBrainAction(brainAction)
-        val memoryMetadata = buildMap {
-            putAll(brainAction.params)
-            put("rawText", rawText)
-            put("parsedIntentType", parsed.intentType.name)
-            put("parsedActionType", parsed.actionType.name)
-        }
-
-        if (!safetyDecision.allowed) {
-            return when {
-                safetyDecision.requiresBiometric -> CommandResult.biometricRequired(
-                    message = safetyDecision.message,
-                    intentType = resultIntentType,
-                    actionType = resultActionType,
-                    entities = brainAction.params,
-                    memorySessionType = sessionType,
-                    pendingConfirmationType = confirmationType,
-                    memoryMetadata = memoryMetadata
-                )
-
-                safetyDecision.requiresConfirmation -> CommandResult.confirmationRequired(
-                    message = safetyDecision.message,
-                    intentType = resultIntentType,
-                    actionType = resultActionType,
-                    entities = brainAction.params,
-                    memorySessionType = sessionType,
-                    pendingConfirmationType = confirmationType,
-                    memoryMetadata = memoryMetadata
-                )
-
-                else -> CommandResult.blocked(
-                    message = safetyDecision.message,
-                    intentType = resultIntentType,
-                    actionType = resultActionType,
-                    entities = brainAction.params,
-                    memorySessionType = sessionType,
-                    pendingConfirmationType = confirmationType,
-                    memoryMetadata = memoryMetadata
-                )
-            }
-        }
-
-        return when (brainAction.actionType) {
-            BrainActionType.EXTERNAL_ACTION -> {
-                val routedResult = router.route(brainAction)
-                routedResult.copy(
-                    safetyDecision = safetyDecision,
-                    memorySessionType = routedResult.memorySessionType ?: sessionType,
-                    pendingConfirmationType = routedResult.pendingConfirmationType,
-                    memoryMetadata = routedResult.memoryMetadata + memoryMetadata
-                )
-            }
-
-            BrainActionType.READ_ONLY,
-            BrainActionType.NONE -> CommandResult.success(
-                message = brainAction.reply,
-                intentType = resultIntentType,
-                actionType = resultActionType,
-                entities = brainAction.params,
-                memorySessionType = sessionType,
-                memoryMetadata = memoryMetadata
-            )
-
-            BrainActionType.PREPARE -> CommandResult.confirmationRequired(
-                message = brainAction.nextQuestion?.takeIf { it.isNotBlank() }
-                    ?: safetyDecision.message,
-                intentType = resultIntentType,
-                actionType = resultActionType,
-                entities = brainAction.params,
-                memorySessionType = sessionType,
-                pendingConfirmationType = confirmationType,
-                memoryMetadata = memoryMetadata
-            )
-
-            BrainActionType.HUMAN_ONLY -> CommandResult.blocked(
-                message = safetyDecision.message,
-                intentType = resultIntentType,
-                actionType = resultActionType,
-                entities = brainAction.params,
-                memorySessionType = sessionType,
-                memoryMetadata = memoryMetadata
-            )
-        }
     }
 
     private fun replayPendingConfirmation(

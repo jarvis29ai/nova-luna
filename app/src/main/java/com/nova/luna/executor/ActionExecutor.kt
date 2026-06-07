@@ -290,13 +290,23 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             commandResult = result
         )
 
-        return if (!verification.applicable) {
-            result
-        } else {
-            result.copy(
-                entities = result.entities + verification.toEntityMap()
-            )
+        if (!verification.applicable) {
+            return result
         }
+
+        return result.copy(
+            entities = result.entities + verification.toEntityMap(),
+            memoryMetadata = result.memoryMetadata + buildMap {
+                put("screenVerificationStatus", verification.status.name)
+                put("screenVerificationApplicable", verification.applicable.toString())
+                put("screenVerificationChanged", verification.changed.toString())
+                put("screenVerificationVerified", verification.verified.toString())
+                put("screenVerificationMessage", verification.message)
+                beforeScreenState?.summarizedState?.takeIf { it.isNotBlank() }?.let { put("screenBeforeSummary", it) }
+                afterScreenState?.summarizedState?.takeIf { it.isNotBlank() }?.let { put("screenAfterSummary", it) }
+                put("screenVerificationRetryable", (!verification.verified).toString())
+            }
+        )
     }
 
     private fun CommandResult.withMemoryContext(

@@ -1,20 +1,25 @@
 package com.nova.luna.brain
 
+import com.nova.luna.agent.TaskPlan
 import com.nova.luna.model.BrainAction
 import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainModelRole
 import com.nova.luna.model.BrainRiskLevel
 import com.nova.luna.model.BrainRouteDecision
 import com.nova.luna.model.BrainRuntimeStatus
+import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.InternetPermissionCategory
 import com.nova.luna.model.InternetPermissionDecision
+import com.nova.luna.model.IntentType
 import com.nova.luna.memory.BrainMemoryStore
 import com.nova.luna.memory.BrainSessionManager
 import com.nova.luna.memory.BrainSessionType
 import com.nova.luna.memory.InMemoryBrainMemoryStore
 import com.nova.luna.memory.PendingConfirmation
+import com.nova.luna.screen.ScreenState
 import com.nova.luna.screen.ScreenStateReader
 import com.nova.luna.safety.SafetyGate
+import java.util.Locale
 
 class BrainService(
     private val provider: BrainProvider? = null,
@@ -67,7 +72,8 @@ class BrainService(
         activeFoodSession: Boolean = false,
         onlineConsentGiven: Boolean = false,
         activeSessionType: BrainSessionType? = null,
-        pendingConfirmation: PendingConfirmation? = null
+        pendingConfirmation: PendingConfirmation? = null,
+        screenState: ScreenState? = null
     ): BrainAction {
         val memorySnapshot = sessionManager.snapshot()
         val effectiveActiveSessionType = activeSessionType ?: memorySnapshot.activeSessionType()
@@ -77,6 +83,7 @@ class BrainService(
             activeCabSession = activeCabSession,
             activeGrocerySession = activeGrocerySession,
             activeFoodSession = activeFoodSession,
+            screenState = screenState,
             onlineConsentGiven = onlineConsentGiven,
             activeSessionType = effectiveActiveSessionType,
             pendingConfirmation = effectivePendingConfirmation,
@@ -195,7 +202,8 @@ class BrainService(
         activeFoodSession: Boolean = false,
         onlineConsentGiven: Boolean = false,
         activeSessionType: BrainSessionType? = null,
-        pendingConfirmation: PendingConfirmation? = null
+        pendingConfirmation: PendingConfirmation? = null,
+        screenState: ScreenState? = null
     ): BrainDiagnostics {
         val memorySnapshot = sessionManager.snapshot()
         val effectiveActiveSessionType = activeSessionType ?: memorySnapshot.activeSessionType()
@@ -205,6 +213,7 @@ class BrainService(
             activeCabSession = activeCabSession,
             activeGrocerySession = activeGrocerySession,
             activeFoodSession = activeFoodSession,
+            screenState = screenState,
             onlineConsentGiven = onlineConsentGiven,
             activeSessionType = effectiveActiveSessionType,
             pendingConfirmation = effectivePendingConfirmation,
@@ -214,11 +223,21 @@ class BrainService(
         )
 
         val policyDecision = internetPermissionPolicy.classify(rawText)
+        val taskPlan = buildTaskPlan(
+            rawText = rawText,
+            activeCabSession = activeCabSession,
+            activeGrocerySession = activeGrocerySession,
+            activeFoodSession = activeFoodSession,
+            activeSessionType = effectiveActiveSessionType,
+            pendingConfirmation = effectivePendingConfirmation,
+            screenState = screenState
+        )
         val runtimeState = runtimeBaseStatus(policyDecision).copy(
             activeSessionType = effectiveActiveSessionType,
             pendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
             memoryLoaded = true,
-            memorySessionCount = memorySnapshot.activeSessionCount
+            memorySessionCount = memorySnapshot.activeSessionCount,
+            agentLoopCandidate = taskPlan.loopCapable
         )
 
         when (policyDecision.category) {
@@ -267,7 +286,8 @@ class BrainService(
                     recoveryState = request.recoveryState,
                     memorySessionCount = memorySnapshot.activeSessionCount,
                     memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
-                    preferences = memorySnapshot.preferences
+                    preferences = memorySnapshot.preferences,
+                    agentLoopCandidate = taskPlan.loopCapable
                 )
             }
 
@@ -318,7 +338,8 @@ class BrainService(
                         recoveryState = request.recoveryState,
                         memorySessionCount = memorySnapshot.activeSessionCount,
                         memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
-                        preferences = memorySnapshot.preferences
+                        preferences = memorySnapshot.preferences,
+                        agentLoopCandidate = taskPlan.loopCapable
                     )
                 }
             }
@@ -382,7 +403,8 @@ class BrainService(
                 recoveryState = request.recoveryState,
                 memorySessionCount = memorySnapshot.activeSessionCount,
                 memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
-                preferences = memorySnapshot.preferences
+                preferences = memorySnapshot.preferences,
+                agentLoopCandidate = taskPlan.loopCapable
             )
         }
 
@@ -535,7 +557,64 @@ class BrainService(
             recoveryState = request.recoveryState,
             memorySessionCount = memorySnapshot.activeSessionCount,
             memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
-            preferences = memorySnapshot.preferences
+            preferences = memorySnapshot.preferences,
+            agentLoopCandidate = taskPlan.loopCapable
+        )
+    }
+
+    fun buildTaskPlan(
+        rawText: String,
+        commandIntent: CommandIntent? = null,
+        activeCabSession: Boolean = false,
+        activeGrocerySession: Boolean = false,
+        activeFoodSession: Boolean = false,
+        activeSessionType: BrainSessionType? = null,
+        pendingConfirmation: PendingConfirmation? = null,
+        screenState: ScreenState? = null
+    ): TaskPlan {
+        val snapshot = sessionManager.snapshot()
+        val effectiveActiveSessionType = activeSessionType ?: snapshot.activeSessionType()
+        val effectivePendingConfirmation = pendingConfirmation ?: snapshot.activePendingConfirmation
+        val request = BrainRequest(
+            rawText = rawText,
+            activeCabSession = activeCabSession,
+            activeGrocerySession = activeGrocerySession,
+            activeFoodSession = activeFoodSession,
+            screenState = screenState,
+            activeSessionType = effectiveActiveSessionType,
+            pendingConfirmation = effectivePendingConfirmation,
+            memorySnapshot = snapshot,
+            preferences = snapshot.preferences,
+            recoveryState = effectiveActiveSessionType?.let { snapshot.recoveryStates[it] }
+        )
+        val routeDecision = brainRouter.route(request)
+        val normalized = rawText.lowercase(Locale.US).trim()
+        val parsedIntent = commandIntent ?: CommandIntent(rawText = rawText)
+        val loopCapable = isLoopEligible(
+            normalized = normalized,
+            commandIntent = parsedIntent,
+            routeDecision = routeDecision,
+            screenState = screenState,
+            activeSessionType = effectiveActiveSessionType,
+            pendingConfirmation = effectivePendingConfirmation
+        )
+
+        return TaskPlan(
+            goal = rawText,
+            loopCapable = loopCapable,
+            reason = if (loopCapable) {
+                "This looks like a safe multi-step task."
+            } else {
+                "This is safer and faster as a one-shot command."
+            },
+            domain = effectiveActiveSessionType,
+            requiresScreenContext = routeDecision.requiresScreenContext || normalized.contains("screen"),
+            requiresUserConfirmation = requiresUserConfirmation(normalized, parsedIntent, routeDecision),
+            allowLoop = true,
+            maxSteps = maxStepsFor(parsedIntent, loopCapable),
+            maxRetries = if (loopCapable) 1 else 0,
+            completionHints = buildCompletionHints(parsedIntent, normalized),
+            safetyNotes = routeDecision.safetyNotes
         )
     }
 
@@ -553,6 +632,150 @@ class BrainService(
         } else {
             copy(screenState = capturedScreenState)
         }
+    }
+
+    private fun isLoopEligible(
+        normalized: String,
+        commandIntent: CommandIntent,
+        routeDecision: BrainRouteDecision,
+        screenState: ScreenState?,
+        activeSessionType: BrainSessionType?,
+        pendingConfirmation: PendingConfirmation?
+    ): Boolean {
+        if (normalized.isBlank()) return false
+        if (screenState?.isSensitiveScreen() == true) return false
+        if (pendingConfirmation != null && pendingConfirmation.isExpired()) return false
+        if (commandIntent.actionType == com.nova.luna.model.ActionType.STOP_SERVICE) return false
+
+        val multiStepHints = listOf(
+            "and then",
+            "then ",
+            "after that",
+            "search ",
+            "find ",
+            "compare",
+            "draft",
+            "prepare",
+            "read screen",
+            "what is on screen",
+            "what's on screen",
+            "verify",
+            "select ",
+            "choose ",
+            "configure",
+            "set up",
+            "open app and",
+            "launch and",
+            "open and",
+            "follow up",
+            "continue",
+            "search for"
+        )
+
+        val hasMultiStepCue = multiStepHints.any { normalized.contains(it) }
+        val screenDrivenIntent = commandIntent.intentType in setOf(
+            IntentType.OPEN_APP,
+            IntentType.NAVIGATION,
+            IntentType.INTERACTION,
+            IntentType.TEXT_ENTRY,
+            IntentType.READ_NOTIFICATIONS,
+            IntentType.SENSITIVE,
+            IntentType.CONTROL,
+            IntentType.COMMUNICATION,
+            IntentType.CONTENT_CREATION
+        )
+
+        val activeSessionSupportsLoop = activeSessionType in setOf(
+            BrainSessionType.PHONE,
+            BrainSessionType.SCREEN,
+            BrainSessionType.BASIC_CONTROL,
+            BrainSessionType.ONLINE_HELPER,
+            BrainSessionType.LOCAL_LLM
+        )
+
+        return hasMultiStepCue &&
+            (screenDrivenIntent || routeDecision.selectedRole == BrainModelRole.SCREEN_UNDERSTANDING || activeSessionSupportsLoop)
+    }
+
+    private fun requiresUserConfirmation(
+        normalized: String,
+        commandIntent: CommandIntent,
+        routeDecision: BrainRouteDecision
+    ): Boolean {
+        val confirmationHints = listOf(
+            "send",
+            "share",
+            "follow",
+            "subscribe",
+            "post",
+            "book",
+            "order",
+            "checkout",
+            "pay",
+            "final",
+            "publish"
+        )
+
+        if (routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER) {
+            return false
+        }
+
+        return commandIntent.intentType in setOf(
+            IntentType.COMMUNICATION,
+            IntentType.CONTENT_CREATION,
+            IntentType.CAB_BOOKING,
+            IntentType.FOOD_ORDER,
+            IntentType.GROCERY_BOOKING,
+            IntentType.SHOPPING
+        ) && confirmationHints.any { normalized.contains(it) }
+    }
+
+    private fun maxStepsFor(commandIntent: CommandIntent, loopCapable: Boolean): Int {
+        if (!loopCapable) return 1
+        return when (commandIntent.intentType) {
+            IntentType.COMMUNICATION,
+            IntentType.CONTENT_CREATION -> 5
+
+            IntentType.OPEN_APP,
+            IntentType.NAVIGATION,
+            IntentType.INTERACTION,
+            IntentType.TEXT_ENTRY,
+            IntentType.READ_NOTIFICATIONS,
+            IntentType.SENSITIVE,
+            IntentType.CONTROL -> 4
+
+            else -> 6
+        }
+    }
+
+    private fun buildCompletionHints(commandIntent: CommandIntent, normalized: String): List<String> {
+        val baseHints = when (commandIntent.intentType) {
+            IntentType.OPEN_APP -> listOf("opened", "launched", "ready")
+            IntentType.NAVIGATION -> listOf("home", "back", "recents", "notifications")
+            IntentType.INTERACTION -> listOf("selected", "tapped", "opened")
+            IntentType.TEXT_ENTRY -> listOf("typed", "entered", "filled")
+            IntentType.READ_NOTIFICATIONS -> listOf("notification", "message", "alert")
+            IntentType.COMMUNICATION -> listOf("draft", "prepared", "reply", "message ready")
+            IntentType.CONTENT_CREATION -> listOf("draft", "prepared", "export", "share")
+            IntentType.MEDIA_CONTROL -> listOf("playing", "paused", "started", "ready")
+            IntentType.SHOPPING -> listOf("cart", "compare", "product", "ready")
+            IntentType.CAB_BOOKING,
+            IntentType.FOOD_ORDER,
+            IntentType.GROCERY_BOOKING -> listOf("options", "ready", "compare")
+            IntentType.SENSITIVE -> listOf("screen", "settings", "permission")
+            IntentType.CONTROL -> listOf("done", "ready", "complete")
+            else -> emptyList()
+        }
+
+        val keywordHints = buildList {
+            if (normalized.contains("search")) add("search")
+            if (normalized.contains("compare")) add("compare")
+            if (normalized.contains("draft")) add("draft")
+            if (normalized.contains("prepare")) add("prepared")
+            if (normalized.contains("screen")) add("screen")
+        }
+
+        return (baseHints + keywordHints).distinct()
     }
 
     private fun evaluateRouteDecision(

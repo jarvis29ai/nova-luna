@@ -2,7 +2,7 @@
 
 ## Progress Snapshot
 
-- Current app readiness: green for the audited scope on 2026-06-07, including the Phase 6 universal memory/session brain layer and the Phase 5 optional online AI helper layer
+- Current app readiness: green for the audited scope on 2026-06-07, including the Phase 7 safe agent loop, the Phase 6 universal memory/session brain layer, and the Phase 5 optional online AI helper layer
 - `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, and `:app:assembleDebug` all passed in this audit pass
 - `docs/NOVA_LUNA_FULL_PROJECT_MODEL_FLOW_AUDIT_REPORT.md` records the current full-model verification
 
@@ -75,6 +75,16 @@
 - Confirmed online-helper requests now replay safely through the helper path, while stale confirmations are rejected instead of being reused against a different request.
 - New regression tests cover redaction, session state, confirmation resolution, follow-up resolution, router memory routing, command replay, and diagnostics memory surfaces.
 - Validation for this phase passed with `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, and `:app:assembleDebug`.
+
+## Phase 7 Update (Safe Agent Loop)
+
+- A deterministic `AgentLoop` / `TaskLoopCoordinator` now coordinates safe multi-step work with the sequence `READ -> DECIDE -> SAFETY CHECK -> EXECUTE -> VERIFY -> RECOVER / CONTINUE / ASK USER -> REPEAT UNTIL COMPLETE`.
+- The loop is bounded by retry limits, maximum step counts, elapsed time limits, and repeated-screen stuck detection so it can stop safely instead of spinning forever.
+- Recovery policies now route sensitive screens, missing accessibility data, and repeated verification failures to manual handoff, user prompts, or safe retry decisions.
+- Completion detection now uses the command result, loop plan hints, and screen verification results so the loop can stop when the task is actually done.
+- `BrainService`, `CommandBrain`, `ActionExecutor`, `BrainDiagnostics`, and `BrainRuntimeStatus` now carry loop metadata for candidate detection, start/stop state, retry counts, stop reasons, and verification messages.
+- New regression tests cover loop planning, recovery decisions, completion detection, stuck detection, and command-brain loop metadata.
+- Validation for this phase passed with `:app:compileDebugKotlin` and the targeted loop-related test runs listed below.
 
 ## Verified Test Command
 

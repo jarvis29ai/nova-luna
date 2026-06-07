@@ -1,5 +1,6 @@
 package com.nova.luna.brain
 
+import com.nova.luna.agent.AgentLoopStopReason
 import com.nova.luna.model.BrainAction
 import com.nova.luna.model.BrainModelRole
 import com.nova.luna.model.BrainRouteDecision
@@ -43,7 +44,15 @@ data class BrainDiagnostics(
     val recoveryState: RecoveryState? = null,
     val memorySessionCount: Int = 0,
     val memoryPendingConfirmationCount: Int = 0,
-    val preferences: LocalUserPreferences? = null
+    val preferences: LocalUserPreferences? = null,
+    val agentLoopCandidate: Boolean = false,
+    val agentLoopStarted: Boolean = false,
+    val agentLoopId: String? = null,
+    val agentLoopStepCount: Int = 0,
+    val agentLoopStopReason: AgentLoopStopReason? = null,
+    val agentLoopRecoveryUsed: Boolean = false,
+    val agentLoopAskedUser: Boolean = false,
+    val agentLoopVerificationMessage: String? = null
 )
 
 interface BrainProviderDiagnostics {
