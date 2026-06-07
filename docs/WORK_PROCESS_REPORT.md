@@ -2,7 +2,7 @@
 
 ## Progress Snapshot
 
-- Current app readiness: green for the audited scope on 2026-06-07
+- Current app readiness: green for the audited scope on 2026-06-07, including the Phase 5 optional online AI helper layer
 - `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, and `:app:assembleDebug` all passed in this audit pass
 - `docs/NOVA_LUNA_FULL_PROJECT_MODEL_FLOW_AUDIT_REPORT.md` records the current full-model verification
 
@@ -56,6 +56,17 @@
 - `BrainService` now records local model readiness, prompt build status, JSON parse success, and model latency in diagnostics so the local path is visible instead of hidden.
 - `LocalMockBrainProvider` remains the guaranteed fallback, which keeps the app usable offline when a configured model is missing, disabled, or unsafe.
 - `PhoneGemmaRuntime` now delegates through the shared phone-local runtime bridge rather than acting as a separate parallel path.
+
+## Phase 5 Update (Optional Online AI Helper)
+
+- An optional online AI helper layer is now wired through `BrainService`, `BrainRouter`, and `CommandBrain` for consent-gated research and drafting requests.
+- Supported online helper providers are abstracted so ChatGPT, Gemini, and Claude-style integrations can be added later without changing the command pipeline.
+- Online helper output stays read-only or draft-only, privacy-filtered, and never controls the phone directly.
+- Offline-first remains the default because the helper is disabled by config unless explicitly enabled.
+- Pending online requests now wait for explicit user consent before replaying through the helper path.
+- Phase 1 through Phase 4 routing stays intact after regression testing, including cab, grocery, navigation, content, and local LLM fallback flows.
+- New tests cover the helper policy, privacy filter, prompt builder, provider factory, helper fallback behavior, router selection, and consent replay.
+- Validation for this phase passed with `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, and `:app:assembleDebug`.
 
 ## Verified Test Command
 

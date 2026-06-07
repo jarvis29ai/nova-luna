@@ -7,5 +7,6 @@ data class BrainRequest(
     val activeCabSession: Boolean = false,
     val activeGrocerySession: Boolean = false,
     val activeFoodSession: Boolean = false,
-    val screenState: ScreenState? = null
+    val screenState: ScreenState? = null,
+    val onlineConsentGiven: Boolean = false
 )

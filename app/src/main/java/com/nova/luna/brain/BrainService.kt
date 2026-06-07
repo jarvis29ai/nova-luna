@@ -20,9 +20,22 @@ class BrainService(
     private val runtimeConfig: BrainRuntimeConfig = BrainRuntimeConfig.fromBuildConfig(),
     private val internetPermissionPolicy: InternetPermissionPolicy = InternetPermissionPolicy(),
     private val internetAvailable: Boolean = false,
+    private val onlineAiConfig: OnlineAiConfig = OnlineAiConfig.fromBuildConfig(),
+    private val onlineAiProvider: OnlineAiProvider = OnlineAiProviderFactory.create(onlineAiConfig),
+    private val onlineAiPolicy: OnlineAiPolicy = OnlineAiPolicy(),
+    private val onlineAiHelper: PhoneBrainModel = OnlineAiHelper(
+        config = onlineAiConfig,
+        provider = onlineAiProvider,
+        networkStatusProvider = StaticNetworkStatusProvider(internetAvailable),
+        policy = onlineAiPolicy
+    ),
     private val phoneBrainProvider: PhoneBrainProvider = UnavailablePhoneBrainProvider(),
     private val ollamaClient: OllamaClient = HttpOllamaClient(),
-    private val brainRouter: BrainRouter = BrainRouter(),
+    private val brainRouter: BrainRouter = BrainRouter(
+        onlineAiConfig = onlineAiConfig,
+        internetAvailable = internetAvailable,
+        onlineAiPolicy = onlineAiPolicy
+    ),
     private val gemmaRuntime: PhoneGemmaRuntime = PhoneGemmaRuntime(),
     private val gemmaBrainModel: PhoneBrainModel = GemmaBrainModel(gemmaRuntime),
     private val actionJsonModel: PhoneBrainModel = ActionJsonModel(),
@@ -44,13 +57,15 @@ class BrainService(
         rawText: String,
         activeCabSession: Boolean = false,
         activeGrocerySession: Boolean = false,
-        activeFoodSession: Boolean = false
+        activeFoodSession: Boolean = false,
+        onlineConsentGiven: Boolean = false
     ): BrainAction {
         val request = BrainRequest(
             rawText = rawText,
             activeCabSession = activeCabSession,
             activeGrocerySession = activeGrocerySession,
-            activeFoodSession = activeFoodSession
+            activeFoodSession = activeFoodSession,
+            onlineConsentGiven = onlineConsentGiven
         )
 
         val policyDecision = internetPermissionPolicy.classify(rawText)
@@ -89,6 +104,36 @@ class BrainService(
             return primaryAttempt.parsedAction!!
         }
 
+        if (routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER) {
+            val fallbackRouteDecision = brainRouter.route(request, allowOnlineHelper = false)
+            val fallbackRoutedRequest = request.withScreenStateIfNeeded(fallbackRouteDecision)
+            val fallbackRouteAttempt = evaluateRouteDecision(fallbackRouteDecision, fallbackRoutedRequest)
+
+            if (isAccepted(fallbackRouteAttempt.parsedAction)) {
+                return fallbackRouteAttempt.parsedAction!!
+            }
+
+            if (fallbackRouteDecision.selectedRole == BrainModelRole.GEMMA_REASONING) {
+                return localModelFallbackAction(
+                    rawText = rawText,
+                    routeDecision = fallbackRouteDecision,
+                    reason = fallbackRouteAttempt.reason ?: gemmaRuntime.localReadinessStatus().reason
+                )
+            }
+
+            val fallbackAttempt = if (fallbackRouteDecision.selectedRole == BrainModelRole.MOCK_FALLBACK) {
+                null
+            } else {
+                evaluateProvider(fallbackProvider, request)
+            }
+
+            if (isAccepted(fallbackAttempt?.parsedAction)) {
+                return fallbackAttempt!!.parsedAction!!
+            }
+
+            return fallback(rawText)
+        }
+
         if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING) {
             return localModelFallbackAction(
                 rawText = rawText,
@@ -114,13 +159,15 @@ class BrainService(
         rawText: String,
         activeCabSession: Boolean = false,
         activeGrocerySession: Boolean = false,
-        activeFoodSession: Boolean = false
+        activeFoodSession: Boolean = false,
+        onlineConsentGiven: Boolean = false
     ): BrainDiagnostics {
         val request = BrainRequest(
             rawText = rawText,
             activeCabSession = activeCabSession,
             activeGrocerySession = activeGrocerySession,
-            activeFoodSession = activeFoodSession
+            activeFoodSession = activeFoodSession,
+            onlineConsentGiven = onlineConsentGiven
         )
 
         val policyDecision = internetPermissionPolicy.classify(rawText)
@@ -129,6 +176,15 @@ class BrainService(
         when (policyDecision.category) {
             InternetPermissionCategory.BLOCKED_SENSITIVE -> {
                 val action = blockedHumanOnlyAction(rawText, policyDecision.reason)
+                val onlineTrace = OnlineAiTrace.blocked(
+                    providerType = onlineAiProvider.providerType,
+                    providerName = onlineAiProvider.diagnostics().ifBlank {
+                        onlineAiProvider.providerType.wireValue
+                    },
+                    decision = OnlineAiPolicyDecision.DENY_SENSITIVE,
+                    reason = policyDecision.reason,
+                    networkAvailable = internetAvailable
+                )
                 return BrainDiagnostics(
                     userInput = rawText,
                     activeCabSession = activeCabSession,
@@ -144,14 +200,24 @@ class BrainService(
                     finalProvider = runtimeState.selectedProvider,
                     finalBrainAction = action,
                     finalSafetyDecision = safetyGate.evaluate(action, userConfirmed = false),
-                    runtimeStatus = runtimeState,
-                    internetPermissionDecision = policyDecision
+                    runtimeStatus = runtimeState.copy(onlineTrace = onlineTrace),
+                    internetPermissionDecision = policyDecision,
+                    onlineTrace = onlineTrace
                 )
             }
 
             InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO -> {
                 if (!internetAvailable) {
                     val action = offlineInfoAction(rawText, policyDecision.reason)
+                    val onlineTrace = OnlineAiTrace.blocked(
+                        providerType = onlineAiProvider.providerType,
+                        providerName = onlineAiProvider.diagnostics().ifBlank {
+                            onlineAiProvider.providerType.wireValue
+                        },
+                        decision = OnlineAiPolicyDecision.DENY_NO_INTERNET,
+                        reason = "Online helper needs internet and none is currently available.",
+                        networkAvailable = false
+                    )
                     return BrainDiagnostics(
                         userInput = rawText,
                         activeCabSession = activeCabSession,
@@ -168,9 +234,11 @@ class BrainService(
                         finalBrainAction = action,
                         finalSafetyDecision = safetyGate.evaluate(action, userConfirmed = false),
                         runtimeStatus = runtimeState.copy(
-                            reason = runtimeReason(policyDecision, fallbackUsed = false, routeDecision = null, finalProvider = runtimeState.selectedProvider)
+                            reason = runtimeReason(policyDecision, fallbackUsed = false, routeDecision = null, finalProvider = runtimeState.selectedProvider),
+                            onlineTrace = onlineTrace
                         ),
-                        internetPermissionDecision = policyDecision
+                        internetPermissionDecision = policyDecision,
+                        onlineTrace = onlineTrace
                     )
                 }
             }
@@ -225,55 +293,91 @@ class BrainService(
         val routedRequest = request.withScreenStateIfNeeded(routeDecision)
         val primaryAttempt = evaluateRouteDecision(routeDecision, routedRequest)
         val primaryAccepted = isAccepted(primaryAttempt.parsedAction)
-        val fallbackAttempt = if (primaryAccepted || routeDecision.selectedRole == BrainModelRole.MOCK_FALLBACK) {
-            null
+
+        val localFallbackDecision = if (routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER && !primaryAccepted) {
+            brainRouter.route(request, allowOnlineHelper = false)
         } else {
-            evaluateProvider(fallbackProvider, request)
+            null
         }
-        val fallbackAccepted = isAccepted(fallbackAttempt?.parsedAction)
-        val localFallbackAction = if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING && !primaryAccepted) {
-            localModelFallbackAction(
-                rawText = rawText,
+        val localFallbackAttempt = localFallbackDecision?.let { fallbackDecision ->
+            val fallbackRequest = request.withScreenStateIfNeeded(fallbackDecision)
+            evaluateRouteDecision(fallbackDecision, fallbackRequest)
+        }
+        val localFallbackAccepted = isAccepted(localFallbackAttempt?.parsedAction)
+        val gemmaReadiness = gemmaRuntime.readinessStatus(
+            selectedBrainRole = routeDecision.selectedRole,
+            fallbackActive = !primaryAccepted
+        )
+        val onlineTrace = primaryAttempt.onlineTrace
+            ?: localFallbackAttempt?.onlineTrace
+            ?: skippedOnlineTrace(
                 routeDecision = routeDecision,
-                reason = primaryAttempt.reason ?: gemmaRuntime.localReadinessStatus().reason
+                request = request,
+                policyDecision = policyDecision
             )
-        } else {
-            null
-        }
 
         val finalAction = when {
             primaryAccepted -> primaryAttempt.parsedAction!!
-            localFallbackAction != null -> localFallbackAction
-            fallbackAccepted && fallbackAttempt != null -> fallbackAttempt.parsedAction!!
+            localFallbackAccepted -> localFallbackAttempt!!.parsedAction!!
+            routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER &&
+                localFallbackDecision?.selectedRole == BrainModelRole.GEMMA_REASONING &&
+                localFallbackAttempt != null ->
+                localModelFallbackAction(
+                    rawText = rawText,
+                    routeDecision = localFallbackDecision,
+                    reason = localFallbackAttempt.reason ?: gemmaReadiness.reason
+                )
+
+            routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING ->
+                localModelFallbackAction(
+                    rawText = rawText,
+                    routeDecision = routeDecision,
+                    reason = primaryAttempt.reason ?: gemmaReadiness.reason
+                )
+
             else -> fallback(rawText)
         }
 
         val finalProvider = when {
             primaryAccepted -> primaryAttempt.providerName
-            localFallbackAction != null -> fallbackAttempt?.providerName ?: providerName(fallbackProvider)
-            fallbackAccepted && fallbackAttempt != null -> fallbackAttempt.providerName
-            else -> fallbackAttempt?.providerName
-                ?: providerName(fallbackProvider)
+            localFallbackAccepted -> localFallbackAttempt!!.providerName
+            routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER &&
+                localFallbackAttempt != null -> localFallbackAttempt.providerName
+            routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING ->
+                if (primaryAccepted) {
+                    primaryAttempt.providerName
+                } else {
+                    providerName(fallbackProvider)
+                }
+            else -> providerName(fallbackProvider)
         }
         val fallbackUsed = !primaryAccepted && routeDecision.selectedRole != BrainModelRole.MOCK_FALLBACK
-        val gemmaReadiness = gemmaRuntime.readinessStatus(
-            selectedBrainRole = routeDecision.selectedRole,
-            fallbackActive = fallbackUsed
-        )
-        val gemmaStatusApplies = routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING
+        val gemmaStatusApplies = routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING ||
+            (routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER &&
+                localFallbackDecision?.selectedRole == BrainModelRole.GEMMA_REASONING)
+        val localModelSource = when {
+            routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER &&
+                localFallbackDecision?.selectedRole == BrainModelRole.GEMMA_REASONING ->
+                localFallbackAttempt
+
+            routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING ->
+                primaryAttempt
+
+            else -> null
+        }
         val status = runtimeState.copy(
             selectedBrainRole = routeDecision.selectedRole,
             modelPathConfigured = if (gemmaStatusApplies) gemmaReadiness.modelPathConfigured else false,
             modelFileExists = if (gemmaStatusApplies) gemmaReadiness.modelFileExists else false,
             runtimeAvailable = if (gemmaStatusApplies) gemmaReadiness.runtimeAvailable else false,
             modelLoaded = if (gemmaStatusApplies) gemmaReadiness.modelLoaded else false,
-            selectedLocalModelId = if (gemmaStatusApplies) primaryAttempt.localModelId ?: runtimeState.selectedLocalModelId else runtimeState.selectedLocalModelId,
-            selectedLocalModelDisplayName = if (gemmaStatusApplies) primaryAttempt.localModelDisplayName ?: runtimeState.selectedLocalModelDisplayName else runtimeState.selectedLocalModelDisplayName,
-            selectedLocalModelStatus = if (gemmaStatusApplies) primaryAttempt.localModelStatus ?: runtimeState.selectedLocalModelStatus else runtimeState.selectedLocalModelStatus,
+            selectedLocalModelId = if (gemmaStatusApplies) localModelSource?.localModelId ?: runtimeState.selectedLocalModelId else runtimeState.selectedLocalModelId,
+            selectedLocalModelDisplayName = if (gemmaStatusApplies) localModelSource?.localModelDisplayName ?: runtimeState.selectedLocalModelDisplayName else runtimeState.selectedLocalModelDisplayName,
+            selectedLocalModelStatus = if (gemmaStatusApplies) localModelSource?.localModelStatus ?: runtimeState.selectedLocalModelStatus else runtimeState.selectedLocalModelStatus,
             selectedLocalModelAssetMissing = if (gemmaStatusApplies) !gemmaReadiness.modelFileExists else runtimeState.selectedLocalModelAssetMissing,
-            promptBuilt = if (gemmaStatusApplies) primaryAttempt.promptBuilt else runtimeState.promptBuilt,
-            jsonParseSucceeded = if (gemmaStatusApplies) primaryAttempt.jsonParsed else runtimeState.jsonParseSucceeded,
-            modelLatencyMillis = if (gemmaStatusApplies) primaryAttempt.latencyMillis else runtimeState.modelLatencyMillis,
+            promptBuilt = if (gemmaStatusApplies) localModelSource?.promptBuilt == true else runtimeState.promptBuilt,
+            jsonParseSucceeded = if (gemmaStatusApplies) localModelSource?.jsonParsed == true else runtimeState.jsonParseSucceeded,
+            modelLatencyMillis = if (gemmaStatusApplies) localModelSource?.latencyMillis ?: runtimeState.modelLatencyMillis else runtimeState.modelLatencyMillis,
             fallbackActive = fallbackUsed || runtimeState.fallbackActive,
             reason = runtimeReason(
                 policyDecision = policyDecision,
@@ -281,11 +385,24 @@ class BrainService(
                 routeDecision = routeDecision,
                 finalProvider = finalProvider,
                 modelReason = when {
-                    gemmaStatusApplies && !primaryAttempt.available -> primaryAttempt.reason ?: gemmaReadiness.reason
-                    gemmaStatusApplies && !primaryAccepted -> "Gemma candidate was rejected by BrainActionValidator."
+                    routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER && !primaryAttempt.available ->
+                        primaryAttempt.reason ?: onlineTrace.reason
+
+                    routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER &&
+                        localFallbackDecision?.selectedRole == BrainModelRole.GEMMA_REASONING &&
+                        localFallbackAttempt != null ->
+                        localFallbackAttempt.reason ?: gemmaReadiness.reason
+
+                    gemmaStatusApplies && !primaryAttempt.available ->
+                        primaryAttempt.reason ?: gemmaReadiness.reason
+
+                    gemmaStatusApplies && !primaryAccepted ->
+                        "Gemma candidate was rejected by BrainActionValidator."
+
                     else -> primaryAttempt.reason
                 }
-            )
+            ),
+            onlineTrace = onlineTrace
         )
 
         return BrainDiagnostics(
@@ -304,7 +421,8 @@ class BrainService(
             finalBrainAction = finalAction,
             finalSafetyDecision = safetyGate.evaluate(finalAction, userConfirmed = false),
             runtimeStatus = status,
-            internetPermissionDecision = policyDecision
+            internetPermissionDecision = policyDecision,
+            onlineTrace = onlineTrace
         )
     }
 
@@ -329,6 +447,7 @@ class BrainService(
         request: BrainRequest
     ): BrainAttempt {
         return when (routeDecision.selectedRole) {
+            BrainModelRole.ONLINE_AI_HELPER -> evaluateModel(onlineAiHelper, request, routeDecision)
             BrainModelRole.GEMMA_REASONING -> evaluateModel(gemmaBrainModel, request, routeDecision)
             BrainModelRole.ACTION_JSON -> evaluateModel(actionJsonModel, request, routeDecision)
             BrainModelRole.LITE_COMMAND -> evaluateModel(liteCommandModel, request, routeDecision)
@@ -362,7 +481,8 @@ class BrainService(
             localModelStatus = result.localModelStatus?.wireValue,
             promptBuilt = result.promptBuilt,
             jsonParsed = result.jsonParsed,
-            latencyMillis = result.latencyMillis
+            latencyMillis = result.latencyMillis,
+            onlineTrace = result.onlineTrace
         )
     }
 
@@ -403,6 +523,36 @@ class BrainService(
     private fun modelName(model: PhoneBrainModel): String {
         return model::class.java.simpleName.takeIf { it.isNotBlank() }
             ?: model::class.qualifiedName.orEmpty()
+    }
+
+    private fun skippedOnlineTrace(
+        routeDecision: BrainRouteDecision,
+        request: BrainRequest,
+        policyDecision: InternetPermissionDecision
+    ): OnlineAiTrace {
+        val providerType = onlineAiProvider.providerType
+        val providerName = onlineAiProvider.diagnostics().ifBlank {
+            onlineAiProvider.providerType.wireValue
+        }
+        return OnlineAiTrace.skipped(
+            providerType = providerType,
+            providerName = providerName,
+            reason = when {
+                routeDecision.selectedRole == BrainModelRole.MOCK_FALLBACK ->
+                    "Online helper was not needed because the request stayed on the fallback path."
+
+                policyDecision.category == InternetPermissionCategory.BLOCKED_SENSITIVE ->
+                    "Online helper was skipped because the request is sensitive and must stay local."
+
+                policyDecision.category == InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO && !internetAvailable ->
+                    "Online helper was skipped because internet is unavailable."
+
+                else ->
+                    "Online helper was skipped because a local model handled the request instead."
+            },
+            networkAvailable = internetAvailable,
+            userConsentGiven = request.onlineConsentGiven
+        )
     }
 
     private fun runtimeBaseStatus(policyDecision: InternetPermissionDecision): BrainRuntimeStatus {
@@ -567,6 +717,7 @@ class BrainService(
         val localModelStatus: String? = null,
         val promptBuilt: Boolean = false,
         val jsonParsed: Boolean = false,
-        val latencyMillis: Long? = null
+        val latencyMillis: Long? = null,
+        val onlineTrace: OnlineAiTrace? = null
     )
 }

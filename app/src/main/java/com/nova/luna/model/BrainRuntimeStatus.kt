@@ -19,5 +19,6 @@ data class BrainRuntimeStatus(
     val selectedLocalModelAssetMissing: Boolean = false,
     val promptBuilt: Boolean = false,
     val jsonParseSucceeded: Boolean = false,
-    val modelLatencyMillis: Long? = null
+    val modelLatencyMillis: Long? = null,
+    val onlineTrace: com.nova.luna.brain.OnlineAiTrace? = null
 )

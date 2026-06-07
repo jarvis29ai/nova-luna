@@ -15,7 +15,8 @@ data class BrainModelResult(
     val localModelStatus: PhoneLocalLlmStatus? = null,
     val promptBuilt: Boolean = false,
     val jsonParsed: Boolean = false,
-    val latencyMillis: Long? = null
+    val latencyMillis: Long? = null,
+    val onlineTrace: OnlineAiTrace? = null
 ) {
     val hasCandidate: Boolean
         get() = available && candidateAction != null
@@ -32,7 +33,8 @@ data class BrainModelResult(
             promptBuilt: Boolean = false,
             jsonParsed: Boolean = false,
             latencyMillis: Long? = null,
-            rawResponse: String? = null
+            rawResponse: String? = null,
+            onlineTrace: OnlineAiTrace? = null
         ): BrainModelResult {
             return BrainModelResult(
                 role = role,
@@ -46,7 +48,8 @@ data class BrainModelResult(
                 localModelStatus = localModelStatus,
                 promptBuilt = promptBuilt,
                 jsonParsed = jsonParsed,
-                latencyMillis = latencyMillis
+                latencyMillis = latencyMillis,
+                onlineTrace = onlineTrace
             )
         }
 
@@ -61,7 +64,8 @@ data class BrainModelResult(
             localModelStatus: PhoneLocalLlmStatus? = null,
             promptBuilt: Boolean = false,
             jsonParsed: Boolean = false,
-            latencyMillis: Long? = null
+            latencyMillis: Long? = null,
+            onlineTrace: OnlineAiTrace? = null
         ): BrainModelResult {
             return BrainModelResult(
                 role = role,
@@ -75,7 +79,8 @@ data class BrainModelResult(
                 localModelStatus = localModelStatus,
                 promptBuilt = promptBuilt,
                 jsonParsed = jsonParsed,
-                latencyMillis = latencyMillis
+                latencyMillis = latencyMillis,
+                onlineTrace = onlineTrace
             )
         }
     }

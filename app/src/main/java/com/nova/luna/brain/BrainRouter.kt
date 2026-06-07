@@ -10,13 +10,16 @@ import com.nova.luna.content.ContentCreationIntentParser
 import com.nova.luna.util.AssistantTextNormalizer
 
 class BrainRouter(
-    private val internetPermissionPolicy: InternetPermissionPolicy = InternetPermissionPolicy()
+    private val internetPermissionPolicy: InternetPermissionPolicy = InternetPermissionPolicy(),
+    private val onlineAiConfig: OnlineAiConfig = OnlineAiConfig.fromBuildConfig(),
+    private val internetAvailable: Boolean = false,
+    private val onlineAiPolicy: OnlineAiPolicy = OnlineAiPolicy(internetPermissionPolicy = internetPermissionPolicy)
 ) {
     private val foodIntentParser = FoodIntentParser()
     private val groceryIntentParser = GroceryIntentParser()
     private val contentCreationIntentParser = ContentCreationIntentParser()
 
-    fun route(request: BrainRequest): BrainRouteDecision {
+    fun route(request: BrainRequest, allowOnlineHelper: Boolean = true): BrainRouteDecision {
         val normalized = normalize(request.rawText)
         if (normalized.isBlank() && !containsNonLatinScript(request.rawText)) {
             return decision(
@@ -151,6 +154,40 @@ class BrainRouter(
                     "Any action it suggests must still pass BrainActionValidator."
                 )
             )
+        }
+
+        val onlineCandidate = onlineAiPolicy.isPotentialCandidate(request)
+        if (onlineCandidate) {
+            val internetDecision = internetPermissionPolicy.classify(request.rawText)
+            val onlineAvailable = allowOnlineHelper &&
+                onlineAiConfig.enabled &&
+                onlineAiConfig.providerType != OnlineAiProviderType.UNAVAILABLE &&
+                internetAvailable
+
+            return if (onlineAvailable) {
+                decision(
+                    role = BrainModelRole.ONLINE_AI_HELPER,
+                    reason = "This request is better handled by the optional online research/content helper.",
+                    requiresInternet = true,
+                    safetyNotes = listOf(
+                        "Online helper may only return drafts, summaries, or safe suggestions.",
+                        "It must never control the phone directly.",
+                        "BrainActionValidator, SafetyGate, and the local router still remain final authorities."
+                    )
+                )
+            } else {
+                decision(
+                    role = BrainModelRole.GEMMA_REASONING,
+                    reason = "This request is suited to online help, but it will stay on the local reasoning model because online help is disabled or unavailable.",
+                    requiresInternet = internetDecision.category == InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO ||
+                        internetDecision.category == InternetPermissionCategory.INTERNET_OPTIONAL,
+                    safetyNotes = listOf(
+                        "Optional online helper is unavailable, so the local reasoning model takes over.",
+                        "Any action it suggests must still pass BrainActionValidator.",
+                        "SafetyGate must still control any sensitive step."
+                    )
+                )
+            }
         }
 
         return decision(

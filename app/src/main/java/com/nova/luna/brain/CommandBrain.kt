@@ -22,6 +22,7 @@ class CommandBrain(
     private val safetyGate = SafetyGate()
     private val brainActionValidator = BrainActionValidator()
     private val router = CommandRouter(ActionExecutor(context.applicationContext))
+    private var pendingOnlineAiConsentRequest: OnlineAiConsentRequest? = null
 
     fun process(rawText: String): CommandResult {
         val parsed = parser.parse(rawText)
@@ -47,6 +48,41 @@ class CommandBrain(
             }
 
             return router.route(parsed).copy(safetyDecision = decision)
+        }
+
+        val pendingConsentRequest = pendingOnlineAiConsentRequest
+        if (pendingConsentRequest != null) {
+            when {
+                isAffirmativeResponse(parsed.normalizedText) -> {
+                    pendingOnlineAiConsentRequest = null
+                    val brainAction = brainService.process(
+                        rawText = pendingConsentRequest.rawText,
+                        activeCabSession = pendingConsentRequest.activeCabSession,
+                        activeGrocerySession = pendingConsentRequest.activeGrocerySession,
+                        activeFoodSession = pendingConsentRequest.activeFoodSession,
+                        onlineConsentGiven = true
+                    )
+
+                    handleBrainServiceAction(brainAction)?.let { return it }
+
+                    return CommandResult.failure(
+                        message = "I could not continue the online request yet.",
+                        intentType = parsed.intentType,
+                        actionType = parsed.actionType,
+                        entities = parsed.entities
+                    )
+                }
+
+                isNegativeResponse(parsed.normalizedText) -> {
+                    pendingOnlineAiConsentRequest = null
+                    return CommandResult.success(
+                        message = "Okay, I will keep it local.",
+                        intentType = parsed.intentType,
+                        actionType = parsed.actionType,
+                        entities = parsed.entities
+                    )
+                }
+            }
         }
 
         if (router.hasActiveGroceryBookingSession()) {
@@ -267,7 +303,8 @@ class CommandBrain(
         if (parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
             return isPlanningHeuristicCommand(parsed.normalizedText) ||
                 isConversationHeuristicCommand(parsed.normalizedText) ||
-                isFlexibleReasoningHeuristic(rawText, parsed.normalizedText)
+                isFlexibleReasoningHeuristic(rawText, parsed.normalizedText) ||
+                isOnlineHelperHeuristic(rawText)
         }
 
         return when {
@@ -439,6 +476,39 @@ class CommandBrain(
         return rawText.any { character -> character.code > 127 }
     }
 
+    private fun isOnlineHelperHeuristic(rawText: String): Boolean {
+        return OnlineAiPolicy().isPotentialCandidate(BrainRequest(rawText))
+    }
+
+    private fun isAffirmativeResponse(normalizedText: String): Boolean {
+        return normalizedText in setOf(
+            "yes",
+            "yeah",
+            "yep",
+            "sure",
+            "ok",
+            "okay",
+            "proceed",
+            "yes please",
+            "sure please",
+            "please do it"
+        )
+    }
+
+    private fun isNegativeResponse(normalizedText: String): Boolean {
+        return normalizedText in setOf(
+            "no",
+            "nope",
+            "not now",
+            "not yet",
+            "cancel"
+        )
+    }
+
+    private fun String?.toBooleanFlag(): Boolean {
+        return this?.equals("true", ignoreCase = true) == true
+    }
+
     private fun handleBrainServiceAction(brainAction: BrainAction): CommandResult? {
         if (!brainActionValidator.isAcceptable(brainAction)) {
             return null
@@ -462,7 +532,16 @@ class CommandBrain(
                     intentType = resultIntentType,
                     actionType = resultActionType,
                     entities = brainAction.params
-                )
+                ).also {
+                    if (brainAction.intent == "online_ai_permission") {
+                        pendingOnlineAiConsentRequest = OnlineAiConsentRequest(
+                            rawText = brainAction.params["rawText"].orEmpty(),
+                            activeCabSession = brainAction.params["activeCabSession"].toBooleanFlag(),
+                            activeGrocerySession = brainAction.params["activeGrocerySession"].toBooleanFlag(),
+                            activeFoodSession = brainAction.params["activeFoodSession"].toBooleanFlag()
+                        )
+                    }
+                }
 
                 else -> CommandResult.blocked(
                     message = safetyDecision.message,
@@ -503,6 +582,13 @@ class CommandBrain(
             )
         }
     }
+
+    private data class OnlineAiConsentRequest(
+        val rawText: String,
+        val activeCabSession: Boolean,
+        val activeGrocerySession: Boolean,
+        val activeFoodSession: Boolean
+    )
 
     private fun resultIntentType(brainAction: BrainAction): IntentType {
         val mapped = brainAction.toCommandIntent()

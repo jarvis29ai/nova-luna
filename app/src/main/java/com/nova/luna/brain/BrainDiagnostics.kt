@@ -31,7 +31,8 @@ data class BrainDiagnostics(
     val finalBrainAction: BrainAction,
     val finalSafetyDecision: SafetyDecision,
     val runtimeStatus: BrainRuntimeStatus? = null,
-    val internetPermissionDecision: InternetPermissionDecision? = null
+    val internetPermissionDecision: InternetPermissionDecision? = null,
+    val onlineTrace: OnlineAiTrace? = null
 )
 
 interface BrainProviderDiagnostics {

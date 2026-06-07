@@ -5,6 +5,7 @@ enum class BrainModelRole(val wireValue: String) {
     ACTION_JSON("action_json"),
     LITE_COMMAND("lite_command"),
     SCREEN_UNDERSTANDING("screen_understanding"),
+    ONLINE_AI_HELPER("online_ai_helper"),
     MOCK_FALLBACK("mock_fallback");
 
     companion object {
