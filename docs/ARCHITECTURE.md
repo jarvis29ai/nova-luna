@@ -17,7 +17,8 @@ The default architecture should stay offline-first, with zero backend cost unles
 - `PhoneGemmaRuntime` is the production phone reasoning scaffold for Gemma, and `GemmaBrainModel` delegates to it when runtime readiness passes
 - `ActionJsonModel` creates strict safe BrainAction JSON for cab, food, and task planning and stays validator-bound even if Gemma reasoning is supplied later
 - `LiteCommandModel` handles fast offline commands like stop, cancel, go home, and open app
-- `ScreenUnderstandingModel` is reserved for future read-only screen analysis
+- Accessibility-first screen understanding built on `NovaAccessibilityService`, `AccessibilityNodeUtils`, `ScreenStateReader`, `ScreenStateAnalyzer`, `ScreenRecoveryAdvisor`, and `ScreenStateVerifier`
+- `ScreenUnderstandingModel` is a deterministic read-only screen analysis model that summarizes the current UI from local accessibility snapshots and keeps execution gated by `BrainActionValidator`, `SafetyGate`, and `ActionExecutor`
 - No backend, cloud server, or paid API is required for production
 - Local task engine for routing commands and assistant actions
 - Local cab-booking orchestration for pickup/drop collection, current-location resolution, provider launch, provider-specific destination handling, fare comparison, and explicit user-confirmed handoff
@@ -42,6 +43,7 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Keep Ollama-compatible desktop LLMs dev-only and outside the production brain path.
 - Keep the phone-only model roles local-first and keep `LocalMockBrainProvider` as the guaranteed fallback when a phone model is unavailable or rejected.
 - Keep `SafetyGate` as the final authority before any action reaches the executor.
+- Keep screen understanding local, accessibility-based, and read-only; do not replace it with OCR, cloud vision, or another backend dependency by default.
 - Keep phone-only runtime modes explicit so offline-first behavior remains the default and online behavior stays lookup-only.
 - Treat stop and cancel as safe control actions that can end listening cleanly.
 - Do not finalize a cab booking without explicit user confirmation.

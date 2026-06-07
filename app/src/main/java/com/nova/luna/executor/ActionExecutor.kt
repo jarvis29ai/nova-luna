@@ -31,6 +31,9 @@ import com.nova.luna.media.MediaOrchestrator
 import com.nova.luna.shopping.ShoppingOrchestrator
 import com.nova.luna.shopping.ShoppingStatus
 import com.nova.luna.music.*
+import com.nova.luna.screen.ScreenState
+import com.nova.luna.screen.ScreenStateVerifier
+import com.nova.luna.service.NovaAccessibilityService
 
 class ActionExecutor(context: Context) : ActionExecutorGateway {
     private val appLauncher = AppLauncher(context.applicationContext)
@@ -52,6 +55,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     private val musicProviderRegistry = MusicProviderRegistry(context.applicationContext.packageManager)
     private val musicDeepLinkBuilder = MusicDeepLinkBuilder(context.applicationContext)
     private val musicAppLauncher = MusicAppLauncher(context.applicationContext, musicDeepLinkBuilder, musicProviderRegistry)
+    private val screenStateVerifier = ScreenStateVerifier()
     private val musicOrchestrator by lazy {
         MusicOrchestrator(
             context = context.applicationContext,
@@ -104,7 +108,14 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     )
 
     override fun execute(commandIntent: CommandIntent): CommandResult {
-        return when (commandIntent.actionType) {
+        val captureScreenState = shouldVerifyScreen(commandIntent.actionType)
+        val beforeScreenState = if (captureScreenState) {
+            NovaAccessibilityService.instance?.captureScreenState()
+        } else {
+            null
+        }
+
+        val result = when (commandIntent.actionType) {
             ActionType.LAUNCH_APP -> appLauncher.launchApp(commandIntent)
             ActionType.GO_HOME -> navExecutor.goHome(commandIntent)
             ActionType.GO_BACK -> navExecutor.goBack(commandIntent)
@@ -161,6 +172,14 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             )
             ActionType.MEDIA_CONTROL -> handleMediaText(commandIntent.rawText, commandIntent)
         }
+
+        val afterScreenState = if (captureScreenState) {
+            NovaAccessibilityService.instance?.captureScreenState()
+        } else {
+            null
+        }
+
+        return attachScreenVerification(commandIntent, result, beforeScreenState, afterScreenState)
     }
 
     override fun hasActiveCabBookingSession(): Boolean = cabOrchestrator.isActive()
@@ -237,5 +256,44 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     override fun handleMusicText(rawText: String, commandIntent: CommandIntent): CommandResult {
         val result = musicOrchestrator.handleRequest(rawText)
         return result.toCommandResult(commandIntent)
+    }
+
+    private fun shouldVerifyScreen(actionType: ActionType): Boolean {
+        return actionType in setOf(
+            ActionType.LAUNCH_APP,
+            ActionType.GO_HOME,
+            ActionType.GO_BACK,
+            ActionType.OPEN_RECENTS,
+            ActionType.OPEN_NOTIFICATIONS,
+            ActionType.CLICK_TEXT,
+            ActionType.SCROLL_FORWARD,
+            ActionType.SCROLL_BACKWARD,
+            ActionType.TYPE_TEXT,
+            ActionType.OPEN_SETTINGS,
+            ActionType.OPEN_ACCESSIBILITY_SETTINGS,
+            ActionType.OPEN_USAGE_ACCESS_SETTINGS
+        )
+    }
+
+    private fun attachScreenVerification(
+        commandIntent: CommandIntent,
+        result: CommandResult,
+        beforeScreenState: ScreenState?,
+        afterScreenState: ScreenState?
+    ): CommandResult {
+        val verification = screenStateVerifier.verify(
+            before = beforeScreenState,
+            after = afterScreenState,
+            commandIntent = commandIntent,
+            commandResult = result
+        )
+
+        return if (!verification.applicable) {
+            result
+        } else {
+            result.copy(
+                entities = result.entities + verification.toEntityMap()
+            )
+        }
     }
 }

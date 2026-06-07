@@ -344,13 +344,24 @@ class BrainRouter(
             "what do you see",
             "what's on my screen",
             "whats on my screen",
+            "what screen am i on",
+            "what app is open",
+            "which app is open",
+            "what app am i in",
+            "current app",
+            "foreground app",
             "read the screen",
             "analyze the screen",
             "describe the screen",
             "screen text",
             "screen reading",
             "read this page",
-            "look at this screen"
+            "look at this screen",
+            "what buttons are visible",
+            "what fields are visible",
+            "what can i tap",
+            "read the visible buttons",
+            "read the visible fields"
         )
 
         return screenKeywords.any { containsPhrase(normalized, it) }

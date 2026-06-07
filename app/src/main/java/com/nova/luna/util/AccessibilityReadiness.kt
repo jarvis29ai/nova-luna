@@ -6,6 +6,10 @@ object AccessibilityReadiness {
     fun isBound(): Boolean {
         return com.nova.luna.service.NovaAccessibilityService.instance != null
     }
+
+    fun isReady(): Boolean {
+        return isBound()
+    }
     
     fun blockedMessage(): String {
         return "Accessibility service is not ready. Please enable it in settings to proceed."

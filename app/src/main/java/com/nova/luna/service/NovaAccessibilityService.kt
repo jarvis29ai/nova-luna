@@ -6,6 +6,12 @@ import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.nova.luna.model.CommandIntent
+import com.nova.luna.model.CommandResult
+import com.nova.luna.screen.ScreenState
+import com.nova.luna.screen.ScreenStateReader
+import com.nova.luna.screen.ScreenStateVerifier
+import com.nova.luna.screen.ScreenVerificationResult
 import com.nova.luna.util.AccessibilityNodeUtils
 import java.util.ArrayDeque
 
@@ -27,6 +33,8 @@ class NovaAccessibilityService : AccessibilityService() {
     private val recentNotifications = ArrayDeque<String>()
     private val capturedNotifications = mutableListOf<NotificationSnapshot>()
     private val notificationLock = Any()
+    private val screenStateReader = ScreenStateReader()
+    private val screenStateVerifier = ScreenStateVerifier()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -101,6 +109,23 @@ class NovaAccessibilityService : AccessibilityService() {
         return synchronized(notificationLock) {
             recentNotifications.lastOrNull()
         }
+    }
+
+    fun captureScreenState(maxNodes: Int = ScreenStateReader.DEFAULT_MAX_NODES): ScreenState? {
+        return screenStateReader.captureScreenState(this, maxNodes)
+    }
+
+    fun describeActiveScreen(maxNodes: Int = ScreenStateReader.DEFAULT_MAX_NODES): String? {
+        return captureScreenState(maxNodes)?.summarizedState
+    }
+
+    fun verifyScreenTransition(
+        before: ScreenState?,
+        after: ScreenState?,
+        commandIntent: CommandIntent,
+        commandResult: CommandResult
+    ): ScreenVerificationResult {
+        return screenStateVerifier.verify(before, after, commandIntent, commandResult)
     }
 
     fun goHome(): Boolean {

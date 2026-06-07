@@ -2,8 +2,8 @@
 
 ## Progress Snapshot
 
-- Current app readiness: green for the audited scope on 2026-06-06
-- `:app:testDebugUnitTest` and `:app:assembleDebug` both passed in this audit pass
+- Current app readiness: green for the audited scope on 2026-06-07
+- `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, and `:app:assembleDebug` all passed in this audit pass
 - `docs/NOVA_LUNA_FULL_PROJECT_MODEL_FLOW_AUDIT_REPORT.md` records the current full-model verification
 
 ## Current Setup
@@ -44,6 +44,7 @@
 - Debug brain smoke can be triggered in the debug build with `com.nova.luna.debug.ACTION_RUN_BRAIN_SMOKE` and logs the selected provider, raw response, parsed BrainAction, fallback usage, and final safety decision.
 - Debug command smoke can be triggered in the debug build with `com.nova.luna.debug.ACTION_RUN_COMMAND_SMOKE` and records exact command handling for basic, cab, food, grocery, and negative safety phrases. The debug receiver also writes a cached report in app storage so the phone-side results can be reviewed deterministically. The latest sectioned rerun landed as basic PASS, cab BLOCKED_BY_LOCATION_PERMISSION, food BLOCKED_BY_PROVIDER_UI, grocery PASS, and negative PASS.
 - The brain runtime now tracks phone-only capability modes, role-based routing, offline behavior, Gemma phone runtime readiness, and online-assisted lookup-only preparation without adding a backend.
+- The screen understanding brain now uses deterministic accessibility snapshots, local screen-state analysis, and post-action screen verification instead of OCR, cloud vision, or any backend dependency.
 - `flutter_app/` remains untouched and must not be added yet.
 - Usage-access settings remains explicit and safety-aware.
 - Sectioned command smoke reruns are used when a single full pass would otherwise stall on a later section, so each family can be verified independently without changing production behavior. In the latest run, the cab flow reported missing location permission cleanly, the food flow still stopped because supported search/cart controls were not available, and the grocery flow now dismisses the final-confirmation state cleanly on cancel.
@@ -70,6 +71,7 @@
 2. Keep cab current-location handling honest when location permission is missing and continue provider-screen continuation work once permission is granted.
 3. Keep the sectioned smoke docs synchronized with the actual phone results.
 4. Add or improve tests around the most important assistant behaviors as new fixes land.
+5. Extend the screen-understanding recovery prompts only if new accessibility states show up in real device testing.
 
 ## Verification Checklist
 

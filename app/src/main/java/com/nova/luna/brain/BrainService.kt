@@ -8,6 +8,7 @@ import com.nova.luna.model.BrainRouteDecision
 import com.nova.luna.model.BrainRuntimeStatus
 import com.nova.luna.model.InternetPermissionCategory
 import com.nova.luna.model.InternetPermissionDecision
+import com.nova.luna.screen.ScreenStateReader
 import com.nova.luna.safety.SafetyGate
 
 class BrainService(
@@ -26,8 +27,10 @@ class BrainService(
     private val gemmaBrainModel: PhoneBrainModel = GemmaBrainModel(gemmaRuntime),
     private val actionJsonModel: PhoneBrainModel = ActionJsonModel(),
     private val liteCommandModel: PhoneBrainModel = LiteCommandModel(),
-    private val screenUnderstandingModel: PhoneBrainModel = ScreenUnderstandingModel()
+    private val screenStateReader: ScreenStateReader = ScreenStateReader()
 ) {
+    private val screenUnderstandingModel: PhoneBrainModel = ScreenUnderstandingModel(screenStateReader)
+
     private val runtimeSelection by lazy {
         BrainProviderFactory.createSelection(
             config = runtimeConfig,
@@ -80,7 +83,8 @@ class BrainService(
         }
 
         val routeDecision = brainRouter.route(request)
-        val primaryAttempt = evaluateRouteDecision(routeDecision, request)
+        val routedRequest = request.withScreenStateIfNeeded(routeDecision)
+        val primaryAttempt = evaluateRouteDecision(routeDecision, routedRequest)
         if (isAccepted(primaryAttempt.parsedAction)) {
             return primaryAttempt.parsedAction!!
         }
@@ -210,7 +214,8 @@ class BrainService(
         }
 
         val routeDecision = brainRouter.route(request)
-        val primaryAttempt = evaluateRouteDecision(routeDecision, request)
+        val routedRequest = request.withScreenStateIfNeeded(routeDecision)
+        val primaryAttempt = evaluateRouteDecision(routeDecision, routedRequest)
         val primaryAccepted = isAccepted(primaryAttempt.parsedAction)
         val fallbackAttempt = if (primaryAccepted || routeDecision.selectedRole == BrainModelRole.MOCK_FALLBACK) {
             null
@@ -273,6 +278,22 @@ class BrainService(
             runtimeStatus = status,
             internetPermissionDecision = policyDecision
         )
+    }
+
+    private fun BrainRequest.withScreenStateIfNeeded(routeDecision: BrainRouteDecision): BrainRequest {
+        if (screenState != null) return this
+        if (routeDecision.selectedRole != BrainModelRole.SCREEN_UNDERSTANDING &&
+            !routeDecision.requiresScreenContext
+        ) {
+            return this
+        }
+
+        val capturedScreenState = screenStateReader.captureScreenState()
+        return if (capturedScreenState == null) {
+            this
+        } else {
+            copy(screenState = capturedScreenState)
+        }
     }
 
     private fun evaluateRouteDecision(
