@@ -262,10 +262,27 @@ class LocalBrainInterpreter {
         val destination = extractDestination(rawText)
         if (providers.isEmpty() && destination.isNullOrBlank()) return null
 
-        val reply = if (destination != null) {
-            "I'll compare cab options to $destination for you."
-        } else {
-            "I can compare cab options across available providers."
+        val providerNames = providers.joinToString(separator = " and ") { provider ->
+            provider.name.lowercase(Locale.US).replaceFirstChar { char ->
+                if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
+            }
+        }
+
+        val reply = when {
+            destination != null && providerNames.isNotBlank() ->
+                "I'll compare $providerNames cab options to $destination for you."
+            destination != null ->
+                "I'll compare cab options to $destination for you."
+            providerNames.isNotBlank() ->
+                "I'll compare $providerNames cab options for you."
+            else ->
+                "I can compare cab options across available providers."
+        }
+
+        val nextQuestion = when {
+            providers.isNotEmpty() || destination != null ->
+                "Which cab option would you like me to prepare?"
+            else -> null
         }
 
         return BrainAction(
@@ -278,8 +295,9 @@ class LocalBrainInterpreter {
             params = mapOf(
                 "rawText" to rawText,
                 "destination" to (destination ?: ""),
-                "providers" to providers.joinToString { it.name }
-            )
+                "providers" to providers.joinToString(separator = ",") { it.name }
+            ),
+            nextQuestion = nextQuestion
         )
     }
 
@@ -288,14 +306,18 @@ class LocalBrainInterpreter {
         val rideType = parsed.rideType ?: RideType.ANY
 
         val reply = if (parsed.dropText != null) {
-            "I can help you book a ${rideTypeToDisplay(rideType)} cab to ${parsed.dropText}."
+            if (parsed.pickupMode == PickupMode.UNKNOWN) {
+                "I can help you book a ${rideTypeToDisplay(rideType)} cab to ${parsed.dropText}. I still need your pickup location."
+            } else {
+                "I can help you book a ${rideTypeToDisplay(rideType)} cab to ${parsed.dropText}."
+            }
         } else {
             "I can help you book a ${rideTypeToDisplay(rideType)} cab."
         }
 
         val nextQuestion = when {
-            parsed.dropText == null -> "Where would you like to go?"
-            parsed.pickupMode == PickupMode.UNKNOWN -> "I need your pickup location. Should I use your current location or a manual pickup?"
+            parsed.dropText == null -> "Where do you want to go?"
+            parsed.pickupMode == PickupMode.UNKNOWN -> "Where should I pick you up from?"
             else -> "Should I check available cabs for you?"
         }
 
@@ -309,8 +331,13 @@ class LocalBrainInterpreter {
             params = mapOf(
                 "rawText" to rawText,
                 "destination" to (parsed.dropText ?: ""),
+                "dropLocation" to (parsed.dropText ?: ""),
                 "rideType" to rideType.name,
-                "pickupMode" to parsed.pickupMode.name
+                "pickupMode" to parsed.pickupMode.name,
+                "wantsCheapest" to parsed.wantsCheapest.toString(),
+                "wantsFirstOne" to parsed.wantsFirstOne.toString(),
+                "compareOnly" to parsed.compareOnly.toString(),
+                "manualPickupRequested" to parsed.manualPickupRequested.toString()
             ),
             nextQuestion = nextQuestion
         )
@@ -349,19 +376,55 @@ class LocalBrainInterpreter {
 
     private fun parsePreparedMessage(rawText: String): BrainAction? {
         val normalized = normalize(rawText)
-        if (normalized.startsWith("tell ") || normalized.startsWith("say ")) {
-            val message = rawText.substringAfter(" ").trim()
-            return BrainAction(
-                intent = "prepared_message",
-                reply = "I'll say: $message",
-                actionType = BrainActionType.READ_ONLY,
-                riskLevel = BrainRiskLevel.SAFE,
-                requiresConfirmation = false,
-                finalActionAllowed = false,
-                params = mapOf("message" to message)
-            )
+        val hasMessagePlanningCue = listOf(
+            "prepare message",
+            "compose message",
+            "draft message",
+            "message to",
+            "reply to",
+            "send message"
+        ).any { containsPhrase(normalized, it) }
+
+        val directSpeakCue = (normalized.startsWith("tell ") || normalized.startsWith("say ")) &&
+            normalized.contains(" to ")
+
+        if (!hasMessagePlanningCue && !directSpeakCue) {
+            return null
         }
-        return null
+
+        val appName = extractMessagingAppName(normalized)
+        val contact = extractMessageContact(rawText)
+        val displayContact = contact?.replaceFirstChar { char ->
+            if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
+        }
+
+        val reply = when {
+            appName != null && displayContact != null ->
+                "I can prepare a ${appName.replaceFirstChar { it.titlecase(Locale.US) }} message to $displayContact."
+            appName != null ->
+                "I can prepare a ${appName.replaceFirstChar { it.titlecase(Locale.US) }} message."
+            displayContact != null ->
+                "I can prepare a message to $displayContact."
+            else ->
+                "I can prepare the message."
+        }
+
+        val nextQuestion = displayContact?.let { "What should I say to $it?" } ?: "What should I say?"
+
+        return BrainAction(
+            intent = "prepare_message",
+            reply = reply,
+            actionType = BrainActionType.PREPARE,
+            riskLevel = BrainRiskLevel.CONFIRMATION_REQUIRED,
+            requiresConfirmation = false,
+            finalActionAllowed = false,
+            params = buildMap {
+                put("rawText", rawText)
+                appName?.let { put("appName", it.lowercase(Locale.US)) }
+                contact?.let { put("contact", it.lowercase(Locale.US)) }
+            },
+            nextQuestion = nextQuestion
+        )
     }
 
     private fun parseLegacyCommand(rawText: String): BrainAction {
@@ -413,6 +476,33 @@ class LocalBrainInterpreter {
 
     private fun normalize(value: String): String {
         return AssistantTextNormalizer.normalize(value)
+    }
+
+    private fun extractMessagingAppName(normalized: String): String? {
+        return when {
+            containsPhrase(normalized, "whatsapp") -> "whatsapp"
+            containsPhrase(normalized, "sms") -> "sms"
+            containsPhrase(normalized, "telegram") -> "telegram"
+            containsPhrase(normalized, "gmail") -> "gmail"
+            containsPhrase(normalized, "email") -> "email"
+            containsPhrase(normalized, "messenger") -> "messenger"
+            containsPhrase(normalized, "signal") -> "signal"
+            else -> null
+        }
+    }
+
+    private fun extractMessageContact(rawText: String): String? {
+        val normalized = normalize(rawText)
+        val patterns = listOf(
+            Regex("""\b(?:to|for)\s+([a-z0-9][a-z0-9\s.-]*)$""", RegexOption.IGNORE_CASE),
+            Regex("""\bmessage\s+to\s+([a-z0-9][a-z0-9\s.-]*)$""", RegexOption.IGNORE_CASE)
+        )
+
+        for (pattern in patterns) {
+            pattern.find(normalized)?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+
+        return null
     }
 
     private fun containsPhrase(normalized: String, phrase: String): Boolean {

@@ -3,6 +3,7 @@ package com.nova.luna.brain
 import com.nova.luna.executor.ActionExecutorGateway
 import com.nova.luna.model.ActionType
 import com.nova.luna.model.BrainAction
+import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.model.IntentType
@@ -15,6 +16,17 @@ class CommandRouter(
     }
 
     fun route(brainAction: BrainAction): CommandResult {
+        if (brainAction.intent.equals("unknown", ignoreCase = true) ||
+            brainAction.actionType != BrainActionType.EXTERNAL_ACTION
+        ) {
+            return CommandResult.failure(
+                message = "No executable action was produced.",
+                intentType = IntentType.UNKNOWN,
+                actionType = ActionType.UNKNOWN,
+                entities = brainAction.params
+            )
+        }
+
         return route(brainAction.toCommandIntent())
     }
 
@@ -46,6 +58,14 @@ class CommandRouter(
         return actionExecutor.hasActiveMediaSession()
     }
 
+    fun hasActiveShoppingSession(): Boolean {
+        return actionExecutor.hasActiveShoppingSession()
+    }
+
+    fun hasActiveMusicSession(): Boolean {
+        return actionExecutor.hasActiveMusicSession()
+    }
+
     fun routeCabConversation(rawText: String): CommandResult {
         return actionExecutor.handleCabBookingText(rawText)
     }
@@ -73,6 +93,14 @@ class CommandRouter(
     fun routeMediaConversation(rawText: String): CommandResult {
         return actionExecutor.handleMediaText(rawText, CommandIntent(rawText))
     }
+
+    fun routeShoppingConversation(rawText: String): CommandResult {
+        return actionExecutor.handleShoppingText(rawText, CommandIntent(rawText))
+    }
+
+    fun routeMusicConversation(rawText: String): CommandResult {
+        return actionExecutor.handleMusicText(rawText, CommandIntent(rawText))
+    }
 }
 
 fun BrainAction.toCommandIntent(): CommandIntent {
@@ -87,6 +115,9 @@ fun BrainAction.toCommandIntent(): CommandIntent {
             "stop_service" -> IntentType.CONTROL
             "human_only" -> IntentType.BLOCKED
             "content_creation" -> IntentType.CONTENT_CREATION
+            "shopping", "shopping_booking", "shopping_compare", "shopping_session" -> IntentType.SHOPPING
+            "media_control" -> IntentType.MEDIA_CONTROL
+            "music", "music_play", "music_control", "music_session" -> IntentType.CONTROL
             else -> IntentType.UNKNOWN
         },
         actionType = when (intent) {
@@ -97,6 +128,9 @@ fun BrainAction.toCommandIntent(): CommandIntent {
             "stop_service" -> ActionType.STOP_SERVICE
             "human_only" -> ActionType.BLOCKED
             "content_creation" -> ActionType.CONTENT_CREATION
+            "shopping", "shopping_booking", "shopping_compare", "shopping_session" -> ActionType.SHOPPING
+            "media_control" -> ActionType.MEDIA_CONTROL
+            "music", "music_play", "music_control", "music_session" -> ActionType.MUSIC
             else -> ActionType.UNKNOWN
         },
         entities = params

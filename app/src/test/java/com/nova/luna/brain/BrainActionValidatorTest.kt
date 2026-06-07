@@ -65,6 +65,15 @@ class BrainActionValidatorTest {
                 requiresConfirmation = false,
                 finalActionAllowed = true,
                 params = mapOf("rawText" to "buy milk and bread")
+            ),
+            BrainAction(
+                intent = "shopping_booking",
+                reply = "Preparing the shopping flow.",
+                actionType = BrainActionType.EXTERNAL_ACTION,
+                riskLevel = BrainRiskLevel.SAFE,
+                requiresConfirmation = false,
+                finalActionAllowed = true,
+                params = mapOf("rawText" to "buy a phone")
             )
         )
 

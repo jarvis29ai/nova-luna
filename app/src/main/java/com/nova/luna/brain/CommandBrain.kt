@@ -28,6 +28,20 @@ class CommandBrain(context: Context) {
             )
         }
 
+        if (parsed.actionType == ActionType.STOP_SERVICE) {
+            val decision = safetyGate.evaluate(parsed)
+            if (!decision.allowed) {
+                return CommandResult.blocked(
+                    message = decision.message,
+                    intentType = parsed.intentType,
+                    actionType = parsed.actionType,
+                    entities = parsed.entities
+                )
+            }
+
+            return router.route(parsed).copy(safetyDecision = decision)
+        }
+
         if (
             parsed.intentType == IntentType.CAB_BOOKING ||
             parsed.actionType == ActionType.CAB_BOOKING ||
@@ -84,7 +98,19 @@ class CommandBrain(context: Context) {
             return router.routeContentCreationConversation(rawText)
         }
 
+        if (router.hasActiveMusicSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
+            return router.routeMusicConversation(rawText)
+        }
+
+        if (router.hasActiveShoppingSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
+            return router.routeShoppingConversation(rawText)
+        }
+
         if (router.hasActiveMediaSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
+            return router.routeMediaConversation(rawText)
+        }
+
+        if (router.hasActiveMediaSession() && shouldRouteMediaConversation(parsed)) {
             return router.routeMediaConversation(rawText)
         }
 
@@ -119,5 +145,58 @@ class CommandBrain(context: Context) {
 
         val result = router.route(resolved)
         return result.copy(safetyDecision = decision)
+    }
+
+    private fun shouldRouteMediaConversation(parsed: CommandIntent): Boolean {
+        if (parsed.actionType != ActionType.MUSIC) {
+            return false
+        }
+
+        val normalized = parsed.normalizedText
+        val mediaKeywords = listOf(
+            "youtube",
+            "shorts",
+            "instagram",
+            "reels",
+            "netflix",
+            "hotstar",
+            "prime video",
+            "movie",
+            "movies",
+            "show",
+            "shows",
+            "episode",
+            "episodes",
+            "watchlist",
+            "my list",
+            "video",
+            "videos",
+            "channel",
+            "profile",
+            "creator",
+            "feed"
+        )
+
+        if (mediaKeywords.any { normalized.contains(it) }) {
+            return false
+        }
+
+        return normalized == "play" ||
+            normalized == "pause" ||
+            normalized == "resume" ||
+            normalized == "continue" ||
+            normalized == "next" ||
+            normalized == "previous" ||
+            normalized == "skip" ||
+            normalized == "stop" ||
+            normalized == "stop music" ||
+            normalized == "pause music" ||
+            normalized == "resume music" ||
+            normalized == "next song" ||
+            normalized == "previous song" ||
+            normalized == "increase volume" ||
+            normalized == "decrease volume" ||
+            normalized == "volume up" ||
+            normalized == "volume down"
     }
 }

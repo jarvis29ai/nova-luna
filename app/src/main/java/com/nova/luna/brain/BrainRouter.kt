@@ -38,6 +38,18 @@ class BrainRouter(
             )
         }
 
+        if (isMessagePlanning(normalized)) {
+            return decision(
+                role = BrainModelRole.ACTION_JSON,
+                reason = "This request is message planning and should stay structured locally.",
+                requiresInternet = false,
+                safetyNotes = listOf(
+                    "ActionJsonModel may only produce safe BrainAction JSON for message drafting flows.",
+                    "Final send, OTP, login, CAPTCHA, and other sensitive steps must remain manual."
+                )
+            )
+        }
+
         if (request.activeGrocerySession || isGroceryPlanning(request.rawText)) {
             return decision(
                 role = BrainModelRole.ACTION_JSON,
@@ -174,6 +186,10 @@ class BrainRouter(
     }
 
     private fun isOpenAppCommand(normalized: String): Boolean {
+        if (isMessagePlanning(normalized)) {
+            return false
+        }
+
         return normalized.startsWith("open app ") ||
             normalized.startsWith("open ") ||
             normalized.startsWith("launch ") ||
@@ -225,6 +241,11 @@ class BrainRouter(
         if (activeCabSession) return true
 
         val planningKeywords = listOf(
+            "prepare message",
+            "compose message",
+            "draft message",
+            "reply to",
+            "send message",
             "cab",
             "ride",
             "taxi",
@@ -252,6 +273,20 @@ class BrainRouter(
         }
 
         return normalized.contains("order") && normalized.contains("food")
+    }
+
+    private fun isMessagePlanning(normalized: String): Boolean {
+        val messageKeywords = listOf(
+            "prepare message",
+            "compose message",
+            "draft message",
+            "message to",
+            "reply to",
+            "send message",
+            "text message"
+        )
+
+        return messageKeywords.any { containsPhrase(normalized, it) }
     }
 
     private fun isScreenQuery(normalized: String): Boolean {

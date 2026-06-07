@@ -68,7 +68,16 @@ class ActionJsonModel(
 
     private fun isCabOrMessagePlanning(normalized: String): Boolean {
         val cabKeywords = listOf("cab", "ride", "taxi", "uber", "ola", "rapido")
-        val messageKeywords = listOf("prepare message", "compose message", "draft message", "message to", "whatsapp")
+        val messageKeywords = listOf(
+            "prepare message",
+            "compose message",
+            "draft message",
+            "message to",
+            "reply to",
+            "send message",
+            "text message",
+            "whatsapp"
+        )
         val bookCabPattern = normalized.contains("book") &&
             listOf("auto", "cab", "ride", "taxi", "uber", "ola", "rapido").any { containsKeyword(normalized, it) }
 

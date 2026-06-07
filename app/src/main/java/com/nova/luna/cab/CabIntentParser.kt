@@ -636,6 +636,20 @@ class CabIntentParser {
     private fun containsBookingCue(normalized: String): Boolean {
         if (normalized.isBlank()) return false
 
+        val followUpCue = listOf(
+            "manual pickup",
+            "use manual pickup",
+            "change pickup",
+            "change destination",
+            "change cab type",
+            "change ride type",
+            "try another app"
+        ).any { containsPhrase(normalized, it) }
+
+        if (followUpCue) {
+            return true
+        }
+
         val hasCabWord = cabItems.any { containsPhrase(normalized, it) } ||
                 cabProviders.any { containsPhrase(normalized, it) } ||
                 cabVerbs.any { containsPhrase(normalized, it) } ||

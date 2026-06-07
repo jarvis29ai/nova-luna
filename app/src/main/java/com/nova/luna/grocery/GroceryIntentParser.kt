@@ -112,6 +112,9 @@ class GroceryIntentParser {
         if (trimmed.isBlank()) return null
 
         val normalized = normalize(trimmed)
+        if (looksLikeShoppingRequest(normalized)) {
+            return null
+        }
         if (
             (normalized.startsWith("what ") ||
                 normalized.startsWith("how ") ||
@@ -795,6 +798,39 @@ class GroceryIntentParser {
         }
 
         return hasGroceryWord
+    }
+
+    private fun looksLikeShoppingRequest(normalized: String): Boolean {
+        val shoppingKeywords = listOf(
+            "phone",
+            "mobile",
+            "smartphone",
+            "laptop",
+            "computer",
+            "headphones",
+            "earphones",
+            "tablet",
+            "television",
+            "smart tv",
+            "tv",
+            "watch",
+            "smartwatch",
+            "camera",
+            "monitor",
+            "console",
+            "electronics"
+        )
+
+        val shoppingContext = containsAnyPhrase(
+            normalized,
+            listOf("buy", "buying", "order", "purchase", "compare", "search", "deal", "coupon", "amazon", "flipkart", "croma", "reliance digital")
+        )
+
+        if (!shoppingContext) {
+            return false
+        }
+
+        return shoppingKeywords.any { containsPhrase(normalized, it) }
     }
 
     private fun containsFoodOrderingCue(normalized: String): Boolean {

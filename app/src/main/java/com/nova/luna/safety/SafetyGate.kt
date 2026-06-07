@@ -192,6 +192,22 @@ class SafetyGate {
             )
         }
 
+        if (commandIntent.actionType == ActionType.SHOPPING) {
+            if (containsShoppingSensitiveKeyword(normalized)) {
+                return SafetyDecision.humanOnly(
+                    "That shopping step includes sensitive payment or account details, so it must stay manual."
+                )
+            }
+
+            return SafetyDecision(
+                level = SafetyLevel.SAFE,
+                allowed = true,
+                message = "Shopping flow allowed. Final payment, OTP, login, and CAPTCHA steps must stay manual.",
+                requiresBiometric = false,
+                finalActionAllowed = false
+            )
+        }
+
         if (commandIntent.actionType == ActionType.CAB_BOOKING) {
             if (containsBlockedKeyword(normalized)) {
                 return SafetyDecision.block(
@@ -353,6 +369,45 @@ class SafetyGate {
             )
         }
 
+        if (isShoppingBrainAction(brainAction)) {
+            if (brainAction.actionType == BrainActionType.HUMAN_ONLY ||
+                brainAction.riskLevel == BrainRiskLevel.BLOCKED
+            ) {
+                return SafetyDecision.humanOnly(
+                    brainAction.reply.ifBlank {
+                        "That needs to stay manual for your safety."
+                    }
+                )
+            }
+
+            if (containsShoppingSensitiveKeyword(requestText)) {
+                return SafetyDecision.humanOnly(
+                    "That shopping step includes a sensitive action, so it must stay manual."
+                )
+            }
+
+            if ((brainAction.riskLevel == BrainRiskLevel.CONFIRMATION_REQUIRED ||
+                    brainAction.requiresConfirmation ||
+                    brainAction.actionType == BrainActionType.PREPARE) &&
+                !userConfirmed
+            ) {
+                return SafetyDecision.requireConfirmation(
+                    brainAction.nextQuestion?.takeIf { it.isNotBlank() }
+                        ?: brainAction.reply.ifBlank {
+                            "Please confirm to continue."
+                        }
+                )
+            }
+
+            return SafetyDecision(
+                level = SafetyLevel.SAFE,
+                allowed = true,
+                message = brainAction.reply.ifBlank { "Shopping flow allowed." },
+                requiresBiometric = false,
+                finalActionAllowed = brainAction.finalActionAllowed
+            )
+        }
+
         if (brainAction.actionType == BrainActionType.HUMAN_ONLY ||
             brainAction.riskLevel == BrainRiskLevel.BLOCKED ||
             containsBlockedKeyword(normalized)
@@ -478,5 +533,36 @@ class SafetyGate {
         return dangerousFinalPatterns.any { keyword ->
             Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
         }
+    }
+
+    private fun containsShoppingSensitiveKeyword(normalized: String): Boolean {
+        val patterns = listOf(
+            "send money",
+            "transfer money",
+            "bank transfer",
+            "password",
+            "otp",
+            "one time password",
+            "captcha",
+            "login",
+            "sign in",
+            "bypass login",
+            "credit card details",
+            "card number",
+            "cvv",
+            "upi pin",
+            "card pin",
+            "delete",
+            "erase",
+            "remove account"
+        )
+
+        return patterns.any { keyword ->
+            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
+        }
+    }
+
+    private fun isShoppingBrainAction(brainAction: BrainAction): Boolean {
+        return brainAction.intent.startsWith("shopping", ignoreCase = true)
     }
 }

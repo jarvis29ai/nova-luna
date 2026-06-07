@@ -42,7 +42,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     private val notificationReader = NotificationReader(context.applicationContext)
     private val phoneParser = PhoneContactIntentParser()
     private val phoneOrchestrator = PhoneContactOrchestrator(context.applicationContext, phoneParser)
-    private val communicationOrchestrator = CommunicationOrchestrator(context.applicationContext)
+    private val communicationOrchestrator by lazy { CommunicationOrchestrator(context.applicationContext) }
     private val contentCreationOrchestrator = ContentCreationOrchestrator(context.applicationContext)
     private val mediaOrchestrator = MediaOrchestrator(context.applicationContext)
     private val shoppingOrchestrator = ShoppingOrchestrator(context.applicationContext)
@@ -52,18 +52,20 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     private val musicProviderRegistry = MusicProviderRegistry(context.applicationContext.packageManager)
     private val musicDeepLinkBuilder = MusicDeepLinkBuilder(context.applicationContext)
     private val musicAppLauncher = MusicAppLauncher(context.applicationContext, musicDeepLinkBuilder, musicProviderRegistry)
-    private val musicOrchestrator = MusicOrchestrator(
-        context = context.applicationContext,
-        parser = MusicIntentParser(),
-        registry = musicProviderRegistry,
-        launcher = musicAppLauncher,
-        searchEngine = MusicSearchEngine(),
-        matcher = MusicResultMatcher(),
-        safetyDetector = MusicSafetyDetector(),
-        playbackController = MusicPlaybackController(context.applicationContext),
-        responses = MusicVoiceResponses(),
-        cardBuilder = MusicMiniCardBuilder()
-    )
+    private val musicOrchestrator by lazy {
+        MusicOrchestrator(
+            context = context.applicationContext,
+            parser = MusicIntentParser(),
+            registry = musicProviderRegistry,
+            launcher = musicAppLauncher,
+            searchEngine = MusicSearchEngine(),
+            matcher = MusicResultMatcher(),
+            safetyDetector = MusicSafetyDetector(),
+            playbackController = MusicPlaybackController(context.applicationContext),
+            responses = MusicVoiceResponses(),
+            cardBuilder = MusicMiniCardBuilder()
+        )
+    }
 
     private val cabOrchestrator = CabBookingOrchestrator(
         providerRegistry = cabProviderRegistry,
@@ -151,13 +153,13 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
                 shouldStopListening = true
             )
             ActionType.BLOCKED,
-            ActionType.UNKNOWN,
-            ActionType.MEDIA_CONTROL -> CommandResult.failure(
+            ActionType.UNKNOWN -> CommandResult.failure(
                 "I could not map that command to a safe action.",
                 commandIntent.intentType,
                 commandIntent.actionType,
                 commandIntent.entities
             )
+            ActionType.MEDIA_CONTROL -> handleMediaText(commandIntent.rawText, commandIntent)
         }
     }
 

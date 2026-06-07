@@ -21,9 +21,9 @@ class ShoppingIntentParser {
         }
 
         val category = when {
+            lowerText.contains("headphones") || lowerText.contains("earphones") -> ShoppingProductCategory.HEADPHONES
             lowerText.contains("phone") || lowerText.contains("mobile") -> ShoppingProductCategory.PHONE
             lowerText.contains("laptop") || lowerText.contains("computer") -> ShoppingProductCategory.LAPTOP
-            lowerText.contains("headphones") || lowerText.contains("earphones") -> ShoppingProductCategory.HEADPHONES
             lowerText.contains("tv") || lowerText.contains("television") -> ShoppingProductCategory.TELEVISION
             lowerText.contains("watch") || lowerText.contains("smartwatch") -> ShoppingProductCategory.WATCH
             else -> ShoppingProductCategory.UNKNOWN

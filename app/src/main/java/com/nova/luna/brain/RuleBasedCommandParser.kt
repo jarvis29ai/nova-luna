@@ -17,17 +17,31 @@ class RuleBasedCommandParser {
     private val groceryIntentParser = GroceryIntentParser()
     private val blockedKeywords = listOf(
         "send money",
-        "pay",
-        "payment",
-        "order",
-        "buy",
-        "checkout",
-        "bank",
-        "upi",
-        "password",
+        "transfer money",
+        "pay now",
+        "complete payment",
+        "purchase confirmation",
+        "order confirmation",
+        "final booking",
+        "book now",
+        "book ride",
         "bypass login",
+        "password",
+        "login",
+        "sign in",
         "otp",
-        "captcha"
+        "enter otp",
+        "one time password",
+        "captcha",
+        "solve captcha",
+        "credit card details",
+        "card number",
+        "cvv",
+        "upi pin",
+        "pin",
+        "delete",
+        "erase",
+        "remove account"
     )
 
     fun parse(rawText: String): CommandIntent {
@@ -107,8 +121,9 @@ class RuleBasedCommandParser {
             -> sensitive(rawText, ActionType.CALL_CONTACT, normalized)
             isCommunicationCommand(normalized) -> communication(rawText)
             isContentCreationCommand(normalized) -> contentCreation(rawText)
-            isShoppingCommand(normalized) -> shopping(rawText)
             isMediaCommand(normalized) -> media(rawText)
+            isMusicCommand(normalized) -> music(rawText)
+            isShoppingCommand(normalized) -> shopping(rawText)
             normalized.startsWith("open app ") -> openApp(rawText, normalized.removePrefix("open app ").trim())
             normalized.startsWith("open ") -> openApp(rawText, normalized.removePrefix("open ").trim())
             normalized.startsWith("launch ") -> openApp(rawText, normalized.removePrefix("launch ").trim())
@@ -321,18 +336,29 @@ class RuleBasedCommandParser {
     }
 
     private fun isContentCreationCommand(normalized: String): Boolean {
-        return normalized.contains("create") ||
-               normalized.contains("make") ||
-               normalized.contains("generate") ||
-               normalized.contains("write a") ||
-               normalized.contains("ppt") ||
-               normalized.contains("presentation") ||
-               normalized.contains("spreadsheet") ||
-               normalized.contains("excel") ||
-               normalized.contains("image") ||
-               normalized.contains("video") ||
-               normalized.contains("document") ||
-               normalized.contains("pdf")
+        val creationVerbs = listOf(
+            "create",
+            "make",
+            "generate",
+            "draft",
+            "build",
+            "design",
+            "write a"
+        )
+
+        val creationFormats = listOf(
+            "ppt",
+            "presentation",
+            "spreadsheet",
+            "excel",
+            "image",
+            "video",
+            "document",
+            "pdf"
+        )
+
+        return creationVerbs.any { normalized.contains(it) } &&
+            creationFormats.any { normalized.contains(it) }
     }
 
     private fun contentCreation(rawText: String): CommandIntent {
@@ -350,6 +376,7 @@ class RuleBasedCommandParser {
         if (isGrocery) return false
         
         return normalized.contains("buy ") ||
+               normalized.contains("order ") ||
                normalized.contains("shop ") ||
                normalized.contains("purchase ") ||
                normalized.contains("deal") ||
@@ -358,6 +385,58 @@ class RuleBasedCommandParser {
                normalized.contains("flipkart") ||
                normalized.contains("croma") ||
                normalized.contains("reliance digital")
+    }
+
+    private fun isMusicCommand(normalized: String): Boolean {
+        val musicKeywords = listOf(
+            "song",
+            "songs",
+            "artist",
+            "album",
+            "playlist",
+            "music",
+            "mood",
+            "genre",
+            "explicit",
+            "clean version",
+            "new songs",
+            "trending songs",
+            "latest songs",
+            "spotify",
+            "youtube music",
+            "yt music",
+            "apple music",
+            "jiosaavn",
+            "wynk",
+            "gaana"
+        )
+
+        if (musicKeywords.any { normalized.contains(it) }) {
+            return true
+        }
+
+        if (normalized.startsWith("play ")) {
+            return true
+        }
+
+        return normalized == "play" ||
+               normalized == "pause" ||
+               normalized == "resume" ||
+               normalized == "continue" ||
+               normalized == "next" ||
+               normalized == "previous" ||
+               normalized == "skip" ||
+               normalized == "stop" ||
+               normalized == "stop music" ||
+               normalized == "pause music" ||
+               normalized == "resume music" ||
+               normalized == "next song" ||
+               normalized == "previous song" ||
+               normalized == "increase volume" ||
+               normalized == "decrease volume" ||
+               normalized == "volume up" ||
+               normalized == "volume down" ||
+               normalized.startsWith("set volume to")
     }
 
     private fun shopping(rawText: String): CommandIntent {
@@ -369,17 +448,46 @@ class RuleBasedCommandParser {
     }
 
     private fun isMediaCommand(normalized: String): Boolean {
-        return normalized == "play" ||
-               normalized == "pause" ||
-               normalized == "stop music" ||
-               normalized == "next" ||
-               normalized == "previous" ||
-               normalized == "previous episode" ||
-               normalized == "next reel" ||
-               normalized == "next short" ||
-               normalized.contains("watchlist") ||
-               normalized.contains("my list") ||
-               normalized.contains("download")
+        val mediaKeywords = listOf(
+            "youtube shorts",
+            "youtube",
+            "instagram",
+            "reels",
+            "shorts",
+            "netflix",
+            "hotstar",
+            "prime video",
+            "movie",
+            "movies",
+            "show",
+            "shows",
+            "episode",
+            "episodes",
+            "watchlist",
+            "my list",
+            "video",
+            "videos",
+            "channel",
+            "profile",
+            "creator",
+            "feed",
+            "scroll",
+            "like",
+            "save",
+            "subscribe",
+            "follow",
+            "comment",
+            "quality",
+            "subtitle",
+            "subtitles",
+            "audio",
+            "speed",
+            "download",
+            "full screen",
+            "exit full screen"
+        )
+
+        return mediaKeywords.any { normalized.contains(it) }
     }
 
     private fun media(rawText: String): CommandIntent {
@@ -387,6 +495,14 @@ class RuleBasedCommandParser {
             rawText = rawText,
             intentType = IntentType.MEDIA_CONTROL,
             actionType = ActionType.MEDIA_CONTROL
+        )
+    }
+
+    private fun music(rawText: String): CommandIntent {
+        return CommandIntent(
+            rawText = rawText,
+            intentType = IntentType.CONTROL,
+            actionType = ActionType.MUSIC
         )
     }
 

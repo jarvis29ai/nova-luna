@@ -58,6 +58,10 @@ class BrainActionValidator {
             return true
         }
 
+        if (action.intent.startsWith("shopping", ignoreCase = true)) {
+            return true
+        }
+
         if (action.intent.startsWith("grocery", ignoreCase = true)) {
             return true
         }

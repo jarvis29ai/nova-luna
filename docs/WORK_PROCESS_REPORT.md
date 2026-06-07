@@ -2,16 +2,16 @@
 
 ## Progress Snapshot
 
-- Current app readiness: 55%
-- `docs/NOVA_LUNA_PROGRESS_CHECKPOINT.md` records the 40% verified command-brain checkpoint.
-- This process-report sync keeps tracked project readiness at 55% because the latest sectioned phone smoke run now has grocery cancel passing cleanly, cab blocked by missing location permission, and food still partial on provider UI even though the basic and negative safety paths are green.
+- Current app readiness: green for the audited scope on 2026-06-06
+- `:app:testDebugUnitTest` and `:app:assembleDebug` both passed in this audit pass
+- `docs/NOVA_LUNA_FULL_PROJECT_MODEL_FLOW_AUDIT_REPORT.md` records the current full-model verification
 
 ## Current Setup
 
 - Nova / Luna is a phone-first assistant project.
 - Nova is the male assistant and Luna is the female assistant.
 - The codebase should stay local-first and offline-first by default.
-- Flutter is the primary front end.
+- This repository snapshot is native Android plus a Wear OS scaffold; Flutter is not present in the checked-in source tree.
 - Smartwatch support is a later companion goal, not the default starting point.
 
 ## How Agents Should Work
