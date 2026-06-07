@@ -8,6 +8,8 @@ import com.nova.luna.cab.toEntities
 import com.nova.luna.food.FoodIntentParser
 import com.nova.luna.food.toEntities as toFoodEntities
 import com.nova.luna.grocery.GroceryIntentParser
+import com.nova.luna.shopping.ShoppingIntentParser
+import com.nova.luna.shopping.ShoppingProductCategory
 import com.nova.luna.util.AssistantTextNormalizer
 import java.util.Locale
 
@@ -15,6 +17,7 @@ class RuleBasedCommandParser {
     private val cabIntentParser = CabIntentParser()
     private val foodIntentParser = FoodIntentParser()
     private val groceryIntentParser = GroceryIntentParser()
+    private val shoppingIntentParser = ShoppingIntentParser()
     private val blockedKeywords = listOf(
         "send money",
         "transfer money",
@@ -319,12 +322,8 @@ class RuleBasedCommandParser {
                normalized.contains("reply to") ||
                normalized.contains("draft reply") ||
                normalized.contains("draft email") ||
-               normalized.contains("write professional email") ||
-               normalized.contains("send it") ||
-               normalized == "send" ||
-               normalized == "yes send" ||
-               normalized == "don't send" ||
-               normalized == "save draft"
+               normalized.contains("write a reply") ||
+               normalized.contains("write professional email")
     }
 
     private fun communication(rawText: String): CommandIntent {
@@ -370,24 +369,98 @@ class RuleBasedCommandParser {
     }
 
     private fun isShoppingCommand(normalized: String): Boolean {
-        // Exclude grocery and other specific domain keywords
-        val isGrocery = normalized.contains("milk") || normalized.contains("vegetables") || 
-                        normalized.contains("fruits") || normalized.contains("groceries")
+        if (isLaunchStyleCommand(normalized)) {
+            return false
+        }
+
+        // Exclude grocery and other specific domain keywords.
+        val isGrocery = normalized.contains("milk") ||
+            normalized.contains("vegetables") ||
+            normalized.contains("fruits") ||
+            normalized.contains("groceries")
         if (isGrocery) return false
-        
-        return normalized.contains("buy ") ||
-               normalized.contains("order ") ||
-               normalized.contains("shop ") ||
-               normalized.contains("purchase ") ||
-               normalized.contains("deal") ||
-               normalized.contains("coupon") ||
-               normalized.contains("amazon") ||
-               normalized.contains("flipkart") ||
-               normalized.contains("croma") ||
-               normalized.contains("reliance digital")
+
+        val request = shoppingIntentParser.parse(normalized)
+
+        val explicitShoppingPhrases = listOf(
+            "compare product",
+            "compare products",
+            "price compare",
+            "compare price",
+            "online shopping",
+            "shop online"
+        )
+        if (containsAnyPhrase(normalized, explicitShoppingPhrases)) {
+            return true
+        }
+
+        val shoppingProductKeywords = listOf(
+            "phone",
+            "mobile",
+            "smartphone",
+            "laptop",
+            "computer",
+            "shoes",
+            "shoe",
+            "headphones",
+            "earphones",
+            "tablet",
+            "watch",
+            "smartwatch",
+            "camera",
+            "tv",
+            "television",
+            "monitor",
+            "bag",
+            "shirt",
+            "jeans",
+            "sneakers",
+            "console",
+            "electronics",
+            "product",
+            "products",
+            "item",
+            "items",
+            "amazon",
+            "flipkart",
+            "croma",
+            "reliance digital"
+        )
+
+        val shoppingContextPhrases = listOf(
+            "buy",
+            "order",
+            "search",
+            "find",
+            "compare",
+            "shop",
+            "purchase",
+            "deal",
+            "coupon",
+            "amazon",
+            "flipkart",
+            "croma",
+            "reliance digital"
+        )
+
+        val hasProductEvidence = shoppingProductKeywords.any { containsPhrase(normalized, it) } ||
+            request.category != ShoppingProductCategory.UNKNOWN ||
+            request.productName != null
+
+        val hasShoppingContext = shoppingContextPhrases.any { containsPhrase(normalized, it) } ||
+            request.buyIntent ||
+            request.comparisonIntent ||
+            request.budget != null ||
+            request.website != null
+
+        return hasProductEvidence && hasShoppingContext
     }
 
     private fun isMusicCommand(normalized: String): Boolean {
+        if (isLaunchStyleCommand(normalized)) {
+            return false
+        }
+
         val musicKeywords = listOf(
             "song",
             "songs",
@@ -415,28 +488,43 @@ class RuleBasedCommandParser {
             return true
         }
 
-        if (normalized.startsWith("play ")) {
-            return true
+        if (!normalized.startsWith("play ")) {
+            return false
         }
 
-        return normalized == "play" ||
-               normalized == "pause" ||
-               normalized == "resume" ||
-               normalized == "continue" ||
-               normalized == "next" ||
-               normalized == "previous" ||
-               normalized == "skip" ||
-               normalized == "stop" ||
-               normalized == "stop music" ||
-               normalized == "pause music" ||
-               normalized == "resume music" ||
-               normalized == "next song" ||
-               normalized == "previous song" ||
-               normalized == "increase volume" ||
-               normalized == "decrease volume" ||
-               normalized == "volume up" ||
-               normalized == "volume down" ||
-               normalized.startsWith("set volume to")
+        val tail = normalized.removePrefix("play ").trim()
+        if (tail.isBlank()) {
+            return false
+        }
+
+        val mediaWords = listOf(
+            "video",
+            "videos",
+            "movie",
+            "movies",
+            "show",
+            "shows",
+            "episode",
+            "episodes",
+            "reel",
+            "reels",
+            "short",
+            "shorts",
+            "youtube",
+            "instagram",
+            "netflix",
+            "hotstar",
+            "prime",
+            "channel",
+            "profile",
+            "feed"
+        )
+
+        if (mediaWords.any { containsPhrase(tail, it) }) {
+            return false
+        }
+
+        return tail.split(Regex("\\s+")).count { it.isNotBlank() } >= 2
     }
 
     private fun shopping(rawText: String): CommandIntent {
@@ -448,6 +536,26 @@ class RuleBasedCommandParser {
     }
 
     private fun isMediaCommand(normalized: String): Boolean {
+        if (isLaunchStyleCommand(normalized)) {
+            return false
+        }
+
+        if (containsAnyPhrase(
+                normalized,
+                listOf(
+                    "youtube music",
+                    "yt music",
+                    "spotify",
+                    "apple music",
+                    "jiosaavn",
+                    "wynk",
+                    "gaana"
+                )
+            )
+        ) {
+            return false
+        }
+
         val mediaKeywords = listOf(
             "youtube shorts",
             "youtube",
@@ -470,21 +578,7 @@ class RuleBasedCommandParser {
             "channel",
             "profile",
             "creator",
-            "feed",
-            "scroll",
-            "like",
-            "save",
-            "subscribe",
-            "follow",
-            "comment",
-            "quality",
-            "subtitle",
-            "subtitles",
-            "audio",
-            "speed",
-            "download",
-            "full screen",
-            "exit full screen"
+            "feed"
         )
 
         return mediaKeywords.any { normalized.contains(it) }
@@ -507,13 +601,15 @@ class RuleBasedCommandParser {
     }
 
     private fun isStopCommand(normalized: String): Boolean {
-        return normalized == "stop" ||
-            normalized == "cancel" ||
-            normalized == "stop listening" ||
+        return normalized == "stop listening" ||
             normalized == "cancel listening" ||
             normalized == "stop voice" ||
             normalized == "cancel voice" ||
             normalized == "stop speaking" ||
+            normalized == "cancel speaking" ||
+            normalized == "stop service" ||
+            normalized == "stop assistant" ||
+            normalized == "cancel assistant" ||
             normalized == "quiet" ||
             normalized == "be quiet"
     }
@@ -522,5 +618,24 @@ class RuleBasedCommandParser {
         return blockedKeywords.any { keyword ->
             Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
         }
+    }
+
+    private fun containsPhrase(normalized: String, phrase: String): Boolean {
+        if (phrase.isBlank()) {
+            return false
+        }
+
+        return Regex("""(?<!\w)${Regex.escape(phrase)}(?!\w)""").containsMatchIn(normalized)
+    }
+
+    private fun containsAnyPhrase(normalized: String, phrases: List<String>): Boolean {
+        return phrases.any { phrase -> containsPhrase(normalized, phrase) }
+    }
+
+    private fun isLaunchStyleCommand(normalized: String): Boolean {
+        return normalized.startsWith("open app ") ||
+            normalized.startsWith("open ") ||
+            normalized.startsWith("launch ") ||
+            normalized.startsWith("start ")
     }
 }

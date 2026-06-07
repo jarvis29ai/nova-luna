@@ -67,6 +67,8 @@ class BrainServicePhase1Test {
         assertEquals("whatsapp", action.params["appName"])
         assertEquals("mom", action.params["contact"])
         assertEquals("What should I say to Mom?", action.nextQuestion)
+        assertFalse(action.requiresConfirmation)
+        assertFalse(action.finalActionAllowed)
         assertTrue(action.reply.contains("whatsapp", ignoreCase = true))
         assertTrue(action.reply.contains("prepare") || action.reply.contains("draft") || action.reply.contains("message"))
     }

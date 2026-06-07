@@ -20,6 +20,8 @@ class ContentCreationIntentParser {
     }
 
     private fun detectCommandType(text: String): ContentCreationCommandType {
+        val hasWriteCreationCue = Regex("""\bwrite\s+(?:a|an|the|my|this|about|for)\b""").containsMatchIn(text)
+
         return when {
             text.contains("finalize") || text.contains("approve") -> ContentCreationCommandType.FINALIZE_OUTPUT
             text.contains("export") || text.contains("save as") -> ContentCreationCommandType.EXPORT_FILE
@@ -27,7 +29,7 @@ class ContentCreationIntentParser {
             text.contains("regenerate") -> ContentCreationCommandType.REGENERATE_DRAFT
             text.contains("edit") || text.contains("change") || text.contains("make it") -> ContentCreationCommandType.EDIT_DRAFT
             text.contains("cancel") || text.contains("stop") -> ContentCreationCommandType.CANCEL
-            text.contains("create") || text.contains("make") || text.contains("generate") || text.contains("write") -> {
+            text.contains("create") || text.contains("make") || text.contains("generate") || hasWriteCreationCue -> {
                 when {
                     text.contains("ppt") || text.contains("presentation") || text.contains("slides") || text.contains("deck") -> ContentCreationCommandType.CREATE_PPT
                     text.contains("pdf") -> ContentCreationCommandType.CREATE_PDF

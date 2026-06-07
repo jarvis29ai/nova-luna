@@ -10,6 +10,9 @@ import com.nova.luna.food.FoodIntentParser
 import com.nova.luna.grocery.GroceryBookingVoiceResponses
 import com.nova.luna.grocery.GroceryIntentParseResult
 import com.nova.luna.grocery.GroceryIntentParser
+import com.nova.luna.content.ContentCreationCommandType
+import com.nova.luna.content.ContentCreationIntentParser
+import com.nova.luna.content.ContentCreationVoiceResponses
 import com.nova.luna.util.AssistantTextNormalizer
 import java.util.Locale
 
@@ -17,6 +20,8 @@ class ActionJsonModel(
     private val cabInterpreter: LocalBrainInterpreter = LocalBrainInterpreter(),
     private val foodParser: FoodIntentParser = FoodIntentParser(),
     private val groceryParser: GroceryIntentParser = GroceryIntentParser(),
+    private val contentParser: ContentCreationIntentParser = ContentCreationIntentParser(),
+    private val contentVoiceResponses: ContentCreationVoiceResponses = ContentCreationVoiceResponses(),
     private val codec: BrainActionJsonCodec = BrainActionJsonCodec(),
     private val validator: BrainActionValidator = BrainActionValidator()
 ) : PhoneBrainModel {
@@ -35,11 +40,15 @@ class ActionJsonModel(
         val normalized = normalize(request.rawText)
         val foodRequest = foodParser.parse(request.rawText)
         val groceryRequest = groceryParser.parseInitialGroceryRequest(request.rawText)
+        val contentRequest = contentParser.parse(request.rawText)
         val candidateAction = when {
-            request.activeCabSession || isCabOrMessagePlanning(normalized) -> cabInterpreter.interpret(request)
+            request.activeCabSession || isCabOrMessagePlanning(normalized) -> prepareDraftableAction(
+                cabInterpreter.interpret(request)
+            )
             request.activeGrocerySession -> groceryPlanningAction(request, groceryRequest, activeSession = true)
             groceryRequest != null -> groceryPlanningAction(request, groceryRequest, activeSession = false)
             foodRequest != null -> foodOrderingAction(request, foodRequest)
+            isContentCreationRequest(contentRequest) -> contentCreationAction(request, contentRequest)
             isFoodPlanning(normalized) -> foodPlanningAction(request)
             isTaskPlanning(normalized) -> taskPlanningAction(request)
             else -> generalPlanningAction(request)
@@ -219,6 +228,106 @@ class ActionJsonModel(
         )
     }
 
+    private fun contentCreationAction(
+        request: BrainRequest,
+        parsed: com.nova.luna.content.ContentCreationRequest
+    ): BrainAction {
+        val intent = when (parsed.commandType) {
+            ContentCreationCommandType.FINALIZE_OUTPUT,
+            ContentCreationCommandType.EXPORT_FILE,
+            ContentCreationCommandType.SHARE_FILE,
+            ContentCreationCommandType.EDIT_DRAFT,
+            ContentCreationCommandType.REGENERATE_DRAFT,
+            ContentCreationCommandType.DETECT_BEST_FORMAT,
+            ContentCreationCommandType.CREATE_PPT,
+            ContentCreationCommandType.CREATE_IMAGE,
+            ContentCreationCommandType.CREATE_VIDEO,
+            ContentCreationCommandType.CREATE_DOCUMENT,
+            ContentCreationCommandType.CREATE_EXCEL,
+            ContentCreationCommandType.CREATE_PDF,
+            ContentCreationCommandType.CREATE_OTHER -> "content_creation"
+
+            else -> "content_creation"
+        }
+
+        val commandTypeLabel = parsed.commandType.name.lowercase(Locale.US)
+        val outputTypeLabel = parsed.outputType.name.lowercase(Locale.US)
+        val reply = when (parsed.commandType) {
+            ContentCreationCommandType.CREATE_PPT -> "I can create a PPT and keep the final step manual."
+            ContentCreationCommandType.CREATE_IMAGE -> "I can create an image and keep the final step manual."
+            ContentCreationCommandType.CREATE_VIDEO -> "I can create a video draft and keep the final step manual."
+            ContentCreationCommandType.CREATE_DOCUMENT -> "I can create a document draft and keep the final step manual."
+            ContentCreationCommandType.CREATE_EXCEL -> "I can create a spreadsheet draft and keep the final step manual."
+            ContentCreationCommandType.CREATE_PDF -> "I can create a PDF draft and keep the final step manual."
+            ContentCreationCommandType.EDIT_DRAFT -> "I can help refine the draft."
+            ContentCreationCommandType.REGENERATE_DRAFT -> "I can regenerate the draft safely."
+            ContentCreationCommandType.DETECT_BEST_FORMAT -> "I can help choose the best format."
+            ContentCreationCommandType.FINALIZE_OUTPUT,
+            ContentCreationCommandType.EXPORT_FILE,
+            ContentCreationCommandType.SHARE_FILE -> "I can prepare the final content step, but I will stop before anything irreversible."
+
+            else -> "I can help create the content."
+        }
+
+        val requiresConfirmation = parsed.commandType in setOf(
+            ContentCreationCommandType.FINALIZE_OUTPUT,
+            ContentCreationCommandType.EXPORT_FILE,
+            ContentCreationCommandType.SHARE_FILE
+        )
+
+        val nextQuestion = when {
+            requiresConfirmation -> "Say yes if you want me to continue."
+            parsed.requirements.topic.isNullOrBlank() &&
+                parsed.commandType in setOf(
+                    ContentCreationCommandType.CREATE_PPT,
+                    ContentCreationCommandType.CREATE_IMAGE,
+                    ContentCreationCommandType.CREATE_VIDEO,
+                    ContentCreationCommandType.CREATE_DOCUMENT,
+                    ContentCreationCommandType.CREATE_EXCEL,
+                    ContentCreationCommandType.CREATE_PDF,
+                    ContentCreationCommandType.CREATE_OTHER,
+                    ContentCreationCommandType.DETECT_BEST_FORMAT
+                ) -> contentVoiceResponses.getMissingDetailQuestion("topic")
+
+            else -> "What would you like me to include?"
+        }
+
+        val params = buildMap {
+            put("rawText", request.rawText)
+            put("commandType", commandTypeLabel)
+            put("outputType", outputTypeLabel)
+            parsed.requirements.topic?.let { put("topic", it) }
+            put("purpose", parsed.requirements.purpose.name.lowercase(Locale.US))
+            parsed.requirements.audience?.let { put("audience", it) }
+            put("style", parsed.requirements.style.name.lowercase(Locale.US))
+            parsed.requirements.length?.let { put("length", it) }
+            parsed.requirements.language?.let { put("language", it) }
+            put("qualityLevel", parsed.requirements.qualityLevel.name.lowercase(Locale.US))
+            parsed.requirements.preferredTool?.let { put("preferredTool", it.name.lowercase(Locale.US)) }
+            parsed.requirements.exportFormat?.let { put("exportFormat", it) }
+            parsed.requirements.shareTarget?.let { put("shareTarget", it) }
+        }
+
+        return BrainAction(
+            intent = intent,
+            reply = reply,
+            actionType = if (requiresConfirmation) {
+                BrainActionType.PREPARE
+            } else {
+                BrainActionType.EXTERNAL_ACTION
+            },
+            riskLevel = if (requiresConfirmation) {
+                BrainRiskLevel.CONFIRMATION_REQUIRED
+            } else {
+                BrainRiskLevel.SAFE
+            },
+            requiresConfirmation = requiresConfirmation,
+            finalActionAllowed = false,
+            params = params,
+            nextQuestion = nextQuestion
+        )
+    }
+
     private fun taskPlanningAction(request: BrainRequest): BrainAction {
         val params = mapOf(
             "rawText" to request.rawText
@@ -247,6 +356,28 @@ class ActionJsonModel(
             params = mapOf("rawText" to request.rawText),
             nextQuestion = "What details should I capture?"
         )
+    }
+
+    private fun isContentCreationRequest(parsed: com.nova.luna.content.ContentCreationRequest): Boolean {
+        return parsed.commandType in setOf(
+            ContentCreationCommandType.CREATE_PPT,
+            ContentCreationCommandType.CREATE_IMAGE,
+            ContentCreationCommandType.CREATE_VIDEO,
+            ContentCreationCommandType.CREATE_DOCUMENT,
+            ContentCreationCommandType.CREATE_EXCEL,
+            ContentCreationCommandType.CREATE_PDF,
+            ContentCreationCommandType.CREATE_OTHER,
+            ContentCreationCommandType.DETECT_BEST_FORMAT,
+            ContentCreationCommandType.EDIT_DRAFT,
+            ContentCreationCommandType.REGENERATE_DRAFT,
+            ContentCreationCommandType.FINALIZE_OUTPUT,
+            ContentCreationCommandType.EXPORT_FILE,
+            ContentCreationCommandType.SHARE_FILE
+        )
+    }
+
+    private fun prepareDraftableAction(action: BrainAction): BrainAction {
+        return action
     }
 
     private fun containsKeyword(normalized: String, keyword: String): Boolean {

@@ -40,12 +40,14 @@ class BrainService(
     fun process(
         rawText: String,
         activeCabSession: Boolean = false,
-        activeGrocerySession: Boolean = false
+        activeGrocerySession: Boolean = false,
+        activeFoodSession: Boolean = false
     ): BrainAction {
         val request = BrainRequest(
             rawText = rawText,
             activeCabSession = activeCabSession,
-            activeGrocerySession = activeGrocerySession
+            activeGrocerySession = activeGrocerySession,
+            activeFoodSession = activeFoodSession
         )
 
         val policyDecision = internetPermissionPolicy.classify(rawText)

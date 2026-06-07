@@ -152,13 +152,6 @@ class GroceryIntentParser {
         }
 
         val providerPreference = parseProviderPreference(normalized)
-        val compareRequested = containsPhrase(normalized, "compare") ||
-            containsPhrase(normalized, "compare prices") ||
-            containsPhrase(normalized, "compare this basket") ||
-            containsPhrase(normalized, "compare grocery apps") ||
-            containsPhrase(normalized, "compare blinkit")
-        val wantsCheapest = containsAnyPhrase(normalized, listOf("cheapest", "lowest price", "best price", "cheaper"))
-        val wantsFirstOne = containsAnyPhrase(normalized, listOf("first one", "first available", "choose first"))
         val budgetPreference = parseBudgetPreference(normalized)
         val deliveryUrgency = parseDeliveryUrgency(normalized)
         val paymentPreference = parsePaymentPreference(normalized)
@@ -193,6 +186,27 @@ class GroceryIntentParser {
         val basket = parseBasket(trimmed)
         val deliveryLocation = extractDeliveryLocation(trimmed)
         val useCurrentLocation = containsAnyPhrase(normalized, listOf("current location", "current address", "use current location"))
+        val groceryCoreEvidence = basket.items.isNotEmpty() ||
+            providerPreference != null ||
+            groceryCueDetected ||
+            reorderMode ||
+            previousListMode ||
+            applyCouponRequested ||
+            couponCode != null ||
+            paymentPreference != null
+
+        val compareRequested = (containsPhrase(normalized, "compare") ||
+            containsPhrase(normalized, "compare prices") ||
+            containsPhrase(normalized, "compare this basket") ||
+            containsPhrase(normalized, "compare grocery apps") ||
+            containsPhrase(normalized, "compare blinkit")) &&
+            (groceryCoreEvidence || budgetPreference != null || deliveryUrgency != null)
+
+        val wantsCheapest = containsAnyPhrase(normalized, listOf("cheapest", "lowest price", "best price", "cheaper")) &&
+            (groceryCoreEvidence || compareRequested || budgetPreference != null)
+
+        val wantsFirstOne = containsAnyPhrase(normalized, listOf("first one", "first available", "choose first")) &&
+            (groceryCoreEvidence || compareRequested)
         val allowComparison = compareRequested || providerPreference == null || countProviderMentions(normalized) > 1
         val parsedBrandPreference = parseBrandPreference(normalized)
         val brandPreference = parsedBrandPreference ?: if (basket.items.isNotEmpty()) "regular" else null
@@ -209,19 +223,12 @@ class GroceryIntentParser {
             !useCurrentLocation &&
             !compareRequested
 
-        val isGroceryBooking = basket.items.isNotEmpty() ||
-            providerPreference != null ||
+        val isGroceryBooking = groceryCoreEvidence ||
             compareRequested ||
             wantsCheapest ||
             wantsFirstOne ||
-            budgetPreference != null ||
-            deliveryUrgency != null ||
-            paymentPreference != null ||
-            reorderMode ||
-            previousListMode ||
-            applyCouponRequested ||
-            couponCode != null ||
-            groceryCueDetected
+            (budgetPreference != null && groceryCoreEvidence) ||
+            (deliveryUrgency != null && groceryCoreEvidence)
 
         if (!isGroceryBooking) return null
 

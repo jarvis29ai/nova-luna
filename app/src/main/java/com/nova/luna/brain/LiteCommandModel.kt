@@ -17,6 +17,16 @@ class LiteCommandModel(
     override fun generate(request: BrainRequest, routeDecision: BrainRouteDecision): BrainModelResult {
         val commandIntent = parser.parse(request.rawText)
         val candidateAction = when (commandIntent.actionType) {
+            ActionType.LAUNCH_APP -> brainAction(
+                intent = "open_app",
+                reply = "Opening ${displayAppName(commandIntent)}.",
+                actionType = BrainActionType.EXTERNAL_ACTION,
+                riskLevel = BrainRiskLevel.SAFE,
+                requiresConfirmation = false,
+                finalActionAllowed = true,
+                params = commandIntent.entities + mapOf("rawText" to request.rawText)
+            )
+
             ActionType.STOP_SERVICE -> brainAction(
                 intent = "stop_service",
                 reply = "Stopping listening.",
@@ -70,10 +80,10 @@ class LiteCommandModel(
             ActionType.READ_NOTIFICATIONS -> brainAction(
                 intent = "read_notifications",
                 reply = "Reading notifications.",
-                actionType = BrainActionType.READ_ONLY,
+                actionType = BrainActionType.EXTERNAL_ACTION,
                 riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
-                finalActionAllowed = false,
+                finalActionAllowed = true,
                 params = commandIntent.entities + mapOf("rawText" to request.rawText)
             )
 
@@ -200,6 +210,13 @@ class LiteCommandModel(
                 "It must never execute phone actions directly."
             )
         )
+    }
+
+    private fun displayAppName(commandIntent: com.nova.luna.model.CommandIntent): String {
+        return commandIntent.entities["resolvedLabel"]
+            ?: commandIntent.entities["appName"]
+            ?: commandIntent.entities["query"]
+            ?: "the app"
     }
 
     private fun brainAction(

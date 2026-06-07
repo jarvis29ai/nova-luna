@@ -9,15 +9,28 @@ class BrainRouterPhase5Test {
     private val router = BrainRouter()
 
     @Test
-    fun `stop cancel go home and open app route to lite command`() {
+    fun `explicit stop utility and app commands route to lite command`() {
         listOf(
-            "stop",
-            "cancel",
+            "stop listening",
+            "cancel listening",
             "go home",
-            "open whatsapp"
+            "open whatsapp",
+            "call mom",
+            "take screenshot"
         ).forEach { phrase ->
             val decision = router.route(BrainRequest(phrase))
             assertEquals(BrainModelRole.LITE_COMMAND, decision.selectedRole)
+        }
+    }
+
+    @Test
+    fun `bare stop and cancel stay on the fallback path`() {
+        listOf(
+            "stop",
+            "cancel"
+        ).forEach { phrase ->
+            val decision = router.route(BrainRequest(phrase))
+            assertEquals(BrainModelRole.MOCK_FALLBACK, decision.selectedRole)
         }
     }
 

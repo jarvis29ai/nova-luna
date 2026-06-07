@@ -53,9 +53,10 @@ class CommandBrainStopListeningTest {
 
         val brain = CommandBrain(context)
         val phrases = listOf(
-            "cancel",
+            "cancel listening",
             "stop voice",
             "stop speaking",
+            "stop service",
             "quiet",
             "be quiet"
         )

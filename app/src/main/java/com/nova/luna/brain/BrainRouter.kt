@@ -5,6 +5,8 @@ import com.nova.luna.model.BrainRouteDecision
 import com.nova.luna.model.InternetPermissionCategory
 import com.nova.luna.food.FoodIntentParser
 import com.nova.luna.grocery.GroceryIntentParser
+import com.nova.luna.content.ContentCreationCommandType
+import com.nova.luna.content.ContentCreationIntentParser
 import com.nova.luna.util.AssistantTextNormalizer
 
 class BrainRouter(
@@ -12,6 +14,7 @@ class BrainRouter(
 ) {
     private val foodIntentParser = FoodIntentParser()
     private val groceryIntentParser = GroceryIntentParser()
+    private val contentCreationIntentParser = ContentCreationIntentParser()
 
     fun route(request: BrainRequest): BrainRouteDecision {
         val normalized = normalize(request.rawText)
@@ -78,6 +81,18 @@ class BrainRouter(
                 safetyNotes = listOf(
                     "ActionJsonModel may only produce safe BrainAction JSON for food flows.",
                     "Payment, OTP, login, CAPTCHA, and other sensitive steps must remain manual."
+                )
+            )
+        }
+
+        if (isContentPlanning(request.rawText)) {
+            return decision(
+                role = BrainModelRole.ACTION_JSON,
+                reason = "This request is content creation or editing and should stay structured locally.",
+                requiresInternet = false,
+                safetyNotes = listOf(
+                    "ActionJsonModel may only produce safe BrainAction JSON for content creation flows.",
+                    "Any final export, share, login, payment, or confirmation step must remain manual."
                 )
             )
         }
@@ -157,6 +172,8 @@ class BrainRouter(
             isOpenAppCommand(normalized) ||
             isNavigationCommand(normalized) ||
             isQuickInteractionCommand(normalized) ||
+            isPhoneCommand(normalized) ||
+            isScreenshotCommand(normalized) ||
             isSettingsCommand(normalized)
     }
 
@@ -169,12 +186,16 @@ class BrainRouter(
     }
 
     private fun isStopCommand(normalized: String): Boolean {
-        return normalized == "stop" ||
-            normalized == "cancel" ||
-            normalized == "stop listening" ||
+        return normalized == "stop listening" ||
             normalized == "cancel listening" ||
             normalized == "stop speaking" ||
+            normalized == "cancel speaking" ||
             normalized == "cancel voice" ||
+            normalized == "stop voice" ||
+            normalized == "stop service" ||
+            normalized == "cancel service" ||
+            normalized == "stop assistant" ||
+            normalized == "cancel assistant" ||
             normalized == "quiet" ||
             normalized == "be quiet"
     }
@@ -198,16 +219,21 @@ class BrainRouter(
 
     private fun isNavigationCommand(normalized: String): Boolean {
         return normalized == "go back" ||
+            normalized == "go previous" ||
             normalized == "back" ||
             normalized == "previous" ||
+            normalized == "show recent apps" ||
             normalized == "show recents" ||
+            normalized == "open recent apps" ||
             normalized == "open recents" ||
             normalized == "recent apps" ||
             normalized == "recents" ||
             normalized == "open notifications" ||
             normalized == "show notifications" ||
             normalized == "scroll down" ||
+            normalized == "move down" ||
             normalized == "scroll up" ||
+            normalized == "move up" ||
             normalized == "swipe down" ||
             normalized == "swipe up"
     }
@@ -275,6 +301,25 @@ class BrainRouter(
         return normalized.contains("order") && normalized.contains("food")
     }
 
+    private fun isContentPlanning(rawText: String): Boolean {
+        val commandType = contentCreationIntentParser.parse(rawText).commandType
+        return commandType in setOf(
+            ContentCreationCommandType.CREATE_PPT,
+            ContentCreationCommandType.CREATE_IMAGE,
+            ContentCreationCommandType.CREATE_VIDEO,
+            ContentCreationCommandType.CREATE_DOCUMENT,
+            ContentCreationCommandType.CREATE_EXCEL,
+            ContentCreationCommandType.CREATE_PDF,
+            ContentCreationCommandType.CREATE_OTHER,
+            ContentCreationCommandType.DETECT_BEST_FORMAT,
+            ContentCreationCommandType.EDIT_DRAFT,
+            ContentCreationCommandType.REGENERATE_DRAFT,
+            ContentCreationCommandType.FINALIZE_OUTPUT,
+            ContentCreationCommandType.EXPORT_FILE,
+            ContentCreationCommandType.SHARE_FILE
+        )
+    }
+
     private fun isMessagePlanning(normalized: String): Boolean {
         val messageKeywords = listOf(
             "prepare message",
@@ -290,6 +335,10 @@ class BrainRouter(
     }
 
     private fun isScreenQuery(normalized: String): Boolean {
+        if (isScreenshotCommand(normalized)) {
+            return false
+        }
+
         val screenKeywords = listOf(
             "screen",
             "what do you see",
@@ -301,8 +350,7 @@ class BrainRouter(
             "screen text",
             "screen reading",
             "read this page",
-            "look at this screen",
-            "screenshot"
+            "look at this screen"
         )
 
         return screenKeywords.any { containsPhrase(normalized, it) }
@@ -322,7 +370,6 @@ class BrainRouter(
             "help me understand",
             "talk to me",
             "summarize",
-            "compare",
             "what can you do"
         )
 
@@ -345,6 +392,16 @@ class BrainRouter(
 
     private fun containsAny(normalized: String, keywords: List<String>): Boolean {
         return keywords.any { containsKeyword(normalized, it) }
+    }
+
+    private fun isPhoneCommand(normalized: String): Boolean {
+        return normalized.startsWith("call ") ||
+            normalized.startsWith("dial ")
+    }
+
+    private fun isScreenshotCommand(normalized: String): Boolean {
+        return normalized == "take screenshot" ||
+            normalized == "capture screenshot"
     }
 
     private fun containsKeyword(normalized: String, keyword: String): Boolean {
