@@ -7,6 +7,14 @@ import com.nova.luna.model.ActionType
 import com.nova.luna.model.BrainAction
 import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainRiskLevel
+import com.nova.luna.memory.BrainMemoryStore
+import com.nova.luna.memory.BrainSessionManager
+import com.nova.luna.memory.BrainSessionType
+import com.nova.luna.memory.ConfirmationResolution
+import com.nova.luna.memory.FollowUpResolution
+import com.nova.luna.memory.InMemoryBrainMemoryStore
+import com.nova.luna.memory.PendingConfirmation
+import com.nova.luna.memory.PendingConfirmationType
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.model.IntentType
@@ -14,7 +22,8 @@ import com.nova.luna.safety.SafetyGate
 
 class CommandBrain(
     context: Context,
-    private val brainService: BrainService = BrainService()
+    private val brainMemoryStore: BrainMemoryStore = InMemoryBrainMemoryStore(),
+    private val brainService: BrainService = BrainService(brainMemoryStore = brainMemoryStore)
 ) {
     private val parser = RuleBasedCommandParser()
     private val appLauncher = AppLauncher(context.applicationContext)
@@ -22,71 +31,144 @@ class CommandBrain(
     private val safetyGate = SafetyGate()
     private val brainActionValidator = BrainActionValidator()
     private val router = CommandRouter(ActionExecutor(context.applicationContext))
-    private var pendingOnlineAiConsentRequest: OnlineAiConsentRequest? = null
+    private val sessionManager = BrainSessionManager(brainMemoryStore)
 
     fun process(rawText: String): CommandResult {
         val parsed = parser.parse(rawText)
+        val memorySnapshot = sessionManager.snapshot()
+        val activeSessionType = memorySnapshot.activeSessionType()
+        val activePendingConfirmation = memorySnapshot.activePendingConfirmation
+        val confirmationResolution = sessionManager.resolvePendingConfirmation(rawText)
+        val followUpResolution = sessionManager.resolveFollowUp(rawText, activeSessionType)
+
+        fun finish(result: CommandResult, sessionTypeHint: BrainSessionType? = result.memorySessionType ?: activeSessionType): CommandResult {
+            sessionManager.recordCommandResult(
+                rawText = rawText,
+                commandIntent = parsed,
+                result = result,
+                sessionTypeHint = sessionTypeHint
+            )
+            return result
+        }
 
         if (parsed.intentType == IntentType.BLOCKED || parsed.actionType == ActionType.BLOCKED) {
-            return CommandResult.blocked(
+            return finish(
+                CommandResult.blocked(
                 message = "Blocked command: payments, banking, checkout, passwords, OTPs, and CAPTCHA work must stay manual.",
                 intentType = parsed.intentType,
                 actionType = parsed.actionType,
                 entities = parsed.entities
+            )
             )
         }
 
         if (parsed.actionType == ActionType.STOP_SERVICE) {
             val decision = safetyGate.evaluate(parsed)
             if (!decision.allowed) {
-                return CommandResult.blocked(
-                    message = decision.message,
-                    intentType = parsed.intentType,
-                    actionType = parsed.actionType,
-                    entities = parsed.entities
+                return finish(
+                    CommandResult.blocked(
+                message = decision.message,
+                intentType = parsed.intentType,
+                actionType = parsed.actionType,
+                entities = parsed.entities
+            )
                 )
             }
 
-            return router.route(parsed).copy(safetyDecision = decision)
+            return finish(
+                router.route(parsed).copy(
+                    safetyDecision = decision,
+                    memorySessionType = BrainSessionType.BASIC_CONTROL,
+                    memoryMetadata = parsed.entities + mapOf("memoryFlow" to "stop_service")
+                ),
+                sessionTypeHint = BrainSessionType.BASIC_CONTROL
+            )
         }
 
-        val pendingConsentRequest = pendingOnlineAiConsentRequest
-        if (pendingConsentRequest != null) {
+        if (confirmationResolution != null) {
             when {
-                isAffirmativeResponse(parsed.normalizedText) -> {
-                    pendingOnlineAiConsentRequest = null
-                    val brainAction = brainService.process(
-                        rawText = pendingConsentRequest.rawText,
-                        activeCabSession = pendingConsentRequest.activeCabSession,
-                        activeGrocerySession = pendingConsentRequest.activeGrocerySession,
-                        activeFoodSession = pendingConsentRequest.activeFoodSession,
-                        onlineConsentGiven = true
-                    )
+                confirmationResolution.confirmed -> {
+                    val pendingConfirmation = confirmationResolution.pendingConfirmation
+                    sessionManager.consumePendingConfirmation(pendingConfirmation.confirmationId)
 
-                    handleBrainServiceAction(brainAction)?.let { return it }
+                    if (pendingConfirmation.sessionType == BrainSessionType.ONLINE_HELPER ||
+                        pendingConfirmation.sessionType == BrainSessionType.LOCAL_LLM
+                    ) {
+                        replayPendingConfirmation(
+                            rawText = rawText,
+                            parsed = parsed,
+                            pendingConfirmation = pendingConfirmation
+                        )?.let { return finish(it, sessionTypeHint = pendingConfirmation.sessionType) }
+                    }
 
-                    return CommandResult.failure(
-                        message = "I could not continue the online request yet.",
-                        intentType = parsed.intentType,
-                        actionType = parsed.actionType,
-                        entities = parsed.entities
+                    pendingConfirmation.brainAction?.let { pendingBrainAction ->
+                        handleBrainServiceAction(
+                            brainAction = pendingBrainAction,
+                            rawText = rawText,
+                            parsed = parsed,
+                            pendingConfirmation = pendingConfirmation,
+                            userConfirmed = true
+                        )?.let { return finish(it, sessionTypeHint = pendingConfirmation.sessionType) }
+                    }
+
+                    replayPendingConfirmation(
+                        rawText = rawText,
+                        parsed = parsed,
+                        pendingConfirmation = pendingConfirmation
+                    )?.let { return finish(it, sessionTypeHint = pendingConfirmation.sessionType) }
+
+                    return finish(
+                        CommandResult.failure(
+                            message = "I could not continue the pending request yet.",
+                            intentType = parsed.intentType,
+                            actionType = parsed.actionType,
+                            entities = parsed.entities,
+                            memorySessionType = pendingConfirmation.sessionType
+                        ),
+                        sessionTypeHint = pendingConfirmation.sessionType
                     )
                 }
 
-                isNegativeResponse(parsed.normalizedText) -> {
-                    pendingOnlineAiConsentRequest = null
-                    return CommandResult.success(
-                        message = "Okay, I will keep it local.",
-                        intentType = parsed.intentType,
-                        actionType = parsed.actionType,
-                        entities = parsed.entities
+                confirmationResolution.denied -> {
+                    val pendingConfirmation = confirmationResolution.pendingConfirmation
+                    sessionManager.consumePendingConfirmation(pendingConfirmation.confirmationId)
+                    return finish(
+                        CommandResult.success(
+                            message = "Okay, I will keep it local.",
+                            intentType = parsed.intentType,
+                            actionType = parsed.actionType,
+                            entities = parsed.entities,
+                            memorySessionType = pendingConfirmation.sessionType
+                        ),
+                        sessionTypeHint = pendingConfirmation.sessionType
                     )
                 }
+
+                confirmationResolution.expired -> {
+                    val pendingConfirmation = confirmationResolution.pendingConfirmation
+                    sessionManager.consumePendingConfirmation(pendingConfirmation.confirmationId)
+                    return finish(
+                        CommandResult.failure(
+                            message = "That confirmation expired. Please ask again.",
+                            intentType = parsed.intentType,
+                            actionType = parsed.actionType,
+                            entities = parsed.entities,
+                            memorySessionType = pendingConfirmation.sessionType
+                        ),
+                        sessionTypeHint = pendingConfirmation.sessionType
+                    )
+                }
+            }
+        }
+
+        if (followUpResolution?.isSessionContinuation == true) {
+            routeFollowUp(rawText, parsed, followUpResolution)?.let {
+                return finish(it, sessionTypeHint = followUpResolution.sessionType)
             }
         }
 
         if (router.hasActiveGroceryBookingSession()) {
-            return router.routeGroceryConversation(rawText)
+            return finish(router.routeGroceryConversation(rawText), sessionTypeHint = BrainSessionType.GROCERY)
         }
 
         if (
@@ -105,60 +187,70 @@ class CommandBrain(
             val decision = safetyGate.evaluate(resolved)
             if (!decision.allowed) {
                 return if (decision.requiresBiometric) {
-                    CommandResult.biometricRequired(
+                    finish(
+                        CommandResult.biometricRequired(
                         message = decision.message,
                         intentType = resolved.intentType,
                         actionType = resolved.actionType,
                         entities = resolved.entities
                     )
+                    )
                 } else {
-                    CommandResult.blocked(
+                    finish(
+                        CommandResult.blocked(
                         message = decision.message,
                         intentType = resolved.intentType,
                         actionType = resolved.actionType,
                         entities = resolved.entities
+                    )
                     )
                 }
             }
 
             val result = router.route(resolved)
-            return result.copy(safetyDecision = decision)
+            return finish(
+                result.copy(
+                    safetyDecision = decision,
+                    memorySessionType = result.memorySessionType ?: sessionTypeForResolvedIntent(resolved)
+                ),
+                sessionTypeHint = sessionTypeForResolvedIntent(resolved)
+            )
         }
 
         if (router.hasActiveCabBookingSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
-            return router.routeCabConversation(rawText)
+            return finish(router.routeCabConversation(rawText), sessionTypeHint = BrainSessionType.CAB)
         }
 
         if (router.hasActiveFoodBookingSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
-            return router.routeFoodConversation(rawText)
+            return finish(router.routeFoodConversation(rawText), sessionTypeHint = BrainSessionType.FOOD)
         }
 
         if (router.hasActivePhoneContactSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
-            return router.routePhoneContactConversation(rawText)
+            return finish(router.routePhoneContactConversation(rawText), sessionTypeHint = BrainSessionType.PHONE)
         }
 
         if (router.hasActiveCommunicationSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
-            return router.routeCommunicationConversation(rawText)
+            return finish(router.routeCommunicationConversation(rawText), sessionTypeHint = BrainSessionType.COMMUNICATION)
         }
 
         if (router.hasActiveContentCreationSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
-            return router.routeContentCreationConversation(rawText)
+            return finish(router.routeContentCreationConversation(rawText), sessionTypeHint = BrainSessionType.CONTENT)
         }
 
         if (router.hasActiveMusicSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
-            return router.routeMusicConversation(rawText)
+            return finish(router.routeMusicConversation(rawText), sessionTypeHint = BrainSessionType.MUSIC)
         }
 
         if (router.hasActiveShoppingSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
-            return router.routeShoppingConversation(rawText)
+            return finish(router.routeShoppingConversation(rawText), sessionTypeHint = BrainSessionType.SHOPPING)
         }
 
         if (router.hasActiveMediaSession() && parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
-            return router.routeMediaConversation(rawText)
+            return finish(router.routeMediaConversation(rawText), sessionTypeHint = BrainSessionType.MEDIA)
         }
 
         if (router.hasActiveMediaSession() && shouldRouteMediaConversation(parsed)) {
-            return router.routeMediaConversation(rawText)
+            return finish(router.routeMediaConversation(rawText), sessionTypeHint = BrainSessionType.MEDIA)
         }
 
         if (shouldUseBrainService(parsed, rawText)) {
@@ -166,18 +258,30 @@ class CommandBrain(
                 rawText = rawText,
                 activeCabSession = router.hasActiveCabBookingSession(),
                 activeGrocerySession = router.hasActiveGroceryBookingSession(),
-                activeFoodSession = router.hasActiveFoodBookingSession()
+                activeFoodSession = router.hasActiveFoodBookingSession(),
+                activeSessionType = activeSessionType,
+                pendingConfirmation = activePendingConfirmation,
+                onlineConsentGiven = false
             )
 
-            handleBrainServiceAction(brainAction)?.let { return it }
+            handleBrainServiceAction(
+                brainAction = brainAction,
+                rawText = rawText,
+                parsed = parsed,
+                pendingConfirmation = activePendingConfirmation
+            )?.let { return finish(it, sessionTypeHint = activeSessionType) }
         }
 
         if (parsed.intentType == IntentType.UNKNOWN && parsed.actionType == ActionType.UNKNOWN) {
-            return CommandResult.failure(
-                unknownFallbackMessage(parsed.normalizedText),
-                parsed.intentType,
-                parsed.actionType,
-                parsed.entities
+            return finish(
+                CommandResult.failure(
+                    unknownFallbackMessage(parsed.normalizedText),
+                    parsed.intentType,
+                    parsed.actionType,
+                    parsed.entities,
+                    memorySessionType = activeSessionType
+                ),
+                sessionTypeHint = activeSessionType
             )
         }
 
@@ -185,24 +289,34 @@ class CommandBrain(
         val decision = safetyGate.evaluate(resolved)
         if (!decision.allowed) {
             return if (decision.requiresBiometric) {
-                CommandResult.biometricRequired(
+                finish(
+                    CommandResult.biometricRequired(
                     message = decision.message,
                     intentType = resolved.intentType,
                     actionType = resolved.actionType,
                     entities = resolved.entities
                 )
+                )
             } else {
-                CommandResult.blocked(
+                finish(
+                    CommandResult.blocked(
                     message = decision.message,
                     intentType = resolved.intentType,
                     actionType = resolved.actionType,
                     entities = resolved.entities
+                )
                 )
             }
         }
 
         val result = router.route(resolved)
-        return result.copy(safetyDecision = decision)
+        return finish(
+            result.copy(
+                safetyDecision = decision,
+                memorySessionType = result.memorySessionType ?: sessionTypeForResolvedIntent(resolved)
+            ),
+            sessionTypeHint = sessionTypeForResolvedIntent(resolved)
+        )
     }
 
     private fun unknownFallbackMessage(normalizedText: String): String {
@@ -505,18 +619,32 @@ class CommandBrain(
         )
     }
 
-    private fun String?.toBooleanFlag(): Boolean {
-        return this?.equals("true", ignoreCase = true) == true
-    }
-
-    private fun handleBrainServiceAction(brainAction: BrainAction): CommandResult? {
+    private fun handleBrainServiceAction(
+        brainAction: BrainAction,
+        rawText: String,
+        parsed: CommandIntent,
+        pendingConfirmation: PendingConfirmation? = null,
+        userConfirmed: Boolean = false
+    ): CommandResult? {
         if (!brainActionValidator.isAcceptable(brainAction)) {
             return null
         }
 
-        val safetyDecision = safetyGate.evaluate(brainAction)
+        val safetyDecision = safetyGate.evaluate(
+            brainAction,
+            pendingConfirmation = pendingConfirmation,
+            userConfirmed = userConfirmed
+        )
         val resultIntentType = resultIntentType(brainAction)
         val resultActionType = resultActionType(brainAction)
+        val sessionType = sessionTypeForBrainAction(brainAction) ?: pendingConfirmation?.sessionType
+        val confirmationType = confirmationTypeForBrainAction(brainAction)
+        val memoryMetadata = buildMap {
+            putAll(brainAction.params)
+            put("rawText", rawText)
+            put("parsedIntentType", parsed.intentType.name)
+            put("parsedActionType", parsed.actionType.name)
+        }
 
         if (!safetyDecision.allowed) {
             return when {
@@ -524,30 +652,30 @@ class CommandBrain(
                     message = safetyDecision.message,
                     intentType = resultIntentType,
                     actionType = resultActionType,
-                    entities = brainAction.params
+                    entities = brainAction.params,
+                    memorySessionType = sessionType,
+                    pendingConfirmationType = confirmationType,
+                    memoryMetadata = memoryMetadata
                 )
 
                 safetyDecision.requiresConfirmation -> CommandResult.confirmationRequired(
                     message = safetyDecision.message,
                     intentType = resultIntentType,
                     actionType = resultActionType,
-                    entities = brainAction.params
-                ).also {
-                    if (brainAction.intent == "online_ai_permission") {
-                        pendingOnlineAiConsentRequest = OnlineAiConsentRequest(
-                            rawText = brainAction.params["rawText"].orEmpty(),
-                            activeCabSession = brainAction.params["activeCabSession"].toBooleanFlag(),
-                            activeGrocerySession = brainAction.params["activeGrocerySession"].toBooleanFlag(),
-                            activeFoodSession = brainAction.params["activeFoodSession"].toBooleanFlag()
-                        )
-                    }
-                }
+                    entities = brainAction.params,
+                    memorySessionType = sessionType,
+                    pendingConfirmationType = confirmationType,
+                    memoryMetadata = memoryMetadata
+                )
 
                 else -> CommandResult.blocked(
                     message = safetyDecision.message,
                     intentType = resultIntentType,
                     actionType = resultActionType,
-                    entities = brainAction.params
+                    entities = brainAction.params,
+                    memorySessionType = sessionType,
+                    pendingConfirmationType = confirmationType,
+                    memoryMetadata = memoryMetadata
                 )
             }
         }
@@ -555,7 +683,12 @@ class CommandBrain(
         return when (brainAction.actionType) {
             BrainActionType.EXTERNAL_ACTION -> {
                 val routedResult = router.route(brainAction)
-                routedResult.copy(safetyDecision = safetyDecision)
+                routedResult.copy(
+                    safetyDecision = safetyDecision,
+                    memorySessionType = routedResult.memorySessionType ?: sessionType,
+                    pendingConfirmationType = routedResult.pendingConfirmationType,
+                    memoryMetadata = routedResult.memoryMetadata + memoryMetadata
+                )
             }
 
             BrainActionType.READ_ONLY,
@@ -563,7 +696,9 @@ class CommandBrain(
                 message = brainAction.reply,
                 intentType = resultIntentType,
                 actionType = resultActionType,
-                entities = brainAction.params
+                entities = brainAction.params,
+                memorySessionType = sessionType,
+                memoryMetadata = memoryMetadata
             )
 
             BrainActionType.PREPARE -> CommandResult.confirmationRequired(
@@ -571,24 +706,155 @@ class CommandBrain(
                     ?: safetyDecision.message,
                 intentType = resultIntentType,
                 actionType = resultActionType,
-                entities = brainAction.params
+                entities = brainAction.params,
+                memorySessionType = sessionType,
+                pendingConfirmationType = confirmationType,
+                memoryMetadata = memoryMetadata
             )
 
             BrainActionType.HUMAN_ONLY -> CommandResult.blocked(
                 message = safetyDecision.message,
                 intentType = resultIntentType,
                 actionType = resultActionType,
-                entities = brainAction.params
+                entities = brainAction.params,
+                memorySessionType = sessionType,
+                memoryMetadata = memoryMetadata
             )
         }
     }
 
-    private data class OnlineAiConsentRequest(
-        val rawText: String,
-        val activeCabSession: Boolean,
-        val activeGrocerySession: Boolean,
-        val activeFoodSession: Boolean
-    )
+    private fun replayPendingConfirmation(
+        rawText: String,
+        parsed: CommandIntent,
+        pendingConfirmation: PendingConfirmation
+    ): CommandResult? {
+        val originalRawText = pendingConfirmation.sanitizedMetadata["rawText"]
+            ?.takeIf { it.isNotBlank() }
+            ?: pendingConfirmation.brainAction?.params?.get("rawText")
+            ?: rawText
+
+        return when (pendingConfirmation.sessionType) {
+            BrainSessionType.CAB -> router.routeCabConversation(originalRawText)
+            BrainSessionType.FOOD -> router.routeFoodConversation(originalRawText)
+            BrainSessionType.GROCERY -> router.routeGroceryConversation(originalRawText, userConfirmed = true)
+            BrainSessionType.SHOPPING -> router.routeShoppingConversation(originalRawText)
+            BrainSessionType.CONTENT -> router.routeContentCreationConversation(originalRawText)
+            BrainSessionType.COMMUNICATION -> router.routeCommunicationConversation(originalRawText)
+            BrainSessionType.PHONE -> router.routePhoneContactConversation(originalRawText)
+            BrainSessionType.MUSIC -> router.routeMusicConversation(originalRawText)
+            BrainSessionType.MEDIA -> router.routeMediaConversation(originalRawText)
+            BrainSessionType.ONLINE_HELPER, BrainSessionType.LOCAL_LLM -> {
+                val brainAction = brainService.process(
+                    rawText = originalRawText,
+                    activeCabSession = router.hasActiveCabBookingSession(),
+                    activeGrocerySession = router.hasActiveGroceryBookingSession(),
+                    activeFoodSession = router.hasActiveFoodBookingSession(),
+                    activeSessionType = pendingConfirmation.sessionType,
+                    pendingConfirmation = null,
+                    onlineConsentGiven = true
+                )
+                handleBrainServiceAction(
+                    brainAction = brainAction,
+                    rawText = originalRawText,
+                    parsed = parsed,
+                    pendingConfirmation = null,
+                    userConfirmed = true
+                )
+            }
+
+            else -> null
+        }
+    }
+
+    private fun routeFollowUp(
+        rawText: String,
+        parsed: CommandIntent,
+        followUpResolution: FollowUpResolution
+    ): CommandResult? {
+        val sessionType = followUpResolution.sessionType ?: return null
+        return when (sessionType) {
+            BrainSessionType.CAB -> router.routeCabConversation(rawText)
+            BrainSessionType.FOOD -> router.routeFoodConversation(rawText)
+            BrainSessionType.GROCERY -> router.routeGroceryConversation(
+                rawText = rawText,
+                userConfirmed = followUpResolution.kind == com.nova.luna.memory.FollowUpKind.CONFIRMATION
+            )
+            BrainSessionType.SHOPPING -> router.routeShoppingConversation(rawText)
+            BrainSessionType.CONTENT -> router.routeContentCreationConversation(rawText)
+            BrainSessionType.COMMUNICATION -> router.routeCommunicationConversation(rawText)
+            BrainSessionType.PHONE -> router.routePhoneContactConversation(rawText)
+            BrainSessionType.MUSIC -> router.routeMusicConversation(rawText)
+            BrainSessionType.MEDIA -> router.routeMediaConversation(rawText)
+            BrainSessionType.ONLINE_HELPER,
+            BrainSessionType.LOCAL_LLM -> {
+                val brainAction = brainService.process(
+                    rawText = rawText,
+                    activeCabSession = router.hasActiveCabBookingSession(),
+                    activeGrocerySession = router.hasActiveGroceryBookingSession(),
+                    activeFoodSession = router.hasActiveFoodBookingSession(),
+                    activeSessionType = sessionType,
+                    pendingConfirmation = sessionManager.activePendingConfirmation(),
+                    onlineConsentGiven = false
+                )
+                handleBrainServiceAction(
+                    brainAction = brainAction,
+                    rawText = rawText,
+                    parsed = parsed,
+                    pendingConfirmation = sessionManager.activePendingConfirmation()
+                )
+            }
+
+            else -> null
+        }
+    }
+
+    private fun sessionTypeForResolvedIntent(commandIntent: CommandIntent): BrainSessionType? {
+        return when {
+            commandIntent.intentType == IntentType.CAB_BOOKING || commandIntent.actionType == ActionType.CAB_BOOKING -> BrainSessionType.CAB
+            commandIntent.intentType == IntentType.FOOD_ORDER || commandIntent.actionType == ActionType.FOOD_ORDER -> BrainSessionType.FOOD
+            commandIntent.intentType == IntentType.GROCERY_BOOKING || commandIntent.actionType == ActionType.GROCERY_BOOKING -> BrainSessionType.GROCERY
+            commandIntent.intentType == IntentType.SHOPPING || commandIntent.actionType == ActionType.SHOPPING -> BrainSessionType.SHOPPING
+            commandIntent.intentType == IntentType.COMMUNICATION || commandIntent.actionType == ActionType.COMMUNICATION -> BrainSessionType.COMMUNICATION
+            commandIntent.intentType == IntentType.CONTENT_CREATION || commandIntent.actionType == ActionType.CONTENT_CREATION -> BrainSessionType.CONTENT
+            commandIntent.intentType == IntentType.MEDIA_CONTROL || commandIntent.actionType == ActionType.MEDIA_CONTROL -> BrainSessionType.MEDIA
+            commandIntent.intentType == IntentType.READ_NOTIFICATIONS || commandIntent.actionType == ActionType.READ_NOTIFICATIONS -> BrainSessionType.BASIC_CONTROL
+            commandIntent.intentType == IntentType.SENSITIVE -> BrainSessionType.BASIC_CONTROL
+            commandIntent.intentType == IntentType.CONTROL -> BrainSessionType.BASIC_CONTROL
+            else -> null
+        }
+    }
+
+    private fun sessionTypeForBrainAction(brainAction: BrainAction): BrainSessionType? {
+        return when {
+            brainAction.intent.startsWith("cab", ignoreCase = true) -> BrainSessionType.CAB
+            brainAction.intent.startsWith("food", ignoreCase = true) -> BrainSessionType.FOOD
+            brainAction.intent.startsWith("grocery", ignoreCase = true) -> BrainSessionType.GROCERY
+            brainAction.intent.startsWith("shopping", ignoreCase = true) -> BrainSessionType.SHOPPING
+            brainAction.intent.startsWith("music", ignoreCase = true) -> BrainSessionType.MUSIC
+            brainAction.intent.startsWith("media", ignoreCase = true) -> BrainSessionType.MEDIA
+            brainAction.intent.startsWith("content", ignoreCase = true) -> BrainSessionType.CONTENT
+            brainAction.intent.startsWith("communication", ignoreCase = true) -> BrainSessionType.COMMUNICATION
+            brainAction.intent.startsWith("phone", ignoreCase = true) -> BrainSessionType.PHONE
+            brainAction.intent.startsWith("screen", ignoreCase = true) -> BrainSessionType.SCREEN
+            brainAction.intent.equals("online_ai_permission", ignoreCase = true) -> BrainSessionType.ONLINE_HELPER
+            brainAction.intent.equals("local_model_unavailable", ignoreCase = true) -> BrainSessionType.LOCAL_LLM
+            else -> null
+        }
+    }
+
+    private fun confirmationTypeForBrainAction(brainAction: BrainAction): PendingConfirmationType {
+        return when {
+            brainAction.intent.equals("online_ai_permission", ignoreCase = true) -> PendingConfirmationType.ONLINE_AI_USE
+            brainAction.intent.startsWith("cab", ignoreCase = true) -> PendingConfirmationType.BOOK_RIDE
+            brainAction.intent.startsWith("food", ignoreCase = true) -> PendingConfirmationType.PLACE_ORDER
+            brainAction.intent.startsWith("grocery", ignoreCase = true) -> PendingConfirmationType.PLACE_ORDER
+            brainAction.intent.startsWith("shopping", ignoreCase = true) -> PendingConfirmationType.PLACE_ORDER
+            brainAction.intent.startsWith("communication", ignoreCase = true) -> PendingConfirmationType.SEND_MESSAGE
+            brainAction.intent.startsWith("content", ignoreCase = true) -> PendingConfirmationType.EXPORT_CONTENT
+            brainAction.intent.startsWith("phone", ignoreCase = true) -> PendingConfirmationType.CALL_CONTACT
+            else -> PendingConfirmationType.GENERIC_SAFE_ACTION
+        }
+    }
 
     private fun resultIntentType(brainAction: BrainAction): IntentType {
         val mapped = brainAction.toCommandIntent()

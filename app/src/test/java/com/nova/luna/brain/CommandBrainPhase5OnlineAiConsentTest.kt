@@ -23,7 +23,7 @@ class CommandBrainPhase5OnlineAiConsentTest {
 
         val secondResult = brain.process("yes")
 
-        assertTrue(secondResult.success)
+        assertTrue("secondResult=$secondResult", secondResult.success)
         assertEquals("Here is a safe draft.", secondResult.message)
     }
 }

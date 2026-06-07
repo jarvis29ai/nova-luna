@@ -45,7 +45,7 @@ class CommandBrainPhase2BrainServiceFallbackTest {
         )
 
         val context = ApplicationProvider.getApplicationContext<Context>()
-        brain = CommandBrain(context, brainService)
+        brain = CommandBrain(context, brainService = brainService)
         executor = FakeActionExecutor()
         injectActionExecutor(brain, executor)
     }

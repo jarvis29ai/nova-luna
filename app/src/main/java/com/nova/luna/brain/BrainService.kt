@@ -8,6 +8,11 @@ import com.nova.luna.model.BrainRouteDecision
 import com.nova.luna.model.BrainRuntimeStatus
 import com.nova.luna.model.InternetPermissionCategory
 import com.nova.luna.model.InternetPermissionDecision
+import com.nova.luna.memory.BrainMemoryStore
+import com.nova.luna.memory.BrainSessionManager
+import com.nova.luna.memory.BrainSessionType
+import com.nova.luna.memory.InMemoryBrainMemoryStore
+import com.nova.luna.memory.PendingConfirmation
 import com.nova.luna.screen.ScreenStateReader
 import com.nova.luna.safety.SafetyGate
 
@@ -40,9 +45,11 @@ class BrainService(
     private val gemmaBrainModel: PhoneBrainModel = GemmaBrainModel(gemmaRuntime),
     private val actionJsonModel: PhoneBrainModel = ActionJsonModel(),
     private val liteCommandModel: PhoneBrainModel = LiteCommandModel(),
-    private val screenStateReader: ScreenStateReader = ScreenStateReader()
+    private val screenStateReader: ScreenStateReader = ScreenStateReader(),
+    private val brainMemoryStore: BrainMemoryStore = InMemoryBrainMemoryStore()
 ) {
     private val screenUnderstandingModel: PhoneBrainModel = ScreenUnderstandingModel(screenStateReader)
+    private val sessionManager: BrainSessionManager = BrainSessionManager(brainMemoryStore)
 
     private val runtimeSelection by lazy {
         BrainProviderFactory.createSelection(
@@ -58,25 +65,43 @@ class BrainService(
         activeCabSession: Boolean = false,
         activeGrocerySession: Boolean = false,
         activeFoodSession: Boolean = false,
-        onlineConsentGiven: Boolean = false
+        onlineConsentGiven: Boolean = false,
+        activeSessionType: BrainSessionType? = null,
+        pendingConfirmation: PendingConfirmation? = null
     ): BrainAction {
+        val memorySnapshot = sessionManager.snapshot()
+        val effectiveActiveSessionType = activeSessionType ?: memorySnapshot.activeSessionType()
+        val effectivePendingConfirmation = pendingConfirmation ?: memorySnapshot.activePendingConfirmation
         val request = BrainRequest(
             rawText = rawText,
             activeCabSession = activeCabSession,
             activeGrocerySession = activeGrocerySession,
             activeFoodSession = activeFoodSession,
-            onlineConsentGiven = onlineConsentGiven
+            onlineConsentGiven = onlineConsentGiven,
+            activeSessionType = effectiveActiveSessionType,
+            pendingConfirmation = effectivePendingConfirmation,
+            memorySnapshot = memorySnapshot,
+            preferences = memorySnapshot.preferences,
+            recoveryState = effectiveActiveSessionType?.let { memorySnapshot.recoveryStates[it] }
         )
 
         val policyDecision = internetPermissionPolicy.classify(rawText)
         when (policyDecision.category) {
             InternetPermissionCategory.BLOCKED_SENSITIVE -> {
-                return blockedHumanOnlyAction(rawText, policyDecision.reason)
+                return rememberBrainAction(
+                    request,
+                    null,
+                    blockedHumanOnlyAction(rawText, policyDecision.reason)
+                )
             }
 
             InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO -> {
                 if (!internetAvailable) {
-                    return offlineInfoAction(rawText, policyDecision.reason)
+                    return rememberBrainAction(
+                        request,
+                        null,
+                        offlineInfoAction(rawText, policyDecision.reason)
+                    )
                 }
             }
 
@@ -86,22 +111,22 @@ class BrainService(
         if (provider != null) {
             val primaryAttempt = evaluateProvider(provider, request)
             if (isAccepted(primaryAttempt.parsedAction)) {
-                return primaryAttempt.parsedAction!!
+                return rememberBrainAction(request, null, primaryAttempt.parsedAction!!)
             }
 
             val fallbackAttempt = evaluateProvider(fallbackProvider, request)
             if (isAccepted(fallbackAttempt.parsedAction)) {
-                return fallbackAttempt.parsedAction!!
+                return rememberBrainAction(request, null, fallbackAttempt.parsedAction!!)
             }
 
-            return fallback(rawText)
+            return rememberBrainAction(request, null, fallback(rawText))
         }
 
         val routeDecision = brainRouter.route(request)
         val routedRequest = request.withScreenStateIfNeeded(routeDecision)
         val primaryAttempt = evaluateRouteDecision(routeDecision, routedRequest)
         if (isAccepted(primaryAttempt.parsedAction)) {
-            return primaryAttempt.parsedAction!!
+            return rememberBrainAction(request, routeDecision, primaryAttempt.parsedAction!!)
         }
 
         if (routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER) {
@@ -110,14 +135,18 @@ class BrainService(
             val fallbackRouteAttempt = evaluateRouteDecision(fallbackRouteDecision, fallbackRoutedRequest)
 
             if (isAccepted(fallbackRouteAttempt.parsedAction)) {
-                return fallbackRouteAttempt.parsedAction!!
+                return rememberBrainAction(request, fallbackRouteDecision, fallbackRouteAttempt.parsedAction!!)
             }
 
             if (fallbackRouteDecision.selectedRole == BrainModelRole.GEMMA_REASONING) {
-                return localModelFallbackAction(
-                    rawText = rawText,
-                    routeDecision = fallbackRouteDecision,
-                    reason = fallbackRouteAttempt.reason ?: gemmaRuntime.localReadinessStatus().reason
+                return rememberBrainAction(
+                    request,
+                    fallbackRouteDecision,
+                    localModelFallbackAction(
+                        rawText = rawText,
+                        routeDecision = fallbackRouteDecision,
+                        reason = fallbackRouteAttempt.reason ?: gemmaRuntime.localReadinessStatus().reason
+                    )
                 )
             }
 
@@ -128,17 +157,21 @@ class BrainService(
             }
 
             if (isAccepted(fallbackAttempt?.parsedAction)) {
-                return fallbackAttempt!!.parsedAction!!
+                return rememberBrainAction(request, fallbackRouteDecision, fallbackAttempt!!.parsedAction!!)
             }
 
-            return fallback(rawText)
+            return rememberBrainAction(request, fallbackRouteDecision, fallback(rawText))
         }
 
         if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING) {
-            return localModelFallbackAction(
-                rawText = rawText,
-                routeDecision = routeDecision,
-                reason = primaryAttempt.reason ?: gemmaRuntime.localReadinessStatus().reason
+            return rememberBrainAction(
+                request,
+                routeDecision,
+                localModelFallbackAction(
+                    rawText = rawText,
+                    routeDecision = routeDecision,
+                    reason = primaryAttempt.reason ?: gemmaRuntime.localReadinessStatus().reason
+                )
             )
         }
 
@@ -149,10 +182,10 @@ class BrainService(
         }
 
         if (isAccepted(fallbackAttempt?.parsedAction)) {
-            return fallbackAttempt!!.parsedAction!!
+            return rememberBrainAction(request, routeDecision, fallbackAttempt!!.parsedAction!!)
         }
 
-        return fallback(rawText)
+        return rememberBrainAction(request, routeDecision, fallback(rawText))
     }
 
     fun diagnose(
@@ -160,18 +193,33 @@ class BrainService(
         activeCabSession: Boolean = false,
         activeGrocerySession: Boolean = false,
         activeFoodSession: Boolean = false,
-        onlineConsentGiven: Boolean = false
+        onlineConsentGiven: Boolean = false,
+        activeSessionType: BrainSessionType? = null,
+        pendingConfirmation: PendingConfirmation? = null
     ): BrainDiagnostics {
+        val memorySnapshot = sessionManager.snapshot()
+        val effectiveActiveSessionType = activeSessionType ?: memorySnapshot.activeSessionType()
+        val effectivePendingConfirmation = pendingConfirmation ?: memorySnapshot.activePendingConfirmation
         val request = BrainRequest(
             rawText = rawText,
             activeCabSession = activeCabSession,
             activeGrocerySession = activeGrocerySession,
             activeFoodSession = activeFoodSession,
-            onlineConsentGiven = onlineConsentGiven
+            onlineConsentGiven = onlineConsentGiven,
+            activeSessionType = effectiveActiveSessionType,
+            pendingConfirmation = effectivePendingConfirmation,
+            memorySnapshot = memorySnapshot,
+            preferences = memorySnapshot.preferences,
+            recoveryState = effectiveActiveSessionType?.let { memorySnapshot.recoveryStates[it] }
         )
 
         val policyDecision = internetPermissionPolicy.classify(rawText)
-        val runtimeState = runtimeBaseStatus(policyDecision)
+        val runtimeState = runtimeBaseStatus(policyDecision).copy(
+            activeSessionType = effectiveActiveSessionType,
+            pendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+            memoryLoaded = true,
+            memorySessionCount = memorySnapshot.activeSessionCount
+        )
 
         when (policyDecision.category) {
             InternetPermissionCategory.BLOCKED_SENSITIVE -> {
@@ -199,10 +247,27 @@ class BrainService(
                     fallbackUsed = false,
                     finalProvider = runtimeState.selectedProvider,
                     finalBrainAction = action,
-                    finalSafetyDecision = safetyGate.evaluate(action, userConfirmed = false),
-                    runtimeStatus = runtimeState.copy(onlineTrace = onlineTrace),
+                    finalSafetyDecision = safetyGate.evaluate(
+                        action,
+                        pendingConfirmation = request.pendingConfirmation,
+                        userConfirmed = request.onlineConsentGiven
+                    ),
+                    runtimeStatus = runtimeState.copy(
+                        onlineTrace = onlineTrace,
+                        activeSessionType = effectiveActiveSessionType,
+                        pendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+                        memoryLoaded = true,
+                        memorySessionCount = memorySnapshot.activeSessionCount
+                    ),
                     internetPermissionDecision = policyDecision,
-                    onlineTrace = onlineTrace
+                    onlineTrace = onlineTrace,
+                    activeSessionType = effectiveActiveSessionType,
+                    pendingConfirmationId = effectivePendingConfirmation?.confirmationId,
+                    pendingConfirmationType = effectivePendingConfirmation?.type,
+                    recoveryState = request.recoveryState,
+                    memorySessionCount = memorySnapshot.activeSessionCount,
+                    memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+                    preferences = memorySnapshot.preferences
                 )
             }
 
@@ -232,13 +297,28 @@ class BrainService(
                         fallbackUsed = false,
                         finalProvider = runtimeState.selectedProvider,
                         finalBrainAction = action,
-                        finalSafetyDecision = safetyGate.evaluate(action, userConfirmed = false),
+                        finalSafetyDecision = safetyGate.evaluate(
+                            action,
+                            pendingConfirmation = request.pendingConfirmation,
+                            userConfirmed = request.onlineConsentGiven
+                        ),
                         runtimeStatus = runtimeState.copy(
                             reason = runtimeReason(policyDecision, fallbackUsed = false, routeDecision = null, finalProvider = runtimeState.selectedProvider),
-                            onlineTrace = onlineTrace
+                            onlineTrace = onlineTrace,
+                            activeSessionType = effectiveActiveSessionType,
+                            pendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+                            memoryLoaded = true,
+                            memorySessionCount = memorySnapshot.activeSessionCount
                         ),
                         internetPermissionDecision = policyDecision,
-                        onlineTrace = onlineTrace
+                        onlineTrace = onlineTrace,
+                        activeSessionType = effectiveActiveSessionType,
+                        pendingConfirmationId = effectivePendingConfirmation?.confirmationId,
+                        pendingConfirmationType = effectivePendingConfirmation?.type,
+                        recoveryState = request.recoveryState,
+                        memorySessionCount = memorySnapshot.activeSessionCount,
+                        memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+                        preferences = memorySnapshot.preferences
                     )
                 }
             }
@@ -283,9 +363,26 @@ class BrainService(
                 fallbackUsed = fallbackUsed,
                 finalProvider = finalProvider,
                 finalBrainAction = finalAction,
-                finalSafetyDecision = safetyGate.evaluate(finalAction, userConfirmed = false),
-                runtimeStatus = status,
-                internetPermissionDecision = policyDecision
+                finalSafetyDecision = safetyGate.evaluate(
+                    finalAction,
+                    pendingConfirmation = request.pendingConfirmation,
+                    userConfirmed = request.onlineConsentGiven
+                ),
+                runtimeStatus = status.copy(
+                    activeSessionType = effectiveActiveSessionType,
+                    pendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+                    memoryLoaded = true,
+                    memorySessionCount = memorySnapshot.activeSessionCount
+                ),
+                internetPermissionDecision = policyDecision,
+                onlineTrace = null,
+                activeSessionType = effectiveActiveSessionType,
+                pendingConfirmationId = effectivePendingConfirmation?.confirmationId,
+                pendingConfirmationType = effectivePendingConfirmation?.type,
+                recoveryState = request.recoveryState,
+                memorySessionCount = memorySnapshot.activeSessionCount,
+                memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+                preferences = memorySnapshot.preferences
             )
         }
 
@@ -419,10 +516,26 @@ class BrainService(
             fallbackUsed = fallbackUsed,
             finalProvider = finalProvider,
             finalBrainAction = finalAction,
-            finalSafetyDecision = safetyGate.evaluate(finalAction, userConfirmed = false),
-            runtimeStatus = status,
+            finalSafetyDecision = safetyGate.evaluate(
+                finalAction,
+                pendingConfirmation = request.pendingConfirmation,
+                userConfirmed = request.onlineConsentGiven
+            ),
+            runtimeStatus = status.copy(
+                activeSessionType = effectiveActiveSessionType,
+                pendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+                memoryLoaded = true,
+                memorySessionCount = memorySnapshot.activeSessionCount
+            ),
             internetPermissionDecision = policyDecision,
-            onlineTrace = onlineTrace
+            onlineTrace = onlineTrace,
+            activeSessionType = effectiveActiveSessionType,
+            pendingConfirmationId = effectivePendingConfirmation?.confirmationId,
+            pendingConfirmationType = effectivePendingConfirmation?.type,
+            recoveryState = request.recoveryState,
+            memorySessionCount = memorySnapshot.activeSessionCount,
+            memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+            preferences = memorySnapshot.preferences
         )
     }
 
@@ -690,6 +803,25 @@ class BrainService(
             ),
             nextQuestion = "Would you like an offline-only alternative?"
         )
+    }
+
+    private fun rememberBrainAction(
+        request: BrainRequest,
+        routeDecision: BrainRouteDecision?,
+        brainAction: BrainAction
+    ): BrainAction {
+        val safetyDecision = safetyGate.evaluate(
+            brainAction,
+            pendingConfirmation = request.pendingConfirmation,
+            userConfirmed = request.onlineConsentGiven
+        )
+        sessionManager.recordBrainAction(
+            request = request,
+            routeDecision = routeDecision,
+            brainAction = brainAction,
+            safetyDecision = safetyDecision
+        )
+        return brainAction
     }
 
     private fun fallback(rawText: String): BrainAction {

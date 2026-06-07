@@ -17,6 +17,7 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Optional online AI helper abstraction for consent-gated research and drafting flows using ChatGPT/Gemini/Claude-style providers, with read-only or draft-only results only
 - `PhoneLocalLlmRuntime` is the shared phone-local reasoning bridge. It resolves the configured model stack, checks asset readiness, builds the strict `BrainAction` prompt, parses strict JSON output, and reports structured readiness diagnostics
 - `PhoneGemmaRuntime` is the production phone reasoning scaffold for Gemma-style local models, and `GemmaBrainModel` delegates to it when runtime readiness passes
+- Universal local memory and session management with `BrainMemoryStore`, `BrainSessionManager`, `BrainMemorySnapshot`, `PendingConfirmation`, `RecoveryState`, and `MemoryRedactor` so active sessions, confirmations, recovery hints, and preferences stay on-device
 - `ActionJsonModel` creates strict safe BrainAction JSON for cab, food, and task planning and stays validator-bound even if Gemma reasoning is supplied later
 - `LiteCommandModel` handles fast offline commands like stop, cancel, go home, and open app
 - Accessibility-first screen understanding built on `NovaAccessibilityService`, `AccessibilityNodeUtils`, `ScreenStateReader`, `ScreenStateAnalyzer`, `ScreenRecoveryAdvisor`, and `ScreenStateVerifier`
@@ -28,6 +29,7 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Local grocery-booking orchestration for item parsing, basket changes, provider launch, provider comparison, coupon handling, cart total comparison, and explicit user-confirmed handoff
 - First-class control command path for stop/cancel style commands that safely shut down listening
 - Local memory and preferences for persona, settings, and lightweight state
+- Memory state is universal but still local-first: active sessions, pending confirmations, screen snapshots, recovery state, and preferences all stay on-device and must be redacted before storage
 - Optional smartwatch companion later for quick commands and watch-first conveniences
 
 ## Architecture Rules
@@ -65,7 +67,7 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Keep cab-booking session state transient and local to the device.
 - Keep food-ordering session state transient and local to the device.
 - Keep grocery-booking session state transient and local to the device.
-- Keep BrainAction structured data transient and local to the device unless a future memory feature explicitly stores it.
+- Keep BrainAction structured data transient and local to the device unless a future memory feature explicitly stores it; if a future memory feature exists, it must stay local-first and redacted.
 - Keep LLM provider configuration local and explicit (`brain_provider`, `llm_enabled`, `ollama_base_url`, `ollama_model`).
 - Keep capability mode configuration local and explicit (`brain_capability_mode`).
 - Resolve current-location pickup locally when location permission and a last-known location are available.

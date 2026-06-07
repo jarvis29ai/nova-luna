@@ -2,7 +2,7 @@
 
 ## Progress Snapshot
 
-- Current app readiness: green for the audited scope on 2026-06-07, including the Phase 5 optional online AI helper layer
+- Current app readiness: green for the audited scope on 2026-06-07, including the Phase 6 universal memory/session brain layer and the Phase 5 optional online AI helper layer
 - `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, and `:app:assembleDebug` all passed in this audit pass
 - `docs/NOVA_LUNA_FULL_PROJECT_MODEL_FLOW_AUDIT_REPORT.md` records the current full-model verification
 
@@ -66,6 +66,14 @@
 - Pending online requests now wait for explicit user consent before replaying through the helper path.
 - Phase 1 through Phase 4 routing stays intact after regression testing, including cab, grocery, navigation, content, and local LLM fallback flows.
 - New tests cover the helper policy, privacy filter, prompt builder, provider factory, helper fallback behavior, router selection, and consent replay.
+- Validation for this phase passed with `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, and `:app:assembleDebug`.
+
+## Phase 6 Update (Universal Memory and Session Brain)
+
+- A universal local memory/session layer is now wired through `BrainMemoryStore`, `BrainSessionManager`, `BrainMemorySnapshot`, `PendingConfirmation`, `RecoveryState`, and `MemoryRedactor` so active sessions, confirmations, recovery hints, screen snapshots, and preferences remain on-device.
+- `BrainService`, `BrainRouter`, `CommandBrain`, `SafetyGate`, and `ActionExecutor` now carry memory context through the live brain path so follow-up prompts, confirmed actions, and session continuity stay consistent across phases.
+- Confirmed online-helper requests now replay safely through the helper path, while stale confirmations are rejected instead of being reused against a different request.
+- New regression tests cover redaction, session state, confirmation resolution, follow-up resolution, router memory routing, command replay, and diagnostics memory surfaces.
 - Validation for this phase passed with `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, and `:app:assembleDebug`.
 
 ## Verified Test Command

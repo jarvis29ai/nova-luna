@@ -1,5 +1,9 @@
 package com.nova.luna.model
 
+import com.nova.luna.memory.BrainSessionType
+import com.nova.luna.memory.PendingConfirmationType
+import com.nova.luna.memory.RecoveryState
+
 data class CommandResult(
     val success: Boolean,
     val message: String,
@@ -8,7 +12,13 @@ data class CommandResult(
     val safetyDecision: SafetyDecision = SafetyDecision.allow(),
     val shouldStopListening: Boolean = false,
     val awaitingConfirmation: Boolean = false,
-    val entities: Map<String, String> = emptyMap()
+    val entities: Map<String, String> = emptyMap(),
+    val memorySessionType: BrainSessionType? = null,
+    val memorySessionId: String? = null,
+    val pendingConfirmationType: PendingConfirmationType? = null,
+    val screenMemorySnapshotId: String? = null,
+    val recoveryState: RecoveryState? = null,
+    val memoryMetadata: Map<String, String> = emptyMap()
 ) {
     companion object {
         fun success(
@@ -16,7 +26,13 @@ data class CommandResult(
             intentType: IntentType = IntentType.UNKNOWN,
             actionType: ActionType = ActionType.UNKNOWN,
             entities: Map<String, String> = emptyMap(),
-            shouldStopListening: Boolean = false
+            shouldStopListening: Boolean = false,
+            memorySessionType: BrainSessionType? = null,
+            memorySessionId: String? = null,
+            pendingConfirmationType: PendingConfirmationType? = null,
+            screenMemorySnapshotId: String? = null,
+            recoveryState: RecoveryState? = null,
+            memoryMetadata: Map<String, String> = emptyMap()
         ): CommandResult {
             return CommandResult(
                 success = true,
@@ -25,7 +41,13 @@ data class CommandResult(
                 actionType = actionType,
                 safetyDecision = SafetyDecision.allow(),
                 shouldStopListening = shouldStopListening,
-                entities = entities
+                entities = entities,
+                memorySessionType = memorySessionType,
+                memorySessionId = memorySessionId,
+                pendingConfirmationType = pendingConfirmationType,
+                screenMemorySnapshotId = screenMemorySnapshotId,
+                recoveryState = recoveryState,
+                memoryMetadata = memoryMetadata
             )
         }
 
@@ -33,7 +55,13 @@ data class CommandResult(
             message: String,
             intentType: IntentType = IntentType.UNKNOWN,
             actionType: ActionType = ActionType.UNKNOWN,
-            entities: Map<String, String> = emptyMap()
+            entities: Map<String, String> = emptyMap(),
+            memorySessionType: BrainSessionType? = null,
+            memorySessionId: String? = null,
+            pendingConfirmationType: PendingConfirmationType? = null,
+            screenMemorySnapshotId: String? = null,
+            recoveryState: RecoveryState? = null,
+            memoryMetadata: Map<String, String> = emptyMap()
         ): CommandResult {
             return CommandResult(
                 success = false,
@@ -41,7 +69,13 @@ data class CommandResult(
                 intentType = intentType,
                 actionType = actionType,
                 safetyDecision = SafetyDecision.allow(),
-                entities = entities
+                entities = entities,
+                memorySessionType = memorySessionType,
+                memorySessionId = memorySessionId,
+                pendingConfirmationType = pendingConfirmationType,
+                screenMemorySnapshotId = screenMemorySnapshotId,
+                recoveryState = recoveryState,
+                memoryMetadata = memoryMetadata
             )
         }
 
@@ -49,7 +83,13 @@ data class CommandResult(
             message: String,
             intentType: IntentType = IntentType.BLOCKED,
             actionType: ActionType = ActionType.BLOCKED,
-            entities: Map<String, String> = emptyMap()
+            entities: Map<String, String> = emptyMap(),
+            memorySessionType: BrainSessionType? = null,
+            memorySessionId: String? = null,
+            pendingConfirmationType: PendingConfirmationType? = null,
+            screenMemorySnapshotId: String? = null,
+            recoveryState: RecoveryState? = null,
+            memoryMetadata: Map<String, String> = emptyMap()
         ): CommandResult {
             return CommandResult(
                 success = false,
@@ -57,7 +97,13 @@ data class CommandResult(
                 intentType = intentType,
                 actionType = actionType,
                 safetyDecision = SafetyDecision.block(message),
-                entities = entities
+                entities = entities,
+                memorySessionType = memorySessionType,
+                memorySessionId = memorySessionId,
+                pendingConfirmationType = pendingConfirmationType,
+                screenMemorySnapshotId = screenMemorySnapshotId,
+                recoveryState = recoveryState,
+                memoryMetadata = memoryMetadata
             )
         }
 
@@ -65,7 +111,13 @@ data class CommandResult(
             message: String,
             intentType: IntentType = IntentType.UNKNOWN,
             actionType: ActionType = ActionType.UNKNOWN,
-            entities: Map<String, String> = emptyMap()
+            entities: Map<String, String> = emptyMap(),
+            memorySessionType: BrainSessionType? = null,
+            memorySessionId: String? = null,
+            pendingConfirmationType: PendingConfirmationType? = null,
+            screenMemorySnapshotId: String? = null,
+            recoveryState: RecoveryState? = null,
+            memoryMetadata: Map<String, String> = emptyMap()
         ): CommandResult {
             return CommandResult(
                 success = false,
@@ -74,7 +126,13 @@ data class CommandResult(
                 actionType = actionType,
                 safetyDecision = SafetyDecision.requireConfirmation(message),
                 awaitingConfirmation = true,
-                entities = entities
+                entities = entities,
+                memorySessionType = memorySessionType,
+                memorySessionId = memorySessionId,
+                pendingConfirmationType = pendingConfirmationType,
+                screenMemorySnapshotId = screenMemorySnapshotId,
+                recoveryState = recoveryState,
+                memoryMetadata = memoryMetadata
             )
         }
 
@@ -82,7 +140,13 @@ data class CommandResult(
             message: String,
             intentType: IntentType = IntentType.SENSITIVE,
             actionType: ActionType = ActionType.UNKNOWN,
-            entities: Map<String, String> = emptyMap()
+            entities: Map<String, String> = emptyMap(),
+            memorySessionType: BrainSessionType? = null,
+            memorySessionId: String? = null,
+            pendingConfirmationType: PendingConfirmationType? = null,
+            screenMemorySnapshotId: String? = null,
+            recoveryState: RecoveryState? = null,
+            memoryMetadata: Map<String, String> = emptyMap()
         ): CommandResult {
             return CommandResult(
                 success = false,
@@ -90,7 +154,13 @@ data class CommandResult(
                 intentType = intentType,
                 actionType = actionType,
                 safetyDecision = SafetyDecision.requireBiometric(message),
-                entities = entities
+                entities = entities,
+                memorySessionType = memorySessionType,
+                memorySessionId = memorySessionId,
+                pendingConfirmationType = pendingConfirmationType,
+                screenMemorySnapshotId = screenMemorySnapshotId,
+                recoveryState = recoveryState,
+                memoryMetadata = memoryMetadata
             )
         }
     }

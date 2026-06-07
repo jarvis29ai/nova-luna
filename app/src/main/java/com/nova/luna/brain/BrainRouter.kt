@@ -3,6 +3,7 @@ package com.nova.luna.brain
 import com.nova.luna.model.BrainModelRole
 import com.nova.luna.model.BrainRouteDecision
 import com.nova.luna.model.InternetPermissionCategory
+import com.nova.luna.memory.BrainSessionType
 import com.nova.luna.food.FoodIntentParser
 import com.nova.luna.grocery.GroceryIntentParser
 import com.nova.luna.content.ContentCreationCommandType
@@ -43,6 +44,8 @@ class BrainRouter(
                 )
             )
         }
+
+        routeForActiveSession(request)?.let { return it }
 
         if (isMessagePlanning(normalized)) {
             return decision(
@@ -216,6 +219,95 @@ class BrainRouter(
             fallbackAllowed = true,
             safetyNotes = safetyNotes
         )
+    }
+
+    private fun routeForActiveSession(request: BrainRequest): BrainRouteDecision? {
+        val activeSessionType = request.activeSessionType
+            ?: request.memorySnapshot?.activeSessionType()
+            ?: when {
+                request.activeCabSession -> BrainSessionType.CAB
+                request.activeGrocerySession -> BrainSessionType.GROCERY
+                request.activeFoodSession -> BrainSessionType.FOOD
+                else -> null
+            }
+
+        return when (activeSessionType) {
+            BrainSessionType.CAB,
+            BrainSessionType.FOOD,
+            BrainSessionType.GROCERY,
+            BrainSessionType.SHOPPING,
+            BrainSessionType.CONTENT,
+            BrainSessionType.COMMUNICATION,
+            BrainSessionType.PHONE -> decision(
+                role = BrainModelRole.ACTION_JSON,
+                reason = "An active ${activeSessionType.wireValue} session should stay on structured local action JSON.",
+                requiresInternet = false,
+                safetyNotes = listOf(
+                    "Active session continuity stays local and structured.",
+                    "Final payment, OTP, login, send, and other sensitive steps must remain manual."
+                )
+            )
+
+            BrainSessionType.MUSIC,
+            BrainSessionType.MEDIA,
+            BrainSessionType.BASIC_CONTROL -> decision(
+                role = BrainModelRole.LITE_COMMAND,
+                reason = "An active ${activeSessionType.wireValue} session should stay on a fast local command path.",
+                safetyNotes = listOf(
+                    "Active control sessions stay local and lightweight.",
+                    "No model may call ActionExecutor directly."
+                )
+            )
+
+            BrainSessionType.SCREEN -> decision(
+                role = BrainModelRole.SCREEN_UNDERSTANDING,
+                reason = "An active screen session should stay on the read-only screen model.",
+                requiresScreenContext = true,
+                safetyNotes = listOf(
+                    "ScreenUnderstandingModel is read-only only.",
+                    "No screen model may execute phone actions directly."
+                )
+            )
+
+            BrainSessionType.ONLINE_HELPER -> {
+                val onlineAvailable = onlineAiConfig.enabled &&
+                    onlineAiConfig.providerType != OnlineAiProviderType.UNAVAILABLE &&
+                    internetAvailable
+
+                if (onlineAvailable) {
+                    decision(
+                        role = BrainModelRole.ONLINE_AI_HELPER,
+                        reason = "An active online helper session can continue with the optional online helper.",
+                        requiresInternet = true,
+                        safetyNotes = listOf(
+                            "Online helper may only return drafts, summaries, or safe suggestions.",
+                            "It must never control the phone directly."
+                        )
+                    )
+                } else {
+                    decision(
+                        role = BrainModelRole.GEMMA_REASONING,
+                        reason = "An online helper session is active, but it will stay on the local reasoning model because online help is disabled or unavailable.",
+                        requiresInternet = false,
+                        safetyNotes = listOf(
+                            "Optional online helper is unavailable, so the local reasoning model takes over.",
+                            "Any action it suggests must still pass BrainActionValidator."
+                        )
+                    )
+                }
+            }
+
+            BrainSessionType.LOCAL_LLM -> decision(
+                role = BrainModelRole.GEMMA_REASONING,
+                reason = "An active local LLM session should stay on the local reasoning model.",
+                safetyNotes = listOf(
+                    "Gemma is the final on-device reasoning model for active local sessions.",
+                    "Any action it suggests must still pass BrainActionValidator."
+                )
+            )
+
+            else -> null
+        }
     }
 
     private fun isSimpleCommand(normalized: String): Boolean {

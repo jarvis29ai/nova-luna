@@ -6,6 +6,10 @@ import com.nova.luna.model.BrainRouteDecision
 import com.nova.luna.model.BrainRuntimeStatus
 import com.nova.luna.model.InternetPermissionDecision
 import com.nova.luna.model.SafetyDecision
+import com.nova.luna.memory.BrainSessionType
+import com.nova.luna.memory.LocalUserPreferences
+import com.nova.luna.memory.PendingConfirmationType
+import com.nova.luna.memory.RecoveryState
 
 data class BrainProviderTrace(
     val providerName: String,
@@ -32,7 +36,14 @@ data class BrainDiagnostics(
     val finalSafetyDecision: SafetyDecision,
     val runtimeStatus: BrainRuntimeStatus? = null,
     val internetPermissionDecision: InternetPermissionDecision? = null,
-    val onlineTrace: OnlineAiTrace? = null
+    val onlineTrace: OnlineAiTrace? = null,
+    val activeSessionType: BrainSessionType? = null,
+    val pendingConfirmationId: String? = null,
+    val pendingConfirmationType: PendingConfirmationType? = null,
+    val recoveryState: RecoveryState? = null,
+    val memorySessionCount: Int = 0,
+    val memoryPendingConfirmationCount: Int = 0,
+    val preferences: LocalUserPreferences? = null
 )
 
 interface BrainProviderDiagnostics {

@@ -7,6 +7,7 @@ import com.nova.luna.model.BrainRiskLevel
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.SafetyDecision
 import com.nova.luna.model.SafetyLevel
+import com.nova.luna.memory.PendingConfirmation
 import java.util.Locale
 
 class SafetyGate {
@@ -328,9 +329,22 @@ class SafetyGate {
         }
     }
 
-    fun evaluate(brainAction: BrainAction, userConfirmed: Boolean = false): SafetyDecision {
+    fun evaluate(
+        brainAction: BrainAction,
+        pendingConfirmation: PendingConfirmation? = null,
+        userConfirmed: Boolean = false
+    ): SafetyDecision {
         val normalized = buildNormalizedBrainActionText(brainAction)
         val requestText = buildBrainActionRequestText(brainAction)
+        val confirmationMatched = pendingConfirmation?.matchesBrainAction(brainAction) == true &&
+            !pendingConfirmation.isExpired()
+        val effectiveUserConfirmed = userConfirmed && confirmationMatched
+
+        if (pendingConfirmation != null && userConfirmed && !confirmationMatched) {
+            return SafetyDecision.requireConfirmation(
+                "That confirmation no longer matches the pending request."
+            )
+        }
 
         if (isGroceryBrainAction(brainAction)) {
             if (brainAction.actionType == BrainActionType.HUMAN_ONLY ||
@@ -352,7 +366,7 @@ class SafetyGate {
             if ((brainAction.riskLevel == BrainRiskLevel.CONFIRMATION_REQUIRED ||
                     brainAction.requiresConfirmation ||
                     brainAction.actionType == BrainActionType.PREPARE) &&
-                !userConfirmed
+                !effectiveUserConfirmed
             ) {
                 return SafetyDecision.requireConfirmation(
                     brainAction.nextQuestion?.takeIf { it.isNotBlank() }
@@ -391,7 +405,7 @@ class SafetyGate {
             if ((brainAction.riskLevel == BrainRiskLevel.CONFIRMATION_REQUIRED ||
                     brainAction.requiresConfirmation ||
                     brainAction.actionType == BrainActionType.PREPARE) &&
-                !userConfirmed
+                !effectiveUserConfirmed
             ) {
                 return SafetyDecision.requireConfirmation(
                     brainAction.nextQuestion?.takeIf { it.isNotBlank() }
@@ -430,7 +444,7 @@ class SafetyGate {
             if ((brainAction.riskLevel == BrainRiskLevel.CONFIRMATION_REQUIRED ||
                     brainAction.requiresConfirmation ||
                     brainAction.actionType == BrainActionType.PREPARE) &&
-                !userConfirmed
+                !effectiveUserConfirmed
             ) {
                 return SafetyDecision.requireConfirmation(
                     brainAction.nextQuestion?.takeIf { it.isNotBlank() }
@@ -465,7 +479,7 @@ class SafetyGate {
             brainAction.requiresConfirmation ||
             brainAction.actionType == BrainActionType.PREPARE
         ) {
-            if (!userConfirmed) {
+            if (!effectiveUserConfirmed) {
                 return SafetyDecision.requireConfirmation(
                     brainAction.nextQuestion?.takeIf { it.isNotBlank() }
                         ?: brainAction.reply.ifBlank {
@@ -484,7 +498,7 @@ class SafetyGate {
         }
 
         if (containsConfirmationRequiredKeyword(normalized) &&
-            !userConfirmed
+            !effectiveUserConfirmed
         ) {
             return SafetyDecision.requireConfirmation(
                 brainAction.nextQuestion?.takeIf { it.isNotBlank() }

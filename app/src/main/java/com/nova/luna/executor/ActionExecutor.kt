@@ -4,6 +4,7 @@ import android.content.Context
 import com.nova.luna.model.ActionType
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
+import com.nova.luna.memory.BrainSessionType
 import com.nova.luna.cab.CabBookingOrchestrator
 import com.nova.luna.cab.CabDeepLinkBuilder
 import com.nova.luna.cab.CabProviderRegistry
@@ -131,19 +132,19 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
                 commandIntent.intentType,
                 commandIntent.actionType,
                 commandIntent.entities
-            )
-            ActionType.OPEN_SETTINGS -> settingsExecutor.openSettings(commandIntent)
-            ActionType.OPEN_ACCESSIBILITY_SETTINGS -> settingsExecutor.openAccessibilitySettings(commandIntent)
-            ActionType.OPEN_USAGE_ACCESS_SETTINGS -> settingsExecutor.openUsageAccessSettings(commandIntent)
+            ).withMemoryContext(BrainSessionType.SCREEN)
+            ActionType.OPEN_SETTINGS -> settingsExecutor.openSettings(commandIntent).withMemoryContext(BrainSessionType.BASIC_CONTROL)
+            ActionType.OPEN_ACCESSIBILITY_SETTINGS -> settingsExecutor.openAccessibilitySettings(commandIntent).withMemoryContext(BrainSessionType.BASIC_CONTROL)
+            ActionType.OPEN_USAGE_ACCESS_SETTINGS -> settingsExecutor.openUsageAccessSettings(commandIntent).withMemoryContext(BrainSessionType.BASIC_CONTROL)
             ActionType.CALL_CONTACT -> {
                 val phoneRequest = phoneParser.parse(commandIntent.rawText)
-                phoneOrchestrator.start(phoneRequest).toPhoneCommandResult(commandIntent)
+                phoneOrchestrator.start(phoneRequest).toPhoneCommandResult(commandIntent).withMemoryContext(BrainSessionType.PHONE)
             }
-            ActionType.CAB_BOOKING -> cabOrchestrator.start(commandIntent.toCabBookingRequest()).toCabCommandResult()
-            ActionType.FOOD_ORDER -> foodOrchestrator.start(commandIntent.toFoodBookingRequest()).toFoodCommandResult()
-            ActionType.GROCERY_BOOKING -> groceryOrchestrator.start(commandIntent.toGroceryBookingRequest()).toGroceryCommandResult()
-            ActionType.CONTENT_CREATION -> handleContentCreationText(commandIntent.rawText, commandIntent)
-            ActionType.MUSIC -> handleMusicText(commandIntent.rawText, commandIntent)
+            ActionType.CAB_BOOKING -> cabOrchestrator.start(commandIntent.toCabBookingRequest()).toCabCommandResult().withMemoryContext(BrainSessionType.CAB)
+            ActionType.FOOD_ORDER -> foodOrchestrator.start(commandIntent.toFoodBookingRequest()).toFoodCommandResult().withMemoryContext(BrainSessionType.FOOD)
+            ActionType.GROCERY_BOOKING -> groceryOrchestrator.start(commandIntent.toGroceryBookingRequest()).toGroceryCommandResult().withMemoryContext(BrainSessionType.GROCERY)
+            ActionType.CONTENT_CREATION -> handleContentCreationText(commandIntent.rawText, commandIntent).withMemoryContext(BrainSessionType.CONTENT)
+            ActionType.MUSIC -> handleMusicText(commandIntent.rawText, commandIntent).withMemoryContext(BrainSessionType.MUSIC)
             ActionType.COMMUNICATION -> {
                 val result = communicationOrchestrator.handleRequest(commandIntent.rawText)
                 CommandResult(
@@ -153,25 +154,26 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
                     intentType = commandIntent.intentType,
                     actionType = commandIntent.actionType,
                     entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
-                )
+                ).withMemoryContext(BrainSessionType.COMMUNICATION)
             }
-            ActionType.SHOPPING -> handleShoppingText(commandIntent.rawText, commandIntent)
+            ActionType.SHOPPING -> handleShoppingText(commandIntent.rawText, commandIntent).withMemoryContext(BrainSessionType.SHOPPING)
             ActionType.STOP_SERVICE -> CommandResult.success(
                 message = "Stopping listening.",
                 intentType = commandIntent.intentType,
                 actionType = commandIntent.actionType,
                 entities = commandIntent.entities,
                 shouldStopListening = true
-            )
+            ).withMemoryContext(BrainSessionType.BASIC_CONTROL)
             ActionType.BLOCKED,
             ActionType.UNKNOWN -> CommandResult.failure(
                 "I could not map that command to a safe action.",
                 commandIntent.intentType,
                 commandIntent.actionType,
                 commandIntent.entities
-            )
-            ActionType.MEDIA_CONTROL -> handleMediaText(commandIntent.rawText, commandIntent)
+            ).withMemoryContext(BrainSessionType.BASIC_CONTROL)
+            ActionType.MEDIA_CONTROL -> handleMediaText(commandIntent.rawText, commandIntent).withMemoryContext(BrainSessionType.MEDIA)
         }
+        val memoryResult = result.withMemoryContext(sessionTypeForAction(commandIntent.actionType))
 
         val afterScreenState = if (captureScreenState) {
             NovaAccessibilityService.instance?.captureScreenState()
@@ -179,23 +181,23 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             null
         }
 
-        return attachScreenVerification(commandIntent, result, beforeScreenState, afterScreenState)
+        return attachScreenVerification(commandIntent, memoryResult, beforeScreenState, afterScreenState)
     }
 
     override fun hasActiveCabBookingSession(): Boolean = cabOrchestrator.isActive()
-    override fun cancelCabBookingSession(): CommandResult = CommandResult.success("Cancelled")
-    override fun handleCabBookingText(rawText: String): CommandResult = cabOrchestrator.handleUserInput(rawText).toCabCommandResult()
+    override fun cancelCabBookingSession(): CommandResult = CommandResult.success("Cancelled").withMemoryContext(BrainSessionType.CAB)
+    override fun handleCabBookingText(rawText: String): CommandResult = cabOrchestrator.handleUserInput(rawText).toCabCommandResult().withMemoryContext(BrainSessionType.CAB)
 
     override fun hasActiveFoodBookingSession(): Boolean = foodOrchestrator.isActive()
-    override fun cancelFoodBookingSession(): CommandResult = CommandResult.success("Cancelled")
-    override fun handleFoodBookingText(rawText: String): CommandResult = foodOrchestrator.handleUserInput(rawText).toFoodCommandResult()
+    override fun cancelFoodBookingSession(): CommandResult = CommandResult.success("Cancelled").withMemoryContext(BrainSessionType.FOOD)
+    override fun handleFoodBookingText(rawText: String): CommandResult = foodOrchestrator.handleUserInput(rawText).toFoodCommandResult().withMemoryContext(BrainSessionType.FOOD)
 
     override fun hasActiveGroceryBookingSession(): Boolean = groceryOrchestrator.isActive()
-    override fun cancelGroceryBookingSession(): CommandResult = groceryOrchestrator.cancelSession().toGroceryCommandResult()
-    override fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean): CommandResult = groceryOrchestrator.handleUserInput(rawText, userConfirmed).toGroceryCommandResult()
+    override fun cancelGroceryBookingSession(): CommandResult = groceryOrchestrator.cancelSession().toGroceryCommandResult().withMemoryContext(BrainSessionType.GROCERY)
+    override fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean): CommandResult = groceryOrchestrator.handleUserInput(rawText, userConfirmed).toGroceryCommandResult().withMemoryContext(BrainSessionType.GROCERY)
 
     override fun hasActivePhoneContactSession(): Boolean = phoneOrchestrator.isActive()
-    override fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult = phoneOrchestrator.handleUserInput(rawText).toPhoneCommandResult(commandIntent)
+    override fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult = phoneOrchestrator.handleUserInput(rawText).toPhoneCommandResult(commandIntent).withMemoryContext(BrainSessionType.PHONE)
 
     override fun hasActiveCommunicationSession(): Boolean = communicationOrchestrator.isActive()
     override fun handleCommunicationText(rawText: String, commandIntent: CommandIntent): CommandResult {
@@ -207,7 +209,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             intentType = commandIntent.intentType,
             actionType = commandIntent.actionType,
             entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
-        )
+        ).withMemoryContext(BrainSessionType.COMMUNICATION)
     }
 
     override fun hasActiveContentCreationSession(): Boolean = contentCreationOrchestrator.isActive()
@@ -222,7 +224,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             intentType = commandIntent.intentType,
             actionType = commandIntent.actionType,
             entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
-        )
+        ).withMemoryContext(BrainSessionType.CONTENT)
     }
 
     override fun hasActiveMediaSession(): Boolean = mediaOrchestrator.isActive()
@@ -237,7 +239,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             intentType = commandIntent.intentType,
             actionType = commandIntent.actionType,
             entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
-        )
+        ).withMemoryContext(BrainSessionType.MEDIA)
     }
 
     override fun hasActiveShoppingSession(): Boolean = shoppingOrchestrator.isActive()
@@ -249,13 +251,13 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             intentType = commandIntent.intentType,
             actionType = ActionType.SHOPPING,
             entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
-        )
+        ).withMemoryContext(BrainSessionType.SHOPPING)
     }
 
     override fun hasActiveMusicSession(): Boolean = musicOrchestrator.isActive()
     override fun handleMusicText(rawText: String, commandIntent: CommandIntent): CommandResult {
         val result = musicOrchestrator.handleRequest(rawText)
-        return result.toCommandResult(commandIntent)
+        return result.toCommandResult(commandIntent).withMemoryContext(BrainSessionType.MUSIC)
     }
 
     private fun shouldVerifyScreen(actionType: ActionType): Boolean {
@@ -294,6 +296,48 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             result.copy(
                 entities = result.entities + verification.toEntityMap()
             )
+        }
+    }
+
+    private fun CommandResult.withMemoryContext(
+        sessionType: BrainSessionType,
+        memoryMetadata: Map<String, String> = emptyMap()
+    ): CommandResult {
+        return copy(
+            memorySessionType = memorySessionType ?: sessionType,
+            memoryMetadata = entities + memoryMetadata
+        )
+    }
+
+    private fun sessionTypeForAction(actionType: ActionType): BrainSessionType {
+        return when (actionType) {
+            ActionType.LAUNCH_APP,
+            ActionType.GO_HOME,
+            ActionType.GO_BACK,
+            ActionType.OPEN_RECENTS,
+            ActionType.OPEN_NOTIFICATIONS,
+            ActionType.CLICK_TEXT,
+            ActionType.SCROLL_FORWARD,
+            ActionType.SCROLL_BACKWARD,
+            ActionType.TYPE_TEXT,
+            ActionType.READ_NOTIFICATIONS,
+            ActionType.STOP_SERVICE,
+            ActionType.OPEN_SETTINGS,
+            ActionType.OPEN_ACCESSIBILITY_SETTINGS,
+            ActionType.OPEN_USAGE_ACCESS_SETTINGS,
+            ActionType.TAKE_SCREENSHOT,
+            ActionType.BLOCKED,
+            ActionType.UNKNOWN -> BrainSessionType.BASIC_CONTROL
+
+            ActionType.CALL_CONTACT -> BrainSessionType.PHONE
+            ActionType.FOOD_ORDER -> BrainSessionType.FOOD
+            ActionType.CAB_BOOKING -> BrainSessionType.CAB
+            ActionType.GROCERY_BOOKING -> BrainSessionType.GROCERY
+            ActionType.COMMUNICATION -> BrainSessionType.COMMUNICATION
+            ActionType.CONTENT_CREATION -> BrainSessionType.CONTENT
+            ActionType.MEDIA_CONTROL -> BrainSessionType.MEDIA
+            ActionType.SHOPPING -> BrainSessionType.SHOPPING
+            ActionType.MUSIC -> BrainSessionType.MUSIC
         }
     }
 }
