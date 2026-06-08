@@ -35,16 +35,16 @@ class DemoFlowSmokeReceiver : BroadcastReceiver() {
     }
 
     private fun runDemoFlows(context: Context, flows: List<DemoFlowId>) {
-        val brain = CommandBrain(context)
         val results = mutableListOf<DemoFlowResult>()
 
         flows.forEach { flowId ->
             Log.i(TAG, "Starting flow: $flowId")
             resetUi()
-            
+
+            val brain = CommandBrain(context)
             val command = getCommandForFlow(flowId)
             val expectedDomain = getExpectedDomainForFlow(flowId)
-            
+
             val result = brain.process(command)
             
             val demoResult = DemoFlowResult(
@@ -75,7 +75,7 @@ class DemoFlowSmokeReceiver : BroadcastReceiver() {
             DemoFlowId.PLAY_MUSIC -> "Luna play Arijit Singh"
             DemoFlowId.YOUTUBE_SEARCH -> "Luna search YouTube for MrBeast"
             DemoFlowId.SCROLL_SELECT_MEDIA -> "Luna scroll down"
-            DemoFlowId.READ_SUMMARIZE_MESSAGE -> "Luna read my latest message"
+            DemoFlowId.READ_SUMMARIZE_MESSAGE -> "Luna summarize my messages"
             DemoFlowId.CONTENT_PROMPT -> "Luna create PPT on AI"
             DemoFlowId.FOOD_ORDER -> "Luna order pizza"
             DemoFlowId.GROCERY_COMPARE -> "Luna compare milk prices"

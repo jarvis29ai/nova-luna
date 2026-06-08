@@ -1,10 +1,12 @@
 package com.nova.luna.executor
 
 import android.content.Context
+import com.nova.luna.brain.UnifiedDomain
 import com.nova.luna.model.ActionType
 import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
+import com.nova.luna.model.IntentType
 import com.nova.luna.memory.BrainSessionType
 import com.nova.luna.cab.CabBookingOrchestrator
 import com.nova.luna.cab.CabDeepLinkBuilder
@@ -29,6 +31,8 @@ import com.nova.luna.phone.PhoneContactIntentParser
 import com.nova.luna.phone.toCommandResult as toPhoneCommandResult
 import com.nova.luna.communication.CommunicationOrchestrator
 import com.nova.luna.content.ContentCreationOrchestrator
+import com.nova.luna.communication.CommunicationFinalSummary
+import com.nova.luna.communication.CommunicationStatus
 import com.nova.luna.media.MediaOrchestrator
 import com.nova.luna.shopping.ShoppingOrchestrator
 import com.nova.luna.shopping.ShoppingStatus
@@ -251,16 +255,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             ActionType.CONTENT_CREATION -> handleContentCreationText(commandIntent.rawText, commandIntent).withMemoryContext(BrainSessionType.CONTENT)
             ActionType.MUSIC -> handleMusicText(commandIntent.rawText, commandIntent).withMemoryContext(BrainSessionType.MUSIC)
             ActionType.COMMUNICATION -> {
-                val result = communicationOrchestrator.handleRequest(commandIntent.rawText)
-                CommandResult(
-                    success = result.status == com.nova.luna.communication.CommunicationStatus.SUCCESS ||
-                              result.status == com.nova.luna.communication.CommunicationStatus.NEEDS_CONFIRMATION,
-                    status = if (result.status == com.nova.luna.communication.CommunicationStatus.NEEDS_CONFIRMATION) ActionResultStatus.NEEDS_CONFIRMATION else ActionResultStatus.SUCCESS,
-                    message = result.popupText,
-                    intentType = commandIntent.intentType,
-                    actionType = commandIntent.actionType,
-                    entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
-                ).withMemoryContext(BrainSessionType.COMMUNICATION)
+                mapCommunicationResult(communicationOrchestrator.handleRequest(commandIntent.rawText), commandIntent)
             }
             ActionType.SHOPPING -> handleShoppingText(commandIntent.rawText, commandIntent).withMemoryContext(BrainSessionType.SHOPPING)
             ActionType.STOP_SERVICE -> CommandResult.success(
@@ -293,22 +288,22 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
 
     override fun hasActiveGroceryBookingSession(): Boolean = groceryOrchestrator.isActive()
     override fun cancelGroceryBookingSession(): CommandResult = groceryOrchestrator.cancelSession().toGroceryCommandResult().withMemoryContext(BrainSessionType.GROCERY)
-    override fun handleGroceryBookingText(rawText: String, commandIntent: CommandIntent, userConfirmed: Boolean): CommandResult = groceryOrchestrator.handleUserInput(rawText, userConfirmed).toGroceryCommandResult(commandIntent).withMemoryContext(BrainSessionType.GROCERY)
+    override fun handleGroceryBookingText(rawText: String, commandIntent: CommandIntent, userConfirmed: Boolean): CommandResult {
+        val result = if (groceryOrchestrator.isActive() || commandIntent.actionType != ActionType.GROCERY_BOOKING) {
+            groceryOrchestrator.handleUserInput(rawText, userConfirmed)
+        } else {
+            groceryOrchestrator.start(commandIntent.toGroceryBookingRequest())
+        }
+
+        return result.toGroceryCommandResult(commandIntent).withMemoryContext(BrainSessionType.GROCERY)
+    }
 
     override fun hasActivePhoneContactSession(): Boolean = phoneOrchestrator.isActive()
     override fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult = phoneOrchestrator.handleUserInput(rawText).toPhoneCommandResult(commandIntent).withMemoryContext(BrainSessionType.PHONE)
 
     override fun hasActiveCommunicationSession(): Boolean = communicationOrchestrator.isActive()
     override fun handleCommunicationText(rawText: String, commandIntent: CommandIntent): CommandResult {
-        val result = communicationOrchestrator.handleRequest(rawText)
-        return CommandResult(
-            success = result.status == com.nova.luna.communication.CommunicationStatus.SUCCESS ||
-                      result.status == com.nova.luna.communication.CommunicationStatus.NEEDS_CONFIRMATION,
-            message = result.popupText,
-            intentType = commandIntent.intentType,
-            actionType = commandIntent.actionType,
-            entities = commandIntent.entities + mapOf("voiceText" to result.voiceText)
-        ).withMemoryContext(BrainSessionType.COMMUNICATION)
+        return mapCommunicationResult(communicationOrchestrator.handleRequest(rawText), commandIntent)
     }
 
     override fun hasActiveContentCreationSession(): Boolean = contentCreationOrchestrator.isActive()
@@ -459,5 +454,36 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             ActionType.SHOPPING -> BrainSessionType.SHOPPING
             ActionType.MUSIC -> BrainSessionType.MUSIC
         }
+    }
+
+    private fun mapCommunicationResult(
+        result: CommunicationFinalSummary,
+        commandIntent: CommandIntent
+    ): CommandResult {
+        val status = when (result.status) {
+            CommunicationStatus.SUCCESS,
+            CommunicationStatus.CANCELLED -> ActionResultStatus.SUCCESS
+            CommunicationStatus.NEEDS_CONFIRMATION -> ActionResultStatus.NEEDS_CONFIRMATION
+            CommunicationStatus.BLOCKED -> ActionResultStatus.BLOCKED
+            CommunicationStatus.MANUAL_ACTION_REQUIRED -> ActionResultStatus.BLOCKED
+            CommunicationStatus.FAILED,
+            CommunicationStatus.PARTIAL,
+            CommunicationStatus.NEEDS_USER_INPUT -> ActionResultStatus.FAILED
+        }
+
+        val success = status == ActionResultStatus.SUCCESS || status == ActionResultStatus.NEEDS_CONFIRMATION
+
+        return CommandResult(
+            success = success,
+            status = status,
+            message = result.popupText,
+            domain = UnifiedDomain.COMMUNICATION,
+            intentType = IntentType.COMMUNICATION,
+            actionType = ActionType.COMMUNICATION,
+            entities = commandIntent.entities + mapOf(
+                "voiceText" to result.voiceText,
+                "communicationStatus" to result.status.name
+            )
+        ).withMemoryContext(BrainSessionType.COMMUNICATION)
     }
 }

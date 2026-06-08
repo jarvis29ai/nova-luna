@@ -30,6 +30,15 @@
         </receiver>
 
         <receiver
+            android:name=".smoke.SessionSmokeReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.nova.luna.debug.ACTION_RUN_SESSION_SMOKE" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".demo.DemoFlowSmokeReceiver"
             android:enabled="true"
             android:exported="true">
