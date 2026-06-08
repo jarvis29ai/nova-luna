@@ -33,7 +33,148 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Memory state is universal but still local-first: active sessions, pending confirmations, screen snapshots, recovery state, and preferences all stay on-device and must be redacted before storage
 - Optional smartwatch companion later for quick commands and watch-first conveniences
 
+## Phase 1: Hands / Real Phone Control
+
+Phase 1 enables Nova / Luna to perform real actions on the Android device using `AccessibilityService`. This system is designed with a safety-first approach where direct execution is decoupled from reasoning.
+
+### Execution Chain
+1. **Command Intake**: User provides a command via text or voice.
+2. **Brain Routing**: `BrainService` and `BrainRouter` map the command to a candidate `BrainAction`.
+3. **Safety Evaluation**: `SafetyGate` inspects the candidate action for risks (payments, data deletion, etc.).
+4. **Action Formalization**: The approved `BrainAction` is converted to a canonical `CommandIntent`.
+5. **Centralized Execution**: `ActionExecutor` receives the `CommandIntent`, verifies `NovaAccessibilityService` readiness, and performs the action.
+6. **Result Reporting**: Every action returns a structured `CommandResult` with a specific `ActionResultStatus`.
+
+### Key Components
+- **Action Contract (`CommandIntent`)**: A structured object containing action ID, type, targets (app, label), risk levels, and retry policies.
+- **Result Contract (`CommandResult`)**: Includes status (`SUCCESS`, `FAILED`, `BLOCKED`, `NEEDS_CONFIRMATION`, `NOT_FOUND`, `TIMEOUT`, `PERMISSION_REQUIRED`), technical reasons, and screen snapshot summaries.
+- **Hands Bridge (`NovaAccessibilityService`)**: Performs tap, type, scroll, and navigation actions. It includes fallback logic to find clickable ancestors if a target element is not directly clickable.
+- **Eyes Bridge (`ScreenStateReader`)**: Captures real-time screen snapshots to inform the brain and verify action success.
+- Retry Logic: `ActionExecutor` implements a 2-retry policy for UI interactions, including automatic scrolling to find elements that are not immediately visible.
+
+## Phase 2: Ears / Voice Input
+
+Phase 2 gives Nova / Luna the ability to hear and understand voice commands using a tap-to-speak flow.
+
+### Voice Input Chain
+1. **Trigger**: User taps the "Tap to Speak" button in the app.
+2. **Permission Check**: `VoiceInputController` verifies `RECORD_AUDIO` permission.
+3. **Capture**: `SpeechRecognizer` (via `AndroidSpeechRecognizerWrapper`) captures audio and provides real-time partial results.
+4. **Normalization**: `VoiceCommandNormalizer` cleans the final transcript by stripping wake words ("Luna", "Nova", etc.) and normalizing whitespace.
+5. **Handoff**: The cleaned command is sent to `AssistantSession`, which tracks the source as `VOICE`.
+6. **Execution**: The command is processed by `CommandBrain` and routed to Phase 1 "Hands" if an action is approved.
+
+### Key Components
+- **Voice Input Contract (`VoiceInputModels.kt`)**: Defines `VoiceInputState`, `VoiceInputResult`, and `VoiceInputError` for structured communication between UI and the voice layer.
+- **Voice Controller (`VoiceInputController.kt`)**: Manages the `SpeechRecognizer` lifecycle, handles state transitions, and provides a mockable interface for testing.
+- **Command Normalizer (`VoiceCommandNormalizer.kt`)**: Logic for wake-word removal and transcript cleaning (supports English and Hindi wake-word variants).
+- **Assistant Session (`AssistantSession.kt`)**: A unified entry point for all commands (TEXT or VOICE), ensuring consistent handoff to the brain.
+
+### Safety & Privacy
+- **No Always-On**: Voice capture is one-shot and user-triggered only (no background listening in Phase 2).
+- **Privacy First**: Raw audio is never saved. Transcripts are handled locally and redacted where possible before logging.
+- **Consent-Gated**: Online AI helpers are only used if the user has given explicit consent.
+
+## Phase 3: Mouth / Voice Response
+
+Phase 3 gives Nova / Luna the ability to speak clearly and safely during the assistant lifecycle using Android Text-to-Speech (TTS).
+
+### Voice Response Chain
+1. **Trigger**: `AssistantSession`, `ActionExecutor`, or `VoiceInputController` emits a state change or result.
+2. **Template Mapping**: `VoiceResponseTemplates` maps the state/status to a short, useful voice line.
+3. **Sanitization**: `VoiceResponseSanitizer` masks sensitive data (OTPs, card numbers, emails) before speech.
+4. **Coordination**: `VoiceResponseManager` handles speech priority, duplicate suppression, and interruption rules.
+5. **Execution**: `TextToSpeechManager` (via `android.speech.tts.TextToSpeech`) performs the actual speech synthesis.
+
+### Key Components
+- **Voice Response Contract (`VoiceResponseModels.kt`)**: Defines structured models for states (`SPEAKING`, `COMPLETED`, etc.), types, requests, and results.
+- **Response Manager (`VoiceResponseManager.kt`)**: Central coordinator that enforces muting settings, priorities, and interruption logic.
+- **Sanitizer (`VoiceResponseSanitizer.kt`)**: Implements privacy rules to ensure sensitive information is not spoken aloud by default.
+- **Template System (`VoiceResponseTemplates.kt`)**: Maps technical statuses (e.g., `NOT_FOUND`, `NEEDS_CONFIRMATION`) to user-friendly spoken feedback.
+
+## Phase 4: Face / Futuristic Popup UI
+
+Phase 4 gives Nova / Luna a "face"—a futuristic popup UI that visualizes the assistant's internal state and provides clear controls for user interaction and safety.
+
+### Popup Interaction Flow
+1. **Trigger**: User opens the app or taps the mic.
+2. **State Observation**: `AssistantPopupController` subscribes to granular lifecycle events from `AssistantSession`.
+3. **State Mapping**: `AssistantPopupStateMapper` converts session, voice, and action results into a unified `AssistantPopupUiModel`.
+4. **Visual Update**: The UI transitions between modes (Orb for idle, Panel for active) and displays transcripts, thinking indicators, or action labels.
+5. **Safety Confirmation**: For risky actions, the popup displays a high-visibility confirmation box with "Continue" and "Cancel" buttons.
+6. **User Action**: Interactions like mic taps or button clicks are routed back to `AssistantSession` or `VoiceInputController`.
+
+### Key Components
+- **Popup Contract (`AssistantPopupModels.kt`)**: Defines canonical UI states (`LISTENING`, `THINKING`, `NEED_CONFIRMATION`, etc.) and event models.
+- **Popup Controller (`AssistantPopupController.kt`)**: Manages the UI lifecycle, view binding, and visibility transitions.
+- **State Mapper (`AssistantPopupStateMapper.kt`)**: Translates various back-end states into user-friendly UI configurations.
+- **Multi-Listener Session**: `AssistantSession` is enhanced to support multiple concurrent listeners, ensuring synchronization between the main UI and the popup.
+
+## Phase 5: Unified Model Integration
+
+Phase 5 consolidates all specialized task models (Food, Cab, Shopping, etc.) into a single, cohesive assistant experience. User commands are automatically routed to the correct domain without explicit model selection.
+
+### Unified Routing Chain
+1. **Intake**: `AssistantSession` receives the command from `VoiceInputController` or a text field.
+2. **Domain Detection**: `UnifiedDomainRouter` queries all registered `DomainHandlers` (Food, Cab, Media, etc.) for match confidence.
+3. **Selection**: The router selects the domain with the highest confidence score (using thresholds like 0.9 for direct matches).
+4. **Contextual Continuity**: The `AssistantContext` maintains the active domain and session state, allowing for natural follow-up commands (e.g., "proceed" in a food order).
+5. **Action Generation**: The selected handler produces a candidate `CommandIntent`.
+6. **Unified Flow**: The command proceeds through the established validation, safety gating, and execution path.
+
+### Key Components
+- **Unified Domain Router (`UnifiedDomainRouter.kt`)**: The central hub for automatic domain selection and disambiguation.
+- **Domain Handler Interface (`DomainHandler.kt`)**: A common contract for all task models, enabling modular registration and scoring.
+- **Assistant Context (`AssistantContext.kt`)**: Tracks short-lived session state, including active domains and last route decisions.
+- **Integrated Brain (`CommandBrain.kt`)**: Refactored to act as the primary orchestrator for the unified routing and execution flow.
+
+### Safety & Continuity
+- **Automated Disambiguation**: If confidence is low, the system automatically asks for clarification rather than executing a wrong action.
+- **Session-Aware Routing**: Active domain sessions (e.g., an ongoing cab booking) are prioritized for follow-up commands.
+- **Single Authority**: `ActionExecutor` remains the only component capable of triggering device actions, and all actions must still pass `SafetyGate`.
+
+## Phase 6: Real Phone Testing + Stabilization
+
+Phase 6 hardens the assistant prototype for real-world use on Android devices, focusing on the stabilization of 10 core demo flows and rigorous safety validation.
+
+### Stabilization Strategy
+1. **Flow Hardening**: Each of the 10 core flows (Open App, Play Music, YouTube Search, etc.) is tested and refined for reliability and repeatability.
+2. **Safety Pattern Refinement**: `SafetyGate` patterns are expanded to handle natural language variations, ensuring that risky final actions (e.g., "order now", "send it") always trigger a confirmation request.
+3. **Robust Domain Routing**: Match confidence scores and session prioritize logic in `UnifiedDomainRouter` are tuned to prevent domain collisions and improve accuracy.
+4. **Fallback Integrity**: `CommandBrain` is verified to correctly fall back to the rule-based parser or agent loop when unified routing confidence is low.
+
+### Verified Demo Flows
+1. **Open App**: Fast, safe opening of any installed app.
+2. **Play Music**: Search and playback on Spotify, YouTube Music, etc.
+3. **YouTube Search**: Multi-step search and play flow.
+4. **Scroll/Select Media**: Voice-controlled UI interaction on media apps.
+5. **Read/Summarize Message**: Safe reading and summarization of communication content.
+6. **Content Prompt**: Intelligent prompt generation for PPTs, documents, and images.
+7. **Food Order**: Complete search-to-confirmation flow for food delivery.
+8. **Grocery Compare**: Cross-app price comparison and cart management.
+9. **Cab Booking**: Reliable fare finding and booking confirmation.
+10. **Shopping Compare**: Budget-aware product search and deal comparison.
+
+### Safety & Reliability
+- **Mandatory Gating**: Every command—regardless of source—is evaluated by the `SafetyGate` before execution.
+- **Visual Transparency**: The futuristic popup UI provides real-time feedback on every step of the execution chain.
+- **Zero Auto-Confirmation**: Risky operations are impossible to hide or execute without explicit user authorization.
+
 ## Architecture Rules
+
+- **Non-Execution**: The UI cannot directly call `ActionExecutor` or `AccessibilityService`.
+- **Mandatory Confirmation**: Risky actions (e.g., ordering, sending messages) must trigger a `NEED_CONFIRMATION` UI state.
+- **Decoupled Resolution**: Confirmation buttons route through the `AssistantSession` confirmation handler, ensuring full brain/safety logic is applied.
+
+## Architecture Rules
+
+- **Privacy First**: Sensitive patterns like OTPs and card numbers are masked as "a code" or "a card number" before being spoken.
+- **Local TTS**: Speech synthesis is performed entirely on-device using the installed Android TTS engine.
+- **Gated Speech**: Voice responses can be enabled/disabled via user settings. High-priority safety blocks and confirmations can interrupt ongoing non-critical speech.
+
+## Architecture Rules
+
+
 
 - Prefer on-device logic before any remote service.
 - Do not add a backend by default.

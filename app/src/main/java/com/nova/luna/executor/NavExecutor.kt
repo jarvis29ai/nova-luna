@@ -1,6 +1,7 @@
 package com.nova.luna.executor
 
 import com.nova.luna.model.ActionType
+import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.service.NovaAccessibilityService
@@ -58,9 +59,10 @@ class NavExecutor {
         } else {
             CommandResult.failure(
                 "Accessibility service is not ready, or the global action failed.",
-                commandIntent.intentType,
-                actionType,
-                commandIntent.entities
+                status = ActionResultStatus.PERMISSION_REQUIRED,
+                intentType = commandIntent.intentType,
+                actionType = actionType,
+                entities = commandIntent.entities
             )
         }
     }

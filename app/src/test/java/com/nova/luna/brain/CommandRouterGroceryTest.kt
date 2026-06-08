@@ -35,7 +35,7 @@ class CommandRouterGroceryTest {
 
         executor.activeGrocerySession = true
 
-        val result = router.routeGroceryConversation("yes please")
+        val result = router.routeGroceryConversation("yes please", CommandIntent(rawText = "yes please"))
 
         assertEquals(1, executor.groceryConversationCount)
         assertTrue(result.success)
@@ -53,15 +53,15 @@ class CommandRouterGroceryTest {
 
         override fun hasActiveCabBookingSession(): Boolean = false
         override fun cancelCabBookingSession(): CommandResult = CommandResult.success("Cancelled")
-        override fun handleCabBookingText(rawText: String): CommandResult = CommandResult.success("Handled")
+        override fun handleCabBookingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveFoodBookingSession(): Boolean = false
         override fun cancelFoodBookingSession(): CommandResult = CommandResult.success("Cancelled")
-        override fun handleFoodBookingText(rawText: String): CommandResult = CommandResult.success("Handled")
+        override fun handleFoodBookingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveGroceryBookingSession(): Boolean = activeGrocerySession
         override fun cancelGroceryBookingSession(): CommandResult = CommandResult.success("Cancelled")
-        override fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean): CommandResult {
+        override fun handleGroceryBookingText(rawText: String, commandIntent: CommandIntent, userConfirmed: Boolean): CommandResult {
             groceryConversationCount++
             return CommandResult.success("Handled grocery")
         }

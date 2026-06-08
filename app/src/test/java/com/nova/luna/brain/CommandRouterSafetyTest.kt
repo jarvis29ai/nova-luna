@@ -53,15 +53,15 @@ class CommandRouterSafetyTest {
 
         override fun hasActiveCabBookingSession(): Boolean = false
         override fun cancelCabBookingSession(): CommandResult = CommandResult.success("Cancelled")
-        override fun handleCabBookingText(rawText: String): CommandResult = CommandResult.success("Handled")
+        override fun handleCabBookingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveFoodBookingSession(): Boolean = false
         override fun cancelFoodBookingSession(): CommandResult = CommandResult.success("Cancelled")
-        override fun handleFoodBookingText(rawText: String): CommandResult = CommandResult.success("Handled")
+        override fun handleFoodBookingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveGroceryBookingSession(): Boolean = false
         override fun cancelGroceryBookingSession(): CommandResult = CommandResult.success("Cancelled")
-        override fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean): CommandResult = CommandResult.success("Handled")
+        override fun handleGroceryBookingText(rawText: String, commandIntent: CommandIntent, userConfirmed: Boolean): CommandResult = CommandResult.success("Handled")
 
         override fun hasActivePhoneContactSession(): Boolean = false
         override fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")

@@ -849,27 +849,37 @@ fun CabBookingResult.toEntities(): Map<String, String> {
     }
 }
 
-fun CabBookingResult.toCabCommandResult(): CommandResult {
+fun CabBookingResult.toCabCommandResult(commandIntent: CommandIntent? = null): CommandResult {
     val entities = toEntities()
+    val baseIntent = commandIntent?.intentType ?: IntentType.CAB_BOOKING
+    val baseAction = commandIntent?.actionType ?: ActionType.CAB_BOOKING
+
     return if (manualActionReason == AccessibilityReadiness.BLOCKED_BY_ACCESSIBILITY_NOT_READY) {
         CommandResult.blocked(
             message = message,
-            intentType = IntentType.CAB_BOOKING,
-            actionType = ActionType.CAB_BOOKING,
+            intentType = baseIntent,
+            actionType = baseAction,
             entities = entities
         )
     } else if (state == CabBookingState.FAILED || state == CabBookingState.MANUAL_ACTION_REQUIRED) {
         CommandResult.failure(
             message = message,
-            intentType = IntentType.CAB_BOOKING,
-            actionType = ActionType.CAB_BOOKING,
+            intentType = baseIntent,
+            actionType = baseAction,
+            entities = entities
+        )
+    } else if (state == CabBookingState.WAITING_FOR_FINAL_CONFIRMATION) {
+        CommandResult.confirmationRequired(
+            message = message,
+            intentType = baseIntent,
+            actionType = baseAction,
             entities = entities
         )
     } else {
         CommandResult.success(
             message = message,
-            intentType = IntentType.CAB_BOOKING,
-            actionType = ActionType.CAB_BOOKING,
+            intentType = baseIntent,
+            actionType = baseAction,
             entities = entities
         )
     }

@@ -236,20 +236,30 @@ fun FoodComparisonResult.toEntities(): Map<String, String> {
     }
 }
 
-fun FoodComparisonResult.toCommandResult(): CommandResult {
+fun FoodComparisonResult.toCommandResult(commandIntent: CommandIntent? = null): CommandResult {
     val entities = toEntities()
+    val baseIntent = commandIntent?.intentType ?: IntentType.FOOD_ORDER
+    val baseAction = commandIntent?.actionType ?: ActionType.FOOD_ORDER
+
     return if (state == FoodBookingState.FAILED || state == FoodBookingState.MANUAL_ACTION_REQUIRED) {
         CommandResult.failure(
             message = message,
-            intentType = IntentType.FOOD_ORDER,
-            actionType = ActionType.FOOD_ORDER,
+            intentType = baseIntent,
+            actionType = baseAction,
+            entities = entities
+        )
+    } else if (state == FoodBookingState.WAITING_FOR_FINAL_CONFIRMATION) {
+        CommandResult.confirmationRequired(
+            message = message,
+            intentType = baseIntent,
+            actionType = baseAction,
             entities = entities
         )
     } else {
         CommandResult.success(
             message = message,
-            intentType = IntentType.FOOD_ORDER,
-            actionType = ActionType.FOOD_ORDER,
+            intentType = baseIntent,
+            actionType = baseAction,
             entities = entities
         )
     }

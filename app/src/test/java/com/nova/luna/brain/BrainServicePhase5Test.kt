@@ -89,16 +89,16 @@ class BrainServicePhase5Test {
         }
 
         override fun hasActiveCabBookingSession(): Boolean = false
-        override fun cancelCabBookingSession(): CommandResult = CommandResult.success("Cancelled")
-        override fun handleCabBookingText(rawText: String): CommandResult = CommandResult.success("Handled")
+        override fun cancelCabBookingSession(): CommandResult = CommandResult.success(message = "Cancelled")
+        override fun handleCabBookingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success(message = "Handled")
 
         override fun hasActiveFoodBookingSession(): Boolean = false
-        override fun cancelFoodBookingSession(): CommandResult = CommandResult.success("Cancelled food")
-        override fun handleFoodBookingText(rawText: String): CommandResult = CommandResult.success("Handled food")
+        override fun cancelFoodBookingSession(): CommandResult = CommandResult.success(message = "Cancelled food")
+        override fun handleFoodBookingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success(message = "Handled food")
 
         override fun hasActiveGroceryBookingSession(): Boolean = false
-        override fun cancelGroceryBookingSession(): CommandResult = CommandResult.success("Cancelled grocery")
-        override fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean): CommandResult {
+        override fun cancelGroceryBookingSession(): CommandResult = CommandResult.success(message = "Cancelled grocery")
+        override fun handleGroceryBookingText(rawText: String, commandIntent: CommandIntent, userConfirmed: Boolean): CommandResult {
             return CommandResult.success(
                 message = "Handled grocery",
                 intentType = com.nova.luna.model.IntentType.GROCERY_BOOKING,
@@ -111,16 +111,16 @@ class BrainServicePhase5Test {
         }
 
         override fun hasActivePhoneContactSession(): Boolean = false
-        override fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
+        override fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success(message = "Handled")
         override fun hasActiveCommunicationSession(): Boolean = false
-        override fun handleCommunicationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
+        override fun handleCommunicationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success(message = "Handled")
         override fun hasActiveContentCreationSession(): Boolean = false
-        override fun handleContentCreationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
+        override fun handleContentCreationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success(message = "Handled")
         override fun hasActiveMediaSession(): Boolean = false
-        override fun handleMediaText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
+        override fun handleMediaText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success(message = "Handled")
         override fun hasActiveShoppingSession(): Boolean = false
-        override fun handleShoppingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
+        override fun handleShoppingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success(message = "Handled")
         override fun hasActiveMusicSession(): Boolean = false
-        override fun handleMusicText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled music")
+        override fun handleMusicText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success(message = "Handled music")
     }
 }

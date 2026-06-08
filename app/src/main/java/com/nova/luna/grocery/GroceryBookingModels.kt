@@ -902,8 +902,11 @@ data class GroceryBookingResult(
         }
     }
 
-    fun toGroceryCommandResult(): CommandResult {
+    fun toGroceryCommandResult(commandIntent: CommandIntent? = null): CommandResult {
         val entities = toEntities()
+        val baseIntent = commandIntent?.intentType ?: IntentType.GROCERY_BOOKING
+        val baseAction = commandIntent?.actionType ?: ActionType.GROCERY_BOOKING
+
         val blockedReason = manualActionReason
         val isPermissionBlocked = blockedReason == GroceryFailureReasons.BLOCKED_BY_ACCESSIBILITY_NOT_READY ||
             blockedReason == GroceryFailureReasons.BLOCKED_BY_LOCATION_PERMISSION ||
@@ -913,8 +916,8 @@ data class GroceryBookingResult(
         if (isPermissionBlocked) {
             return CommandResult.blocked(
                 message = message,
-                intentType = IntentType.GROCERY_BOOKING,
-                actionType = ActionType.GROCERY_BOOKING,
+                intentType = baseIntent,
+                actionType = baseAction,
                 entities = entities
             )
         }
@@ -923,23 +926,23 @@ data class GroceryBookingResult(
             GroceryBookingState.SHOWING_FINAL_SUMMARY,
             GroceryBookingState.WAITING_FOR_FINAL_CONFIRMATION -> CommandResult.confirmationRequired(
                 message = message,
-                intentType = IntentType.GROCERY_BOOKING,
-                actionType = ActionType.GROCERY_BOOKING,
+                intentType = baseIntent,
+                actionType = baseAction,
                 entities = entities
             )
 
             GroceryBookingState.FAILED,
             GroceryBookingState.MANUAL_ACTION_REQUIRED -> CommandResult.failure(
                 message = message,
-                intentType = IntentType.GROCERY_BOOKING,
-                actionType = ActionType.GROCERY_BOOKING,
+                intentType = baseIntent,
+                actionType = baseAction,
                 entities = entities
             )
 
             else -> CommandResult.success(
                 message = message,
-                intentType = IntentType.GROCERY_BOOKING,
-                actionType = ActionType.GROCERY_BOOKING,
+                intentType = baseIntent,
+                actionType = baseAction,
                 entities = entities
             )
         }

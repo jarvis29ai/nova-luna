@@ -1,6 +1,7 @@
 package com.nova.luna.executor
 
 import com.nova.luna.model.ActionType
+import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.service.NovaAccessibilityService
@@ -10,10 +11,11 @@ class TapExecutor {
         val query = commandIntent.entities["text"].orEmpty()
         if (query.isBlank()) {
             return CommandResult.failure(
-                "No tap target was provided.",
-                commandIntent.intentType,
-                commandIntent.actionType,
-                commandIntent.entities
+                message = "No tap target was provided.",
+                status = ActionResultStatus.FAILED,
+                intentType = commandIntent.intentType,
+                actionType = commandIntent.actionType,
+                entities = commandIntent.entities
             )
         }
 
@@ -27,10 +29,11 @@ class TapExecutor {
             )
         } else {
             CommandResult.failure(
-                "Could not find a tappable node for \"$query\".",
-                commandIntent.intentType,
-                commandIntent.actionType,
-                commandIntent.entities
+                message = "Could not find a tappable node for \"$query\".",
+                status = ActionResultStatus.NOT_FOUND,
+                intentType = commandIntent.intentType,
+                actionType = commandIntent.actionType,
+                entities = commandIntent.entities
             )
         }
     }

@@ -12,7 +12,7 @@ import java.util.ArrayDeque
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
-class TextToSpeechManager(private val context: Context) : TextToSpeech.OnInitListener {
+open class TextToSpeechManager(private val context: Context) : TextToSpeech.OnInitListener {
     private data class PendingSpeech(
         val text: String,
         val onDone: (() -> Unit)?
@@ -82,6 +82,11 @@ class TextToSpeechManager(private val context: Context) : TextToSpeech.OnInitLis
         }
 
         speakNow(text, onDone)
+    }
+
+    fun stop() {
+        callbackMap.clear()
+        engine?.stop()
     }
 
     fun release() {

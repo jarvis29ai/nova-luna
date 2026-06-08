@@ -121,7 +121,7 @@ class CommandBrainPhase1StabilityTest {
             return CommandResult.success("Cancelled cab")
         }
 
-        override fun handleCabBookingText(rawText: String): CommandResult {
+        override fun handleCabBookingText(rawText: String, commandIntent: CommandIntent): CommandResult {
             totalCalls += 1
             return CommandResult.success("Handled cab")
         }
@@ -133,7 +133,7 @@ class CommandBrainPhase1StabilityTest {
             return CommandResult.success("Cancelled food")
         }
 
-        override fun handleFoodBookingText(rawText: String): CommandResult {
+        override fun handleFoodBookingText(rawText: String, commandIntent: CommandIntent): CommandResult {
             totalCalls += 1
             return CommandResult.success("Handled food")
         }
@@ -145,7 +145,7 @@ class CommandBrainPhase1StabilityTest {
             return CommandResult.success("Cancelled grocery")
         }
 
-        override fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean): CommandResult {
+        override fun handleGroceryBookingText(rawText: String, commandIntent: CommandIntent, userConfirmed: Boolean): CommandResult {
             totalCalls += 1
             groceryConversationCount += 1
             lastGroceryText = rawText

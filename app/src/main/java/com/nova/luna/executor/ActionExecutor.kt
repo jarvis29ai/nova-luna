@@ -2,6 +2,7 @@ package com.nova.luna.executor
 
 import android.content.Context
 import com.nova.luna.model.ActionType
+import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.memory.BrainSessionType
@@ -109,29 +110,133 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     )
 
     override fun execute(commandIntent: CommandIntent): CommandResult {
+        val service = NovaAccessibilityService.instance
+        val requiresService = actionRequiresAccessibility(commandIntent.actionType)
+        
+        if (requiresService && service == null) {
+            return CommandResult.failure(
+                message = "Accessibility service is not enabled. Please enable it in Settings.",
+                status = ActionResultStatus.PERMISSION_REQUIRED,
+                intentType = commandIntent.intentType,
+                actionType = commandIntent.actionType,
+                entities = commandIntent.entities
+            )
+        }
+
         val captureScreenState = shouldVerifyScreen(commandIntent.actionType)
-        val beforeScreenState = if (captureScreenState) {
-            NovaAccessibilityService.instance?.captureScreenState()
+        val beforeScreenState = if (captureScreenState && service != null) {
+            service.captureScreenState()
         } else {
             null
         }
 
-        val result = when (commandIntent.actionType) {
-            ActionType.LAUNCH_APP -> appLauncher.launchApp(commandIntent)
+        val result = executeWithRetry(commandIntent, service)
+        val memoryResult = result.withMemoryContext(sessionTypeForAction(commandIntent.actionType))
+
+        val afterScreenState = if (captureScreenState && service != null) {
+            service.captureScreenState()
+        } else {
+            null
+        }
+
+        return attachScreenVerification(commandIntent, memoryResult, beforeScreenState, afterScreenState)
+    }
+
+    private fun actionRequiresAccessibility(actionType: ActionType): Boolean {
+        return actionType in setOf(
+            ActionType.GO_HOME,
+            ActionType.GO_BACK,
+            ActionType.OPEN_RECENTS,
+            ActionType.OPEN_NOTIFICATIONS,
+            ActionType.CLICK_TEXT,
+            ActionType.TAP_TEXT,
+            ActionType.TAP_DESCRIPTION,
+            ActionType.TAP_NODE,
+            ActionType.SCROLL_FORWARD,
+            ActionType.SCROLL_DOWN,
+            ActionType.SCROLL_BACKWARD,
+            ActionType.SCROLL_UP,
+            ActionType.TYPE_TEXT,
+            ActionType.READ_SCREEN,
+            ActionType.WAIT_FOR_TEXT,
+            ActionType.WAIT_FOR_APP,
+            ActionType.TAKE_SCREENSHOT
+        )
+    }
+
+    private fun executeWithRetry(commandIntent: CommandIntent, service: NovaAccessibilityService?): CommandResult {
+        var retryCount = 0
+        val maxRetries = 2
+        var lastResult: CommandResult? = null
+
+        while (retryCount <= maxRetries) {
+            val result = performExecution(commandIntent, service, retryCount)
+            if (result.success || result.status == ActionResultStatus.NEEDS_CONFIRMATION || result.status == ActionResultStatus.BLOCKED) {
+                return result
+            }
+            lastResult = result
+            retryCount++
+            if (retryCount <= maxRetries && service != null) {
+                // Try to recover: maybe scroll if it's a tap action
+                if (commandIntent.actionType == ActionType.TAP_TEXT || commandIntent.actionType == ActionType.CLICK_TEXT) {
+                    service.scrollForward()
+                }
+                Thread.sleep(500)
+            }
+        }
+        return lastResult ?: CommandResult.failure(message = "Execution failed", status = ActionResultStatus.FAILED)
+    }
+
+    private fun performExecution(commandIntent: CommandIntent, service: NovaAccessibilityService?, retryCount: Int): CommandResult {
+        return when (commandIntent.actionType) {
+            ActionType.LAUNCH_APP, ActionType.OPEN_APP -> appLauncher.launchApp(commandIntent)
             ActionType.GO_HOME -> navExecutor.goHome(commandIntent)
             ActionType.GO_BACK -> navExecutor.goBack(commandIntent)
             ActionType.OPEN_RECENTS -> navExecutor.openRecents(commandIntent)
             ActionType.OPEN_NOTIFICATIONS -> navExecutor.openNotifications(commandIntent)
-            ActionType.CLICK_TEXT -> tapExecutor.tap(commandIntent)
-            ActionType.SCROLL_FORWARD -> scrollExecutor.scrollForward(commandIntent)
-            ActionType.SCROLL_BACKWARD -> scrollExecutor.scrollBackward(commandIntent)
+            ActionType.CLICK_TEXT, ActionType.TAP_TEXT -> tapExecutor.tap(commandIntent)
+            ActionType.TAP_DESCRIPTION -> {
+                val query = commandIntent.entities["text"] ?: commandIntent.entities["query"] ?: ""
+                if (service?.clickByContentDescription(query) == true) {
+                    CommandResult.success("Tapped $query by description", actionType = commandIntent.actionType)
+                } else {
+                    CommandResult.failure(message = "Could not find $query by description", status = ActionResultStatus.NOT_FOUND, actionType = commandIntent.actionType)
+                }
+            }
+            ActionType.SCROLL_FORWARD, ActionType.SCROLL_DOWN -> scrollExecutor.scrollForward(commandIntent)
+            ActionType.SCROLL_BACKWARD, ActionType.SCROLL_UP -> scrollExecutor.scrollBackward(commandIntent)
             ActionType.TYPE_TEXT -> typeExecutor.typeText(commandIntent)
+            ActionType.READ_SCREEN -> {
+                val state = service?.captureScreenState()
+                if (state != null) {
+                    CommandResult.success("Screen read successful", entities = commandIntent.entities + mapOf("screenSummary" to state.summarizedState))
+                } else {
+                    CommandResult.failure(message = "Could not read screen", status = ActionResultStatus.FAILED)
+                }
+            }
+            ActionType.WAIT_FOR_TEXT -> {
+                val text = commandIntent.entities["text"] ?: ""
+                if (service?.waitForText(text) == true) {
+                    CommandResult.success("Found text: $text")
+                } else {
+                    CommandResult.failure(message = "Timed out waiting for text: $text", status = ActionResultStatus.TIMEOUT)
+                }
+            }
+            ActionType.WAIT_FOR_APP -> {
+                val pkg = commandIntent.entities["packageName"] ?: ""
+                if (service?.waitForApp(pkg) == true) {
+                    CommandResult.success("App $pkg is now in foreground")
+                } else {
+                    CommandResult.failure(message = "Timed out waiting for app: $pkg", status = ActionResultStatus.TIMEOUT)
+                }
+            }
             ActionType.READ_NOTIFICATIONS -> notificationReader.readNotifications(commandIntent)
             ActionType.TAKE_SCREENSHOT -> CommandResult.failure(
                 "Screenshot is scaffolded but not implemented in this starter.",
-                commandIntent.intentType,
-                commandIntent.actionType,
-                commandIntent.entities
+                status = ActionResultStatus.UNSUPPORTED,
+                intentType = commandIntent.intentType,
+                actionType = commandIntent.actionType,
+                entities = commandIntent.entities
             ).withMemoryContext(BrainSessionType.SCREEN)
             ActionType.OPEN_SETTINGS -> settingsExecutor.openSettings(commandIntent).withMemoryContext(BrainSessionType.BASIC_CONTROL)
             ActionType.OPEN_ACCESSIBILITY_SETTINGS -> settingsExecutor.openAccessibilitySettings(commandIntent).withMemoryContext(BrainSessionType.BASIC_CONTROL)
@@ -150,6 +255,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
                 CommandResult(
                     success = result.status == com.nova.luna.communication.CommunicationStatus.SUCCESS ||
                               result.status == com.nova.luna.communication.CommunicationStatus.NEEDS_CONFIRMATION,
+                    status = if (result.status == com.nova.luna.communication.CommunicationStatus.NEEDS_CONFIRMATION) ActionResultStatus.NEEDS_CONFIRMATION else ActionResultStatus.SUCCESS,
                     message = result.popupText,
                     intentType = commandIntent.intentType,
                     actionType = commandIntent.actionType,
@@ -167,34 +273,27 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             ActionType.BLOCKED,
             ActionType.UNKNOWN -> CommandResult.failure(
                 "I could not map that command to a safe action.",
-                commandIntent.intentType,
-                commandIntent.actionType,
-                commandIntent.entities
+                status = ActionResultStatus.BLOCKED,
+                intentType = commandIntent.intentType,
+                actionType = commandIntent.actionType,
+                entities = commandIntent.entities
             ).withMemoryContext(BrainSessionType.BASIC_CONTROL)
             ActionType.MEDIA_CONTROL -> handleMediaText(commandIntent.rawText, commandIntent).withMemoryContext(BrainSessionType.MEDIA)
+            else -> CommandResult.failure("Unsupported action type", status = ActionResultStatus.UNSUPPORTED)
         }
-        val memoryResult = result.withMemoryContext(sessionTypeForAction(commandIntent.actionType))
-
-        val afterScreenState = if (captureScreenState) {
-            NovaAccessibilityService.instance?.captureScreenState()
-        } else {
-            null
-        }
-
-        return attachScreenVerification(commandIntent, memoryResult, beforeScreenState, afterScreenState)
     }
 
     override fun hasActiveCabBookingSession(): Boolean = cabOrchestrator.isActive()
     override fun cancelCabBookingSession(): CommandResult = CommandResult.success("Cancelled").withMemoryContext(BrainSessionType.CAB)
-    override fun handleCabBookingText(rawText: String): CommandResult = cabOrchestrator.handleUserInput(rawText).toCabCommandResult().withMemoryContext(BrainSessionType.CAB)
+    override fun handleCabBookingText(rawText: String, commandIntent: CommandIntent): CommandResult = cabOrchestrator.handleUserInput(rawText).toCabCommandResult(commandIntent).withMemoryContext(BrainSessionType.CAB)
 
     override fun hasActiveFoodBookingSession(): Boolean = foodOrchestrator.isActive()
     override fun cancelFoodBookingSession(): CommandResult = CommandResult.success("Cancelled").withMemoryContext(BrainSessionType.FOOD)
-    override fun handleFoodBookingText(rawText: String): CommandResult = foodOrchestrator.handleUserInput(rawText).toFoodCommandResult().withMemoryContext(BrainSessionType.FOOD)
+    override fun handleFoodBookingText(rawText: String, commandIntent: CommandIntent): CommandResult = foodOrchestrator.handleUserInput(rawText).toFoodCommandResult(commandIntent).withMemoryContext(BrainSessionType.FOOD)
 
     override fun hasActiveGroceryBookingSession(): Boolean = groceryOrchestrator.isActive()
     override fun cancelGroceryBookingSession(): CommandResult = groceryOrchestrator.cancelSession().toGroceryCommandResult().withMemoryContext(BrainSessionType.GROCERY)
-    override fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean): CommandResult = groceryOrchestrator.handleUserInput(rawText, userConfirmed).toGroceryCommandResult().withMemoryContext(BrainSessionType.GROCERY)
+    override fun handleGroceryBookingText(rawText: String, commandIntent: CommandIntent, userConfirmed: Boolean): CommandResult = groceryOrchestrator.handleUserInput(rawText, userConfirmed).toGroceryCommandResult(commandIntent).withMemoryContext(BrainSessionType.GROCERY)
 
     override fun hasActivePhoneContactSession(): Boolean = phoneOrchestrator.isActive()
     override fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult = phoneOrchestrator.handleUserInput(rawText).toPhoneCommandResult(commandIntent).withMemoryContext(BrainSessionType.PHONE)
@@ -322,14 +421,23 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     private fun sessionTypeForAction(actionType: ActionType): BrainSessionType {
         return when (actionType) {
             ActionType.LAUNCH_APP,
+            ActionType.OPEN_APP,
             ActionType.GO_HOME,
             ActionType.GO_BACK,
             ActionType.OPEN_RECENTS,
             ActionType.OPEN_NOTIFICATIONS,
             ActionType.CLICK_TEXT,
+            ActionType.TAP_TEXT,
+            ActionType.TAP_DESCRIPTION,
+            ActionType.TAP_NODE,
             ActionType.SCROLL_FORWARD,
+            ActionType.SCROLL_DOWN,
             ActionType.SCROLL_BACKWARD,
+            ActionType.SCROLL_UP,
             ActionType.TYPE_TEXT,
+            ActionType.READ_SCREEN,
+            ActionType.WAIT_FOR_TEXT,
+            ActionType.WAIT_FOR_APP,
             ActionType.READ_NOTIFICATIONS,
             ActionType.STOP_SERVICE,
             ActionType.OPEN_SETTINGS,
@@ -337,6 +445,8 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             ActionType.OPEN_USAGE_ACCESS_SETTINGS,
             ActionType.TAKE_SCREENSHOT,
             ActionType.BLOCKED,
+            ActionType.CANCEL,
+            ActionType.NO_OP,
             ActionType.UNKNOWN -> BrainSessionType.BASIC_CONTROL
 
             ActionType.CALL_CONTACT -> BrainSessionType.PHONE

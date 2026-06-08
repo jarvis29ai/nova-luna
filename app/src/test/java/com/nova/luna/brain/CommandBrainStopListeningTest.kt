@@ -34,7 +34,7 @@ class CommandBrainStopListeningTest {
         Mockito.`when`(context.applicationContext).thenReturn(context)
         Mockito.`when`(context.packageManager).thenReturn(packageManager)
 
-        val brain = CommandBrain(context)
+        val brain = CommandBrain(context, personalMemoryStore = com.nova.luna.memory.FakePersonalMemoryStore())
         val result = brain.process("Luna stop listening")
 
         assertTrue(result.success)
@@ -51,7 +51,7 @@ class CommandBrainStopListeningTest {
         Mockito.`when`(context.applicationContext).thenReturn(context)
         Mockito.`when`(context.packageManager).thenReturn(packageManager)
 
-        val brain = CommandBrain(context)
+        val brain = CommandBrain(context, personalMemoryStore = com.nova.luna.memory.FakePersonalMemoryStore())
         val phrases = listOf(
             "cancel listening",
             "stop voice",

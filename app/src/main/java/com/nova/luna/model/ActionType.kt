@@ -2,14 +2,23 @@ package com.nova.luna.model
 
 enum class ActionType {
     LAUNCH_APP,
+    OPEN_APP, // Alias for LAUNCH_APP
     GO_HOME,
     GO_BACK,
     OPEN_RECENTS,
     OPEN_NOTIFICATIONS,
     CLICK_TEXT,
+    TAP_TEXT, // Alias for CLICK_TEXT
+    TAP_DESCRIPTION,
+    TAP_NODE,
     SCROLL_FORWARD,
+    SCROLL_DOWN, // Alias for SCROLL_FORWARD
     SCROLL_BACKWARD,
+    SCROLL_UP, // Alias for SCROLL_BACKWARD
     TYPE_TEXT,
+    READ_SCREEN,
+    WAIT_FOR_TEXT,
+    WAIT_FOR_APP,
     READ_NOTIFICATIONS,
     STOP_SERVICE,
     TAKE_SCREENSHOT,
@@ -26,5 +35,7 @@ enum class ActionType {
     SHOPPING,
     MUSIC,
     BLOCKED,
+    CANCEL,
+    NO_OP,
     UNKNOWN
 }

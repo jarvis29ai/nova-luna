@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import com.nova.luna.model.ActionType
+import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 

@@ -7,13 +7,13 @@ interface ActionExecutorGateway {
     fun execute(commandIntent: CommandIntent): CommandResult
     fun hasActiveCabBookingSession(): Boolean
     fun cancelCabBookingSession(): CommandResult
-    fun handleCabBookingText(rawText: String): CommandResult
+    fun handleCabBookingText(rawText: String, commandIntent: CommandIntent): CommandResult
     fun hasActiveFoodBookingSession(): Boolean
     fun cancelFoodBookingSession(): CommandResult
-    fun handleFoodBookingText(rawText: String): CommandResult
+    fun handleFoodBookingText(rawText: String, commandIntent: CommandIntent): CommandResult
     fun hasActiveGroceryBookingSession(): Boolean
     fun cancelGroceryBookingSession(): CommandResult
-    fun handleGroceryBookingText(rawText: String, userConfirmed: Boolean = false): CommandResult
+    fun handleGroceryBookingText(rawText: String, commandIntent: CommandIntent, userConfirmed: Boolean = false): CommandResult
     fun hasActivePhoneContactSession(): Boolean
     fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult
     fun hasActiveCommunicationSession(): Boolean

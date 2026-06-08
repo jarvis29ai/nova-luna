@@ -16,6 +16,7 @@ import com.nova.luna.data.AppDatabase
 import com.nova.luna.data.CommandHistoryEntity
 import com.nova.luna.data.buildCommandHistoryEntity
 import com.nova.luna.data.PreferencesManager
+import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.CommandResult
 import com.nova.luna.model.VoiceProfile
 import com.nova.luna.tts.TextToSpeechManager
@@ -25,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collectLatest
+import com.nova.luna.voice.*
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -35,8 +37,10 @@ class VoiceCommandService : Service(), RecognitionListener {
 
     private lateinit var preferencesManager: PreferencesManager
     private lateinit var commandBrain: CommandBrain
-    private lateinit var ttsManager: TextToSpeechManager
+    private lateinit var voiceResponseManager: VoiceResponseManager
     private lateinit var historyDao: com.nova.luna.data.CommandHistoryDao
+    private val normalizer = VoiceCommandNormalizer()
+    private val templates = VoiceResponseTemplates()
 
     private var speechRecognizer: SpeechRecognizer? = null
     private var currentVoiceProfile: VoiceProfile = VoiceProfile.NOVA
@@ -49,7 +53,7 @@ class VoiceCommandService : Service(), RecognitionListener {
         super.onCreate()
         preferencesManager = PreferencesManager(this)
         commandBrain = CommandBrain(applicationContext)
-        ttsManager = TextToSpeechManager(applicationContext)
+        voiceResponseManager = VoiceResponseManager(applicationContext)
         historyDao = AppDatabase.getInstance(applicationContext).commandHistoryDao()
 
         NotificationHelper.ensureChannel(this)
@@ -99,7 +103,7 @@ class VoiceCommandService : Service(), RecognitionListener {
         speechRecognizer?.cancel()
         speechRecognizer?.destroy()
         speechRecognizer = null
-        ttsManager.release()
+        voiceResponseManager.release()
         serviceJob.cancel()
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
@@ -164,19 +168,25 @@ class VoiceCommandService : Service(), RecognitionListener {
         serviceScope.launch {
             preferencesManager.voiceProfileFlow.collectLatest { profile ->
                 currentVoiceProfile = profile
-                ttsManager.applyProfile(profile)
+                voiceResponseManager.prepare(profile)
             }
         }
 
-        ttsManager.prepare(currentVoiceProfile)
+        voiceResponseManager.prepare(currentVoiceProfile)
     }
 
     private fun handleRecognizedText(text: String) {
-        val normalized = text.trim()
+        val cleaned = normalizer.normalize(text)
+        if (!normalizer.isValidCommand(cleaned)) {
+            updateNotification("I didn't hear a command.", true)
+            restartDelayMs = (restartDelayMs * 2).coerceAtMost(2000L)
+            scheduleRestart()
+            return
+        }
 
-        val result = commandBrain.process(normalized)
+        val result = commandBrain.process(cleaned)
         serviceScope.launch(Dispatchers.IO) {
-            historyDao.insert(buildCommandHistoryEntity(text, normalized, result))
+            historyDao.insert(buildCommandHistoryEntity(text, cleaned, result))
         }
         speakResult(result)
     }
@@ -185,7 +195,23 @@ class VoiceCommandService : Service(), RecognitionListener {
         clearRestart()
         isListening = false
         updateNotification(result.message, listening = !result.shouldStopListening)
-        ttsManager.speak(result.message) {
+        
+        val voiceMessage = templates.fromActionResultStatus(result.status, result.message)
+        voiceResponseManager.speak(
+            VoiceResponseRequest(
+                type = when(result.status) {
+                    ActionResultStatus.SUCCESS -> VoiceResponseType.SUCCESS
+                    ActionResultStatus.FAILED -> VoiceResponseType.FAILURE
+                    ActionResultStatus.BLOCKED -> VoiceResponseType.BLOCKED
+                    ActionResultStatus.NEEDS_CONFIRMATION -> VoiceResponseType.CONFIRMATION
+                    ActionResultStatus.PERMISSION_REQUIRED -> VoiceResponseType.PERMISSION_REQUIRED
+                    else -> VoiceResponseType.SUMMARY
+                },
+                message = voiceMessage,
+                relatedResultStatus = result.status,
+                relatedActionType = result.actionType
+            )
+        ) {
             if (!isStopping) {
                 if (result.shouldStopListening) {
                     stopListeningAndShutdown(speakMessage = null)
@@ -243,7 +269,12 @@ class VoiceCommandService : Service(), RecognitionListener {
             finishShutdown()
         } else {
             updateNotification(speakMessage, listening = false)
-            ttsManager.speak(speakMessage) {
+            voiceResponseManager.speak(
+                VoiceResponseRequest(
+                    type = VoiceResponseType.CANCELLED,
+                    message = speakMessage
+                )
+            ) {
                 finishShutdown()
             }
         }
@@ -254,7 +285,12 @@ class VoiceCommandService : Service(), RecognitionListener {
         clearRestart()
         isListening = false
         updateNotification(message, listening = false)
-        ttsManager.speak(message) {
+        voiceResponseManager.speak(
+            VoiceResponseRequest(
+                type = VoiceResponseType.FAILURE,
+                message = message
+            )
+        ) {
             finishShutdown()
         }
     }

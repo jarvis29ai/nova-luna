@@ -22,8 +22,23 @@ object AccessibilityNodeUtils {
         return findNodeByTextOrDescription(root, normalizedQuery, visited = mutableSetOf(), depth = 0)
     }
 
+    fun findNodeByDescription(
+        root: AccessibilityNodeInfo?,
+        query: String
+    ): AccessibilityNodeInfo? {
+        if (root == null || query.isBlank()) return null
+
+        val normalizedQuery = FuzzyMatcher.normalize(query)
+        return findNodeByDescription(root, normalizedQuery, visited = mutableSetOf(), depth = 0)
+    }
+
     fun findClickableNode(root: AccessibilityNodeInfo?, query: String): AccessibilityNodeInfo? {
         val node = findNodeByTextOrDescription(root, query) ?: return null
+        return node.findClickableAncestor()
+    }
+
+    fun findClickableNodeByDescription(root: AccessibilityNodeInfo?, query: String): AccessibilityNodeInfo? {
+        val node = findNodeByDescription(root, query) ?: return null
         return node.findClickableAncestor()
     }
 
@@ -127,6 +142,34 @@ object AccessibilityNodeUtils {
         for (index in 0 until root.childCount) {
             val child = root.getChild(index) ?: continue
             val match = findNodeByTextOrDescription(child, query, visited, depth + 1)
+            if (match != null) {
+                return match
+            }
+        }
+        return null
+    }
+
+    private fun findNodeByDescription(
+        root: AccessibilityNodeInfo,
+        query: String,
+        visited: MutableSet<Int>,
+        depth: Int
+    ): AccessibilityNodeInfo? {
+        if (depth > DEFAULT_MAX_SCREEN_DEPTH) return null
+
+        val identity = System.identityHashCode(root)
+        if (!visited.add(identity)) return null
+
+        val description = root.contentDescription?.toString().orEmpty()
+        val normalizedQuery = query
+
+        if (matches(description, normalizedQuery)) {
+            return root
+        }
+
+        for (index in 0 until root.childCount) {
+            val child = root.getChild(index) ?: continue
+            val match = findNodeByDescription(child, query, visited, depth + 1)
             if (match != null) {
                 return match
             }

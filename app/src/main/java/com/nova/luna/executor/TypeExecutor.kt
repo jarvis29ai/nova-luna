@@ -1,6 +1,7 @@
 package com.nova.luna.executor
 
 import com.nova.luna.model.ActionType
+import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.service.NovaAccessibilityService
@@ -10,10 +11,11 @@ class TypeExecutor {
         val text = commandIntent.entities["text"].orEmpty()
         if (text.isBlank()) {
             return CommandResult.failure(
-                "No text was provided to type.",
-                commandIntent.intentType,
-                commandIntent.actionType,
-                commandIntent.entities
+                message = "No text was provided to type.",
+                status = ActionResultStatus.FAILED,
+                intentType = commandIntent.intentType,
+                actionType = commandIntent.actionType,
+                entities = commandIntent.entities
             )
         }
 
@@ -27,10 +29,11 @@ class TypeExecutor {
             )
         } else {
             CommandResult.failure(
-                "Could not type text because no editable node was ready.",
-                commandIntent.intentType,
-                commandIntent.actionType,
-                commandIntent.entities
+                message = "Could not type text because no editable node was ready.",
+                status = ActionResultStatus.NOT_FOUND,
+                intentType = commandIntent.intentType,
+                actionType = ActionType.TYPE_TEXT,
+                entities = commandIntent.entities
             )
         }
     }

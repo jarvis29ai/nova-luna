@@ -28,6 +28,15 @@
                 <action android:name="com.nova.luna.debug.ACTION_RUN_COMMAND_SMOKE" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".demo.DemoFlowSmokeReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.nova.luna.debug.ACTION_RUN_DEMO_SMOKE" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

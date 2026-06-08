@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import com.nova.luna.model.ActionType
+import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.model.IntentType
@@ -51,20 +52,22 @@ class AppLauncher(private val context: Context) {
         val match = findBestMatch(query)
         if (match == null) {
             return CommandResult.failure(
-                "I could not find an installed app that matches \"$query\".",
-                commandIntent.intentType,
-                commandIntent.actionType,
-                commandIntent.entities
+                message = "I could not find an installed app that matches \"$query\".",
+                status = ActionResultStatus.NOT_FOUND,
+                intentType = commandIntent.intentType,
+                actionType = commandIntent.actionType,
+                entities = commandIntent.entities
             )
         }
 
         val launchIntent = packageManager.getLaunchIntentForPackage(match.packageName)
         if (launchIntent == null) {
             return CommandResult.failure(
-                "Found ${match.label}, but it cannot be launched from a normal launcher intent.",
-                IntentType.OPEN_APP,
-                ActionType.LAUNCH_APP,
-                commandIntent.entities
+                message = "Found ${match.label}, but it cannot be launched from a normal launcher intent.",
+                status = ActionResultStatus.UNSUPPORTED,
+                intentType = IntentType.OPEN_APP,
+                actionType = ActionType.LAUNCH_APP,
+                entities = commandIntent.entities
             )
         }
 
@@ -82,10 +85,11 @@ class AppLauncher(private val context: Context) {
             )
         } catch (throwable: Throwable) {
             CommandResult.failure(
-                "Could not open ${match.label}: ${throwable.localizedMessage ?: "unknown error"}.",
-                commandIntent.intentType,
-                commandIntent.actionType,
-                commandIntent.entities
+                message = "Could not open ${match.label}: ${throwable.localizedMessage ?: "unknown error"}.",
+                status = ActionResultStatus.FAILED,
+                intentType = commandIntent.intentType,
+                actionType = commandIntent.actionType,
+                entities = commandIntent.entities
             )
         }
     }

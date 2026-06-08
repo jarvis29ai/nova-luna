@@ -1,58 +1,47 @@
 # Roadmap
 
-## Phase 1: STT + TTS
+## Phase 1: Hands (Action Contract & Safety) - COMPLETE
+- Action JSON Model
+- SafetyGate baseline
+- ActionExecutor & AppLauncher
 
-- Local speech recognition
-- Local TTS response
-- Voice profile switching
+## Phase 2: Ears (Local STT & Normalization) - COMPLETE
+- Voice input integration
+- Text normalization
+- Wake word foundations
 
-## Phase 2: App Launcher
+## Phase 3: Mouth (Local TTS & Responses) - COMPLETE
+- High-quality local TTS
+- Response templates
+- Privacy-aware logging
 
-- Enumerate installed launcher apps
-- Open apps by fuzzy name matching
-- Improve alias handling for common apps
+## Phase 4: Face (UI & State Mapping) - COMPLETE
+- Futuristic Popup UI
+- Assistant thinking/routing animations
+- State-to-UI mapping
 
-## Phase 3: Accessibility Navigation
+## Phase 5: Unified Routing (Intelligent Dispatch) - COMPLETE
+- Domain Handlers (Food, Cab, Grocery, etc.)
+- UnifiedDomainRouter
+- Online AI fallback policy
 
-- go home
-- go back
-- recent apps
-- open notifications
+## Phase 6: Stabilization (Demo Flows & Real Device) - COMPLETE
+- 10+ end-to-end demo flows
+- Real-device performance optimization
+- Hardened SafetyGate
 
-## Phase 4: tap/scroll/type
+## Phase 7: Local LLM Runtime (Gemma/Qwen reasoning) - COMPLETE
+- Hierarchical local LLM stack (Gemma 3n, Qwen 3)
+- Rule-first intelligence policy
+- JSON candidate action extraction
+- 100% test pass rate (465+ tests)
 
-- tap by text
-- click by description
-- scroll forward/backward
-- type into focused editable fields
+## Phase 8: Long-term Memory (Vector DB) - NEXT
+- Local semantic search
+- Persistent user preferences
+- Cross-session task awareness
 
-## Phase 5: Command Brain
-
-- Rule-based parser hardening
-- Better intent resolution
-- Custom rule storage
-
-## Phase 6: Safety + Biometric
-
-- REQUIRE_BIOMETRIC for sensitive actions
-- Block unsafe payment and banking intents
-- Expand audit logging
-
-## Phase 7: Wear OS Companion
-
-- Quick command relay
-- Mic trigger on watch
-- Phone message sync
-
-## Phase 8: Local AI / TFLite Intent Classifier
-
-- Add a tiny on-device classifier
-- Keep the rule engine as a fallback
-- Do not introduce cloud dependence
-
-## Phase 9: Routine Automation
-
-- Safe user-created routines
-- Conditional automations
-- Per-app permissions and approvals
-
+## Phase 9: Multi-modal Face (Vision) - PLANNED
+- On-screen content understanding
+- OCR and spatial reasoning
+- Real-time interaction with complex apps

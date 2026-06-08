@@ -57,6 +57,7 @@ class AgentLoopRecoveryPolicyTest {
                 intentType = IntentType.SENSITIVE,
                 actionType = ActionType.OPEN_SETTINGS
             ),
+
             verification = null
         )
 

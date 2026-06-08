@@ -29,6 +29,7 @@ class TaskCompletionDetectorTest {
             intentType = IntentType.SENSITIVE,
             actionType = ActionType.OPEN_SETTINGS
         )
+
         val verification = AgentLoopVerification(
             screenVerification = ScreenVerificationResult(
                 status = ScreenVerificationStatus.CHANGED,
@@ -62,6 +63,7 @@ class TaskCompletionDetectorTest {
             intentType = IntentType.CONTROL,
             actionType = ActionType.GO_HOME
         )
+
 
         assertTrue(detector.isComplete(plan, state, null, result, null))
     }

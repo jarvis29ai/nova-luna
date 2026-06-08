@@ -2,6 +2,7 @@ package com.nova.luna.executor
 
 import android.content.Context
 import com.nova.luna.model.ActionType
+import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.service.NovaAccessibilityService

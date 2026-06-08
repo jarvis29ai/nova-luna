@@ -1,15 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/nova_background"
-    android:fillViewport="true">
+    android:layout_height="match_parent">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
+        android:layout_height="match_parent"
+        android:background="@color/nova_background"
+        android:fillViewport="true">
+        <!-- ... existing content ... -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+            <!-- (rest of existing LinearLayout content) -->
 
         <TextView
             android:id="@+id/titleText"
@@ -42,6 +47,37 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:spinnerMode="dropdown" />
+
+        <Button
+            android:id="@+id/tapToSpeakButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="Tap to Speak"
+            android:backgroundTint="@color/nova_primary"
+            android:textColor="@color/nova_on_primary" />
+
+        <TextView
+            android:id="@+id/voiceTranscriptText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Transcript will appear here..."
+            android:textAlignment="center"
+            android:textColor="@color/nova_on_background"
+            android:textSize="16sp"
+            android:textStyle="italic" />
+
+        <TextView
+            android:id="@+id/voiceResponseText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Response will appear here..."
+            android:textAlignment="center"
+            android:textColor="@color/nova_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
         <Button
             android:id="@+id/startListeningButton"
@@ -85,6 +121,29 @@
             android:layout_marginTop="8dp"
             android:text="@string/view_command_history" />
 
+        <Button
+            android:id="@+id/demoModeButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Demo Mode"
+            android:backgroundTint="@color/nova_secondary"
+            android:textColor="@color/nova_on_secondary" />
+
+        <Button
+            android:id="@+id/settingsButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Settings" />
+
+        <Button
+            android:id="@+id/diagnosticsButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Diagnostics" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -110,4 +169,11 @@
             android:textColor="@color/nova_on_background"
             android:textSize="14sp" />
     </LinearLayout>
-</ScrollView>
+    </ScrollView>
+
+    <FrameLayout
+        android:id="@+id/popupContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom" />
+</FrameLayout>

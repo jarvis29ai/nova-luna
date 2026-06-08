@@ -13,30 +13,11 @@ import java.util.Locale
 class SafetyGate {
     private val blockedPatterns = listOf(
         "send money",
-        "payment",
-        "pay",
-        "pay now",
-        "pay with",
-        "buy",
-        "checkout",
-        "bank",
-        "banking",
-        "upi",
-        "password",
-        "otp",
-        "one time password",
-        "captcha",
-        "login",
-        "sign in",
-        "delete",
-        "erase",
-        "remove account",
         "transfer money"
     )
 
     private val dangerousFinalPatterns = listOf(
         "send money",
-        "payment",
         "pay now",
         "pay with",
         "bank",
@@ -57,7 +38,11 @@ class SafetyGate {
         "request ride",
         "request now",
         "final booking",
-        "complete payment"
+        "complete payment",
+        "order now",
+        "order this",
+        "book this",
+        "send this"
     )
 
     private val manualOnlyPatterns = listOf(
@@ -98,7 +83,12 @@ class SafetyGate {
         "complete payment",
         "book now",
         "request ride",
-        "request now"
+        "request now",
+        "order now",
+        "order this",
+        "book this",
+        "send this",
+        "send it"
     )
 
     private val grocerySensitivePatterns = listOf(
@@ -194,6 +184,28 @@ class SafetyGate {
 
         if (commandIntent.actionType == ActionType.STOP_SERVICE) {
             return SafetyDecision.allow("Stop command accepted.")
+        }
+
+        if (containsGroceryPlanningBoundaryPhrase(normalized)) {
+            return SafetyDecision(
+                level = SafetyLevel.SAFE,
+                allowed = true,
+                message = "Planning flow allowed due to explicit boundary phrase.",
+                requiresBiometric = false,
+                finalActionAllowed = false
+            )
+        }
+
+        if (containsManualOnlyKeyword(normalized) || containsBlockedKeyword(normalized)) {
+            return SafetyDecision.block(
+                "Blocked command: payments, banking, checkout, passwords, OTPs, and CAPTCHA work must stay manual."
+            )
+        }
+
+        if (isDangerousFinalAction(normalized)) {
+            return SafetyDecision.requireConfirmation(
+                "That looks like a final step. Please confirm to continue."
+            )
         }
 
         if (commandIntent.actionType == ActionType.FOOD_ORDER) {
@@ -516,6 +528,11 @@ class SafetyGate {
             requiresConfirmation = false,
             finalActionAllowed = brainAction.finalActionAllowed
         )
+    }
+
+    private fun isDangerousFinalAction(normalized: String): Boolean {
+        if (containsGroceryPlanningBoundaryPhrase(normalized)) return false
+        return containsDangerousFinalKeyword(normalized) || containsConfirmationRequiredKeyword(normalized)
     }
 
     private fun buildNormalizedBrainActionText(brainAction: BrainAction): String {

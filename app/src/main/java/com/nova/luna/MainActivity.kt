@@ -1,6 +1,7 @@
 package com.nova.luna
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -19,15 +20,36 @@ import com.nova.luna.history.CommandHistoryActivity
 import com.nova.luna.data.PreferencesManager
 import com.nova.luna.model.VoiceProfile
 import com.nova.luna.service.VoiceCommandService
-import com.nova.luna.util.PermissionUtils
+import com.nova.luna.util.*
 import kotlinx.coroutines.launch
 
-class MainActivity : AppCompatActivity() {
+import com.nova.luna.brain.AssistantSession
+import com.nova.luna.brain.CommandBrain
+import com.nova.luna.brain.CommandSource
+import com.nova.luna.voice.*
+import com.nova.luna.model.CommandResult
+import com.nova.luna.ui.*
+
+class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListener, AssistantSession.SessionListener {
     private lateinit var preferencesManager: PreferencesManager
     private lateinit var profileSpinner: Spinner
     private lateinit var permissionStatusText: TextView
     private lateinit var serviceStatusText: TextView
+    private lateinit var voiceTranscriptText: TextView
+    private lateinit var voiceResponseText: TextView
+    private lateinit var tapToSpeakButton: Button
     private lateinit var profileAdapter: ArrayAdapter<String>
+
+    private lateinit var voiceInputController: VoiceInputController
+    private lateinit var assistantSession: AssistantSession
+    private lateinit var voiceResponseManager: VoiceResponseManager
+    private lateinit var popupController: AssistantPopupController
+
+    private lateinit var readinessChecker: PrototypeReadinessChecker
+    private lateinit var healthMonitor: RuntimeHealthMonitor
+    private lateinit var onboardingController: OnboardingController
+    private lateinit var settingsController: SettingsController
+    private lateinit var diagnosticsReporter: SafeDiagnosticsReporter
 
     private var suppressProfileCallback = false
     private var pendingStartAfterPermissionGrant = false
@@ -60,6 +82,47 @@ class MainActivity : AppCompatActivity() {
         profileSpinner = findViewById(R.id.voiceProfileSpinner)
         permissionStatusText = findViewById(R.id.permissionStatusText)
         serviceStatusText = findViewById(R.id.serviceStatusText)
+        voiceTranscriptText = findViewById(R.id.voiceTranscriptText)
+        voiceResponseText = findViewById(R.id.voiceResponseText)
+        tapToSpeakButton = findViewById(R.id.tapToSpeakButton)
+
+        voiceResponseManager = VoiceResponseManager(this)
+        voiceInputController = VoiceInputController(this)
+        voiceInputController.setVoiceInputListener(this)
+        
+        val personalMemoryStore = com.nova.luna.memory.LocalPersonalMemoryStore(this)
+        val personalMemoryManager = com.nova.luna.memory.PersonalMemoryManager(personalMemoryStore)
+        assistantSession = AssistantSession(
+            commandBrain = CommandBrain(this, personalMemoryStore = personalMemoryStore),
+            responseManager = voiceResponseManager,
+            memoryManager = personalMemoryManager
+        )
+        assistantSession.addSessionListener(this)
+
+        readinessChecker = PrototypeReadinessChecker(this)
+        healthMonitor = RuntimeHealthMonitor(this)
+        onboardingController = OnboardingController(this)
+        settingsController = SettingsController(assistantSession, personalMemoryManager)
+        diagnosticsReporter = SafeDiagnosticsReporter(this, readinessChecker, healthMonitor, personalMemoryStore)
+
+        popupController = AssistantPopupController(findViewById(R.id.popupContainer), assistantSession) { event ->
+            when (event) {
+                AssistantPopupEvent.MIC_TAPPED -> {
+                    PerformanceTracker.start("voice_input")
+                    voiceInputController.startListening()
+                }
+                AssistantPopupEvent.CONTINUE_TAPPED -> {
+                    PerformanceTracker.start("action_execution")
+                    assistantSession.confirmPendingAction()
+                }
+                else -> {}
+            }
+        }
+        assistantSession.addSessionListener(popupController)
+
+        if (!onboardingController.isComplete()) {
+            showOnboarding()
+        }
 
         profileAdapter = ArrayAdapter(
             this,
@@ -76,12 +139,193 @@ class MainActivity : AppCompatActivity() {
         serviceStatusText.text = getString(R.string.service_stopped)
     }
 
+    override fun onDestroy() {
+        voiceInputController.destroy()
+        voiceResponseManager.release()
+        super.onDestroy()
+    }
+
+    override fun onStateChanged(state: VoiceInputState) {
+        assistantSession.notifyVoiceInputStateChanged(state)
+        if (state == VoiceInputState.PROCESSING) {
+            PerformanceTracker.stop("voice_input")
+            PerformanceTracker.start("command_processing")
+        }
+        runOnUiThread {
+            when (state) {
+                VoiceInputState.LISTENING -> {
+                    tapToSpeakButton.text = "Listening..."
+                    tapToSpeakButton.isEnabled = false
+                }
+                VoiceInputState.PROCESSING -> {
+                    tapToSpeakButton.text = "Processing..."
+                    tapToSpeakButton.isEnabled = false
+                }
+                else -> {
+                    tapToSpeakButton.text = "Tap to Speak"
+                    tapToSpeakButton.isEnabled = true
+                }
+            }
+        }
+    }
+
+    override fun onPartialTranscript(text: String) {
+        assistantSession.notifyPartialTranscriptReceived(text)
+        runOnUiThread {
+            voiceTranscriptText.text = text
+        }
+    }
+
+    override fun onFinalResult(result: VoiceInputResult) {
+        runOnUiThread {
+            voiceTranscriptText.text = "Final: ${result.rawTranscript}"
+            if (result.shouldSendToBrain) {
+                assistantSession.executeCommand(result.cleanedCommand, CommandSource.VOICE)
+            } else if (result.rawTranscript.isNotBlank() && !result.wasWakeWordDetected) {
+                if (result.cleanedCommand.isBlank()) {
+                    showToast("I didn't hear a command after the wake word.")
+                }
+            }
+        }
+    }
+
+    override fun onError(error: VoiceInputError, message: String) {
+        PerformanceTracker.clear()
+        runOnUiThread {
+            tapToSpeakButton.text = "Tap to Speak"
+            tapToSpeakButton.isEnabled = true
+            when (error) {
+                VoiceInputError.NO_SPEECH_DETECTED -> voiceTranscriptText.text = "I didn't hear that. Please try again."
+                else -> {
+                    voiceTranscriptText.text = "Error: $message"
+                    showToast(message)
+                }
+            }
+        }
+    }
+
+    override fun onCommandResult(result: CommandResult, source: CommandSource) {
+        PerformanceTracker.stop("command_processing")
+        if (result.success && !result.shouldStopListening) {
+             PerformanceTracker.stop("action_execution")
+        }
+        runOnUiThread {
+            showToast("Result: ${result.message}")
+        }
+    }
+
+    private fun showOnboarding() {
+        val steps = onboardingController.getSteps()
+        val message = steps.joinToString("\n\n") { "${it.title}: ${it.message}" }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Welcome to Nova/Luna")
+            .setMessage(message)
+            .setPositiveButton("Get Started") { _, _ ->
+                onboardingController.markComplete()
+                requestPermissionsIfNeededThenStart()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun showSettings() {
+        val summary = settingsController.getSettingsSummary()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Assistant Settings")
+            .setMessage(summary)
+            .setNeutralButton("Clear Memory") { _, _ ->
+                settingsController.clearAllMemory()
+                showToast("Memory cleared.")
+            }
+            .setPositiveButton("Done", null)
+            .show()
+    }
+
+    private fun showDiagnostics() {
+        val report: String = diagnosticsReporter.generateReport()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Diagnostics")
+            .setMessage(report as CharSequence)
+            .setPositiveButton("Copy") { _, _ ->
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("Nova Diagnostics", report)
+                clipboard.setPrimaryClip(clip)
+                showToast("Copied to clipboard.")
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun showDemoMode() {
+        val commands = settingsController.getDemoCommands()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Demo Mode (10 Official Commands)")
+            .setItems(commands.toTypedArray()) { _, which ->
+                val command = commands[which]
+                showToast("Executing: $command")
+                assistantSession.executeCommand(command, CommandSource.TEXT)
+            }
+            .setPositiveButton("Close", null)
+            .show()
+    }
+
+    override fun onSpeakingStateChanged(isSpeaking: Boolean) {
+        runOnUiThread {
+            if (isSpeaking) {
+                voiceTranscriptText.alpha = 0.5f // Dim transcript while speaking
+            } else {
+                voiceTranscriptText.alpha = 1.0f
+            }
+        }
+    }
+
+    override fun onVoiceResponseRequested(message: String) {
+        runOnUiThread {
+            voiceResponseText.text = message
+        }
+    }
+
+    override fun onThinkingStarted() {
+        // MainActivity itself might not need to do anything, 
+        // as the popup handled by AssistantPopupController will update.
+    }
+
+    override fun onActionStarted(label: String) {
+        // Optional: show in MainActivity too
+    }
+
+    override fun onConfirmationRequired(message: String, actionSummary: String?) {
+        // Optional: show in MainActivity too
+    }
+
+    override fun onVoiceInputStateChanged(state: VoiceInputState) {
+        // handled via onStateChanged bridge
+    }
+
+    override fun onPartialTranscriptReceived(transcript: String) {
+        // handled via onPartialTranscript bridge
+    }
+
+    override fun onDomainRouted(domain: com.nova.luna.brain.UnifiedDomain) {
+        // MainActivity might not need to show domain if popup does
+    }
+
+    override fun onMemoryOperationComplete(result: com.nova.luna.memory.MemoryOperationResult) {
+        runOnUiThread {
+            showToast(result.userMessage ?: "Memory operation complete.")
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         refreshPermissionStatus()
     }
 
     private fun setupButtons() {
+        tapToSpeakButton.setOnClickListener {
+            assistantSession.onVoiceInputStarted()
+            voiceInputController.startListening()
+        }
         findViewById<Button>(R.id.startListeningButton).setOnClickListener {
             requestPermissionsIfNeededThenStart()
         }
@@ -99,6 +343,15 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.commandHistoryButton).setOnClickListener {
             startActivity(Intent(this, CommandHistoryActivity::class.java))
+        }
+        findViewById<Button>(R.id.demoModeButton).setOnClickListener {
+            showDemoMode()
+        }
+        findViewById<Button>(R.id.settingsButton).setOnClickListener {
+            showSettings()
+        }
+        findViewById<Button>(R.id.diagnosticsButton).setOnClickListener {
+            showDiagnostics()
         }
 
         profileSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {

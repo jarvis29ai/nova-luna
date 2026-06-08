@@ -1,6 +1,7 @@
 package com.nova.luna.executor
 
 import com.nova.luna.model.ActionType
+import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.service.NovaAccessibilityService
@@ -17,10 +18,11 @@ class ScrollExecutor {
             )
         } else {
             CommandResult.failure(
-                "Could not scroll down. No scrollable node was found.",
-                commandIntent.intentType,
-                commandIntent.actionType,
-                commandIntent.entities
+                message = "Could not scroll down. No scrollable node was found.",
+                status = ActionResultStatus.NOT_FOUND,
+                intentType = commandIntent.intentType,
+                actionType = ActionType.SCROLL_FORWARD,
+                entities = commandIntent.entities
             )
         }
     }
@@ -36,10 +38,11 @@ class ScrollExecutor {
             )
         } else {
             CommandResult.failure(
-                "Could not scroll up. No scrollable node was found.",
-                commandIntent.intentType,
-                commandIntent.actionType,
-                commandIntent.entities
+                message = "Could not scroll up. No scrollable node was found.",
+                status = ActionResultStatus.NOT_FOUND,
+                intentType = commandIntent.intentType,
+                actionType = ActionType.SCROLL_BACKWARD,
+                entities = commandIntent.entities
             )
         }
     }

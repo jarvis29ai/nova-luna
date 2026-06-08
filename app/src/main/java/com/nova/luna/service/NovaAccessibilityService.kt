@@ -165,9 +165,29 @@ class NovaAccessibilityService : AccessibilityService() {
             return false
         }
 
-        val success = target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        return performClick(target)
+    }
+
+    fun clickByContentDescription(query: String): Boolean {
+        val root = rootInActiveWindow
+        if (root == null) {
+            Log.w(TAG, "clickByContentDescription failed: rootInActiveWindow is null.")
+            return false
+        }
+
+        val target = AccessibilityNodeUtils.findClickableNodeByDescription(root, query)
+        if (target == null) {
+            Log.w(TAG, "clickByContentDescription failed: no clickable node for \"$query\".")
+            return false
+        }
+
+        return performClick(target)
+    }
+
+    private fun performClick(node: AccessibilityNodeInfo): Boolean {
+        val success = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         if (!success) {
-            Log.w(TAG, "clickByTextOrDescription failed: ACTION_CLICK returned false for \"$query\".")
+            Log.w(TAG, "performClick failed: ACTION_CLICK returned false.")
         }
         return success
     }
@@ -224,9 +244,40 @@ class NovaAccessibilityService : AccessibilityService() {
         }
         val success = target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         if (!success) {
-            Log.w(TAG, "typeText failed: ACTION_SET_TEXT returned false.")
+            Log.w(TAG, "typeText failed: ACTION_SET_TEXT returned false. Trying focus + paste.")
+            target.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            val pasteArgs = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+            }
+            return target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, pasteArgs)
         }
         return success
+    }
+
+    fun waitForText(text: String, timeoutMs: Long = 5000): Boolean {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeoutMs) {
+            val snapshot = captureScreenState()
+            if (snapshot != null && snapshot.visibleText.any { it.contains(text, ignoreCase = true) }) {
+                return true
+            }
+            try { Thread.sleep(500) } catch (e: InterruptedException) { break }
+        }
+        return false
+    }
+
+    fun waitForApp(packageName: String, timeoutMs: Long = 5000): Boolean {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeoutMs) {
+            val root = rootInActiveWindow
+            if (root != null && root.packageName?.toString() == packageName) {
+                root.recycle()
+                return true
+            }
+            root?.recycle()
+            try { Thread.sleep(500) } catch (e: InterruptedException) { break }
+        }
+        return false
     }
 
     private fun buildNotificationSummary(event: AccessibilityEvent): String {

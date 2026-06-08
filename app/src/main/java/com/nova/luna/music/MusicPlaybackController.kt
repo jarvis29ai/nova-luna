@@ -7,7 +7,7 @@ import android.media.AudioManager
  * Controls music playback via MediaSession or safe Android APIs.
  */
 class MusicPlaybackController(private val context: Context) {
-    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
     fun pause() {
         // Implementation would use MediaSessionManager or sending media button intents
@@ -31,12 +31,12 @@ class MusicPlaybackController(private val context: Context) {
 
     fun adjustVolume(increase: Boolean) {
         val direction = if (increase) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
-        audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
+        audioManager?.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
     }
 
     fun setVolume(percent: Int) {
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val maxVolume = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 100
         val targetVolume = (maxVolume * (percent / 100.0)).toInt()
-        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVolume, AudioManager.FLAG_SHOW_UI)
+        audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, targetVolume, AudioManager.FLAG_SHOW_UI)
     }
 }
