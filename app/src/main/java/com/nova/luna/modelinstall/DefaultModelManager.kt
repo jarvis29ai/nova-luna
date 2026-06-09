@@ -62,7 +62,7 @@ class DefaultModelManager(
         return readinessChecker.inspect(packId)
     }
 
-    fun loadRuntime(packId: ModelPackId): LocalModelLoadResult {
-        return readinessChecker.load(packId)
+    fun loadRuntime(packId: ModelPackId): LocalRuntimeLoadResult {
+        return readinessChecker.loadRuntime(packId)
     }
 }

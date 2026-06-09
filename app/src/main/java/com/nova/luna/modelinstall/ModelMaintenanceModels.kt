@@ -8,6 +8,7 @@ enum class ModelRuntimeStatus {
     VERIFYING,
     READY,
     FAILED,
+    UNAVAILABLE,
     CORRUPT,
     MISSING,
     CANCELLED
@@ -21,6 +22,12 @@ data class ModelRuntimeState(
     val installState: ModelInstallState = ModelInstallState.NOT_INSTALLED,
     val registryConfirmed: Boolean = false,
     val verificationPassed: Boolean = false,
+    val runtimeLoaded: Boolean = false,
+    val healthCheckPassed: Boolean = false,
+    val healthCheckPrompt: String? = null,
+    val healthCheckResponse: String? = null,
+    val healthCheckReason: String? = null,
+    val loadedModelPath: String? = null,
     val ready: Boolean = false,
     val expectedFileCount: Int = 0,
     val verifiedFileCount: Int = 0,
@@ -28,6 +35,8 @@ data class ModelRuntimeState(
     val corruptFileCount: Int = 0,
     val installedAtEpochMs: Long = 0L,
     val updatedAtEpochMs: Long = 0L,
+    val lastRuntimeLoadEpochMs: Long = 0L,
+    val lastHealthCheckEpochMs: Long = 0L,
     val manifestPath: String? = null,
     val modelRootPath: String? = null,
     val message: String? = null
@@ -35,9 +44,13 @@ data class ModelRuntimeState(
     fun normalized(): ModelRuntimeState {
         val normalizedStatus = runtimeStatus
         val normalizedInstallState = installState
+        val normalizedRuntimeLoaded = runtimeLoaded || ready
+        val normalizedHealthCheckPassed = healthCheckPassed || ready
         val normalizedReady = ready &&
             normalizedStatus == ModelRuntimeStatus.READY &&
-            normalizedInstallState == ModelInstallState.READY
+            normalizedInstallState == ModelInstallState.READY &&
+            normalizedRuntimeLoaded &&
+            normalizedHealthCheckPassed
 
         return copy(
             version = version.trim(),
@@ -46,6 +59,12 @@ data class ModelRuntimeState(
             installState = normalizedInstallState,
             registryConfirmed = registryConfirmed,
             verificationPassed = verificationPassed,
+            runtimeLoaded = normalizedRuntimeLoaded,
+            healthCheckPassed = normalizedHealthCheckPassed,
+            healthCheckPrompt = healthCheckPrompt?.trim()?.takeIf { it.isNotBlank() },
+            healthCheckResponse = healthCheckResponse?.trim()?.takeIf { it.isNotBlank() },
+            healthCheckReason = healthCheckReason?.trim()?.takeIf { it.isNotBlank() },
+            loadedModelPath = loadedModelPath?.trim()?.takeIf { it.isNotBlank() },
             ready = normalizedReady,
             expectedFileCount = expectedFileCount.coerceAtLeast(0),
             verifiedFileCount = verifiedFileCount.coerceAtLeast(0),
@@ -53,6 +72,8 @@ data class ModelRuntimeState(
             corruptFileCount = corruptFileCount.coerceAtLeast(0),
             installedAtEpochMs = installedAtEpochMs.coerceAtLeast(0L),
             updatedAtEpochMs = updatedAtEpochMs.coerceAtLeast(0L),
+            lastRuntimeLoadEpochMs = lastRuntimeLoadEpochMs.coerceAtLeast(0L),
+            lastHealthCheckEpochMs = lastHealthCheckEpochMs.coerceAtLeast(0L),
             manifestPath = manifestPath?.trim()?.takeIf { it.isNotBlank() },
             modelRootPath = modelRootPath?.trim()?.takeIf { it.isNotBlank() },
             message = message?.trim()?.takeIf { it.isNotBlank() }
@@ -65,6 +86,8 @@ data class ModelRuntimeState(
             ready &&
             registryConfirmed &&
             verificationPassed &&
+            runtimeLoaded &&
+            healthCheckPassed &&
             missingFileCount == 0 &&
             corruptFileCount == 0 &&
             verifiedFileCount >= expectedFileCount
@@ -79,6 +102,12 @@ data class ModelRuntimeState(
             "installState" to installState.name,
             "registryConfirmed" to registryConfirmed,
             "verificationPassed" to verificationPassed,
+            "runtimeLoaded" to runtimeLoaded,
+            "healthCheckPassed" to healthCheckPassed,
+            "healthCheckPrompt" to healthCheckPrompt,
+            "healthCheckResponse" to healthCheckResponse,
+            "healthCheckReason" to healthCheckReason,
+            "loadedModelPath" to loadedModelPath,
             "ready" to ready,
             "expectedFileCount" to expectedFileCount,
             "verifiedFileCount" to verifiedFileCount,
@@ -86,6 +115,8 @@ data class ModelRuntimeState(
             "corruptFileCount" to corruptFileCount,
             "installedAtEpochMs" to installedAtEpochMs,
             "updatedAtEpochMs" to updatedAtEpochMs,
+            "lastRuntimeLoadEpochMs" to lastRuntimeLoadEpochMs,
+            "lastHealthCheckEpochMs" to lastHealthCheckEpochMs,
             "manifestPath" to manifestPath,
             "modelRootPath" to modelRootPath,
             "message" to message
@@ -110,6 +141,12 @@ data class ModelRuntimeState(
                 }.getOrDefault(ModelInstallState.NOT_INSTALLED),
                 registryConfirmed = json.jsonBoolean("registryConfirmed", false),
                 verificationPassed = json.jsonBoolean("verificationPassed", false),
+                runtimeLoaded = json.jsonBoolean("runtimeLoaded", json.jsonBoolean("ready", false)),
+                healthCheckPassed = json.jsonBoolean("healthCheckPassed", json.jsonBoolean("ready", false)),
+                healthCheckPrompt = json.jsonStringOrNull("healthCheckPrompt"),
+                healthCheckResponse = json.jsonStringOrNull("healthCheckResponse"),
+                healthCheckReason = json.jsonStringOrNull("healthCheckReason"),
+                loadedModelPath = json.jsonStringOrNull("loadedModelPath"),
                 ready = json.jsonBoolean("ready", false),
                 expectedFileCount = json.jsonIntOrNull("expectedFileCount") ?: 0,
                 verifiedFileCount = json.jsonIntOrNull("verifiedFileCount") ?: 0,
@@ -117,6 +154,8 @@ data class ModelRuntimeState(
                 corruptFileCount = json.jsonIntOrNull("corruptFileCount") ?: 0,
                 installedAtEpochMs = json.jsonLongOrNull("installedAtEpochMs") ?: 0L,
                 updatedAtEpochMs = json.jsonLongOrNull("updatedAtEpochMs") ?: 0L,
+                lastRuntimeLoadEpochMs = json.jsonLongOrNull("lastRuntimeLoadEpochMs") ?: 0L,
+                lastHealthCheckEpochMs = json.jsonLongOrNull("lastHealthCheckEpochMs") ?: 0L,
                 manifestPath = json.jsonStringOrNull("manifestPath"),
                 modelRootPath = json.jsonStringOrNull("modelRootPath"),
                 message = json.jsonStringOrNull("message")
@@ -164,6 +203,7 @@ internal fun ModelRuntimeStatus.toInstallState(): ModelInstallState {
         ModelRuntimeStatus.VERIFYING -> ModelInstallState.VERIFYING
         ModelRuntimeStatus.READY -> ModelInstallState.READY
         ModelRuntimeStatus.FAILED -> ModelInstallState.FAILED
+        ModelRuntimeStatus.UNAVAILABLE -> ModelInstallState.FAILED
         ModelRuntimeStatus.CORRUPT -> ModelInstallState.REPAIR_NEEDED
         ModelRuntimeStatus.MISSING -> ModelInstallState.REPAIR_NEEDED
         ModelRuntimeStatus.CANCELLED -> ModelInstallState.FAILED

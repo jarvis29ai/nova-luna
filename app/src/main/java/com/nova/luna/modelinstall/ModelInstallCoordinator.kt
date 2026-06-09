@@ -370,6 +370,8 @@ class ModelInstallCoordinator(
 
             currentStatus == ModelRuntimeStatus.MISSING -> ModelRuntimeStatus.MISSING
 
+            currentStatus == ModelRuntimeStatus.UNAVAILABLE -> ModelRuntimeStatus.UNAVAILABLE
+
             hasArtifacts && missingFiles.isNotEmpty() -> ModelRuntimeStatus.MISSING
 
             hasArtifacts && corruptFiles.isNotEmpty() -> ModelRuntimeStatus.CORRUPT
@@ -387,10 +389,10 @@ class ModelInstallCoordinator(
             }
 
             currentStatus == ModelRuntimeStatus.READY -> {
-                if (!registryConfirmed || !verificationPassed) {
-                    if (corruptFiles.isNotEmpty()) ModelRuntimeStatus.CORRUPT else ModelRuntimeStatus.MISSING
-                } else {
+                if (currentRuntimeState?.isRuntimeReady() == true && registryConfirmed && verificationPassed) {
                     ModelRuntimeStatus.READY
+                } else {
+                    ModelRuntimeStatus.UNAVAILABLE
                 }
             }
 

@@ -9,7 +9,11 @@ internal data class LocalRuntimeTestEnvironment(
     val storage: PrivateAppModelStorage,
     val registry: LocalModelRegistry,
     val stateStore: ModelRuntimeStateStore,
-    val coordinator: ModelInstallCoordinator
+    val coordinator: ModelInstallCoordinator,
+    val runtimeBackend: BrainModelRuntime,
+    val runtimeLoader: LocalRuntimeLoader,
+    val readinessChecker: LocalRuntimeReadinessChecker,
+    val manager: DefaultModelManager
 )
 
 internal class RecordingLocalRuntimeBackend(
@@ -23,8 +27,32 @@ internal class RecordingLocalRuntimeBackend(
     }
 }
 
+internal class RecordingBrainModelRuntime(
+    private val loadBehavior: (LoadedModelRef) -> LoadedModel? = { LoadedModel(it) },
+    private val healthBehavior: (LoadedModel, String) -> RuntimeHealthCheckResult = { _, prompt ->
+        RuntimeHealthCheckResult.passed(prompt = prompt, response = "pong")
+    }
+) : BrainModelRuntime {
+    val observedLoadRefs: MutableList<LoadedModelRef> = mutableListOf()
+    val observedHealthChecks: MutableList<Pair<LoadedModel, String>> = mutableListOf()
+
+    override fun load(modelRef: LoadedModelRef): LoadedModel? {
+        observedLoadRefs += modelRef
+        return loadBehavior(modelRef)
+    }
+
+    override fun healthCheck(
+        loadedModel: LoadedModel,
+        prompt: String
+    ): RuntimeHealthCheckResult {
+        observedHealthChecks += loadedModel to prompt
+        return healthBehavior(loadedModel, prompt)
+    }
+}
+
 internal inline fun <T> withLocalRuntimeEnvironment(
     catalog: List<ModelPackSpec> = ModelPackCatalog.defaultPacks(),
+    runtimeBackend: BrainModelRuntime = NoOpBrainModelRuntime,
     block: (LocalRuntimeTestEnvironment) -> T
 ): T {
     val baseDir = Files.createTempDirectory("nova_luna_local_runtime_test").toFile()
@@ -37,12 +65,26 @@ internal inline fun <T> withLocalRuntimeEnvironment(
         registryOverride = registry,
         runtimeStateStoreOverride = stateStore
     )
+    val runtimeLoader = LocalRuntimeLoader(runtime = runtimeBackend)
+    val readinessChecker = LocalRuntimeReadinessChecker(
+        storage = storage,
+        coordinator = coordinator,
+        runtimeLoader = runtimeLoader
+    )
+    val manager = DefaultModelManager(
+        coordinator = coordinator,
+        runtimeReadinessChecker = readinessChecker
+    )
     val env = LocalRuntimeTestEnvironment(
         baseDir = baseDir,
         storage = storage,
         registry = registry,
         stateStore = stateStore,
-        coordinator = coordinator
+        coordinator = coordinator,
+        runtimeBackend = runtimeBackend,
+        runtimeLoader = runtimeLoader,
+        readinessChecker = readinessChecker,
+        manager = manager
     )
 
     return try {
