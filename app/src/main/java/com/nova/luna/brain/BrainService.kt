@@ -12,6 +12,7 @@ import com.nova.luna.model.InternetPermissionCategory
 import com.nova.luna.model.InternetPermissionDecision
 import com.nova.luna.model.IntentType
 import com.nova.luna.model.isLocalBrainRole
+import com.nova.luna.model.isFutureLocalBrainRole
 import com.nova.luna.memory.BrainMemoryStore
 import com.nova.luna.memory.BrainSessionManager
 import com.nova.luna.memory.BrainSessionType
@@ -150,7 +151,9 @@ class BrainService(
         val routeDecision = brainRouter.route(request)
         val routedRequest = request.withScreenStateIfNeeded(routeDecision)
         val primaryAttempt = evaluateRouteDecision(routeDecision, routedRequest)
-        if (isAccepted(primaryAttempt.parsedAction)) {
+        val primaryAccepted = isAccepted(primaryAttempt.parsedAction)
+        recordLocalModelOutcome(routeDecision.selectedRole, primaryAccepted, primaryAttempt.reason)
+        if (primaryAccepted) {
             return rememberBrainAction(request, routeDecision, primaryAttempt.parsedAction!!)
         }
 
@@ -158,8 +161,14 @@ class BrainService(
             val fallbackRouteDecision = brainRouter.route(request, allowOnlineHelper = false)
             val fallbackRoutedRequest = request.withScreenStateIfNeeded(fallbackRouteDecision)
             val fallbackRouteAttempt = evaluateRouteDecision(fallbackRouteDecision, fallbackRoutedRequest)
+            val fallbackAccepted = isAccepted(fallbackRouteAttempt.parsedAction)
+            recordLocalModelOutcome(
+                fallbackRouteDecision.selectedRole,
+                fallbackAccepted,
+                fallbackRouteAttempt.reason
+            )
 
-            if (isAccepted(fallbackRouteAttempt.parsedAction)) {
+            if (fallbackAccepted) {
                 return rememberBrainAction(request, fallbackRouteDecision, fallbackRouteAttempt.parsedAction!!)
             }
 
@@ -506,16 +515,20 @@ class BrainService(
             else -> providerName(fallbackProvider)
         }
         val fallbackUsed = !primaryAccepted && routeDecision.selectedRole != BrainModelRole.MOCK_FALLBACK
+        val gemmaReadiness = gemmaRuntime.readinessStatus(
+            selectedBrainRole = routeDecision.selectedRole,
+            fallbackActive = fallbackUsed
+        )
         val status = runtimeState.copy(
             selectedBrainRole = routeDecision.selectedRole,
-            modelPathConfigured = if (localBrainStatusApplies) true else false,
-            modelFileExists = if (localBrainStatusApplies) localModelSource?.available == true else false,
-            runtimeAvailable = if (localBrainStatusApplies) localModelSource?.available == true else false,
-            modelLoaded = if (localBrainStatusApplies) localModelSource?.available == true else false,
+            modelPathConfigured = if (localBrainStatusApplies) gemmaReadiness.modelPathConfigured else runtimeState.modelPathConfigured,
+            modelFileExists = if (localBrainStatusApplies) gemmaReadiness.modelFileExists else runtimeState.modelFileExists,
+            runtimeAvailable = if (localBrainStatusApplies) gemmaReadiness.runtimeAvailable else runtimeState.runtimeAvailable,
+            modelLoaded = if (localBrainStatusApplies) gemmaReadiness.modelLoaded else runtimeState.modelLoaded,
             selectedLocalModelId = if (localBrainStatusApplies) localModelSource?.localModelId ?: runtimeState.selectedLocalModelId else runtimeState.selectedLocalModelId,
             selectedLocalModelDisplayName = if (localBrainStatusApplies) localModelSource?.localModelDisplayName ?: runtimeState.selectedLocalModelDisplayName else runtimeState.selectedLocalModelDisplayName,
             selectedLocalModelStatus = if (localBrainStatusApplies) localModelSource?.localModelStatus ?: runtimeState.selectedLocalModelStatus else runtimeState.selectedLocalModelStatus,
-            selectedLocalModelAssetMissing = if (localBrainStatusApplies) localModelSource?.available != true else runtimeState.selectedLocalModelAssetMissing,
+            selectedLocalModelAssetMissing = if (localBrainStatusApplies) !gemmaReadiness.modelFileExists else runtimeState.selectedLocalModelAssetMissing,
             promptBuilt = if (localBrainStatusApplies) localModelSource?.promptBuilt == true else runtimeState.promptBuilt,
             jsonParseSucceeded = if (localBrainStatusApplies) localModelSource?.jsonParsed == true else runtimeState.jsonParseSucceeded,
             modelLatencyMillis = if (localBrainStatusApplies) localModelSource?.latencyMillis ?: runtimeState.modelLatencyMillis else runtimeState.modelLatencyMillis,
@@ -844,6 +857,22 @@ class BrainService(
             jsonParsed = result.jsonParsed,
             latencyMillis = result.latencyMillis,
             onlineTrace = result.onlineTrace
+        )
+    }
+
+    private fun recordLocalModelOutcome(
+        role: BrainModelRole,
+        accepted: Boolean,
+        reason: String?
+    ) {
+        if (!role.isFutureLocalBrainRole()) {
+            return
+        }
+
+        localBrainRouterBridge.recordModelOutcome(
+            role = role,
+            available = accepted,
+            reason = reason
         )
     }
 

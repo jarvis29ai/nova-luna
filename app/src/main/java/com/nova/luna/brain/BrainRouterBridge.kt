@@ -1,10 +1,19 @@
 package com.nova.luna.brain
 
+import com.nova.luna.model.BrainModelRole
+
 interface BrainRouterBridge {
     fun selectLocalRoute(
         request: BrainRequest,
         allowOnlineHelper: Boolean = true
     ): com.nova.luna.model.BrainRouteDecision?
+
+    fun recordModelOutcome(
+        role: BrainModelRole,
+        available: Boolean,
+        reason: String? = null
+    ) {
+    }
 }
 
 object NoOpBrainRouterBridge : BrainRouterBridge {
