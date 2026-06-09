@@ -14,7 +14,8 @@ class BrainRouter(
     private val internetPermissionPolicy: InternetPermissionPolicy = InternetPermissionPolicy(),
     private val onlineAiConfig: OnlineAiConfig = OnlineAiConfig.fromBuildConfig(),
     private val internetAvailable: Boolean = false,
-    private val onlineAiPolicy: OnlineAiPolicy = OnlineAiPolicy(internetPermissionPolicy = internetPermissionPolicy)
+    private val onlineAiPolicy: OnlineAiPolicy = OnlineAiPolicy(internetPermissionPolicy = internetPermissionPolicy),
+    private val localBrainRouterBridge: BrainRouterBridge = NoOpBrainRouterBridge
 ) {
     private val foodIntentParser = FoodIntentParser()
     private val groceryIntentParser = GroceryIntentParser()
@@ -45,7 +46,7 @@ class BrainRouter(
             )
         }
 
-        routeForActiveSession(request)?.let { return it }
+        routeForActiveSession(request, allowOnlineHelper)?.let { return it }
 
         if (isMessagePlanning(normalized)) {
             return decision(
@@ -93,6 +94,7 @@ class BrainRouter(
 
         if (isFlexibleReasoningRequest(request.rawText, normalized)) {
             val internetDecision = internetPermissionPolicy.classify(request.rawText)
+            selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
             return decision(
                 role = BrainModelRole.GEMMA_REASONING,
                 reason = "This is a fuzzy, multilingual, or natural-language request that should stay on the local reasoning model.",
@@ -147,6 +149,7 @@ class BrainRouter(
 
         if (isConversation(normalized)) {
             val internetDecision = internetPermissionPolicy.classify(request.rawText)
+            selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
             return decision(
                 role = BrainModelRole.GEMMA_REASONING,
                 reason = "This is general conversation or explanation, so the reasoning role fits best.",
@@ -179,6 +182,7 @@ class BrainRouter(
                     )
                 )
             } else {
+                selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
                 decision(
                     role = BrainModelRole.GEMMA_REASONING,
                     reason = "This request is suited to online help, but it will stay on the local reasoning model because online help is disabled or unavailable.",
@@ -192,6 +196,8 @@ class BrainRouter(
                 )
             }
         }
+
+        selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
 
         return decision(
             role = BrainModelRole.MOCK_FALLBACK,
@@ -221,7 +227,11 @@ class BrainRouter(
         )
     }
 
-    private fun routeForActiveSession(request: BrainRequest): BrainRouteDecision? {
+    private fun routeForActiveSession(
+        request: BrainRequest,
+        allowOnlineHelper: Boolean
+    ): BrainRouteDecision? {
+        val normalized = normalize(request.rawText)
         val activeSessionType = request.activeSessionType
             ?: request.memorySnapshot?.activeSessionType()
             ?: when {
@@ -285,6 +295,9 @@ class BrainRouter(
                         )
                     )
                 } else {
+                    selectLocalBrainRoute(request, allowOnlineHelper)
+                        ?.takeUnless { isSimpleCommand(normalized) }
+                        ?.let { return it }
                     decision(
                         role = BrainModelRole.GEMMA_REASONING,
                         reason = "An online helper session is active, but it will stay on the local reasoning model because online help is disabled or unavailable.",
@@ -297,17 +310,26 @@ class BrainRouter(
                 }
             }
 
-            BrainSessionType.LOCAL_LLM -> decision(
-                role = BrainModelRole.GEMMA_REASONING,
-                reason = "An active local LLM session should stay on the local reasoning model.",
-                safetyNotes = listOf(
-                    "Gemma is the final on-device reasoning model for active local sessions.",
-                    "Any action it suggests must still pass BrainActionValidator."
+            BrainSessionType.LOCAL_LLM -> selectLocalBrainRoute(request, allowOnlineHelper)
+                ?.takeUnless { isSimpleCommand(normalized) }
+                ?: decision(
+                    role = BrainModelRole.GEMMA_REASONING,
+                    reason = "An active local LLM session should stay on the local reasoning model.",
+                    safetyNotes = listOf(
+                        "Gemma is the final on-device reasoning model for active local sessions.",
+                        "Any action it suggests must still pass BrainActionValidator."
+                    )
                 )
-            )
 
             else -> null
         }
+    }
+
+    private fun selectLocalBrainRoute(
+        request: BrainRequest,
+        allowOnlineHelper: Boolean
+    ): BrainRouteDecision? {
+        return localBrainRouterBridge.selectLocalRoute(request, allowOnlineHelper)
     }
 
     private fun isSimpleCommand(normalized: String): Boolean {

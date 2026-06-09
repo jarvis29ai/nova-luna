@@ -59,8 +59,23 @@ class BrainActionValidator {
         "remove account"
     )
 
+    private val directExecutionHints = listOf(
+        "actionexecutor",
+        "direct execution",
+        "directly execute",
+        "execute immediately",
+        "bypass safetygate",
+        "bypass validator",
+        "call executor",
+        "run actionexecutor"
+    )
+
     fun isAcceptable(action: BrainAction): Boolean {
         if (action.intent.isBlank() || action.reply.isBlank()) {
+            return false
+        }
+
+        if (containsDirectExecutionHint(action)) {
             return false
         }
 
@@ -112,5 +127,23 @@ class BrainActionValidator {
         return dangerousFinalPatterns.any { pattern ->
             Regex("""\b${Regex.escape(pattern)}\b""").containsMatchIn(text)
         }
+    }
+
+    private fun containsDirectExecutionHint(action: BrainAction): Boolean {
+        val text = buildString {
+            append(action.intent)
+            append(' ')
+            append(action.reply)
+            append(' ')
+            append(action.nextQuestion.orEmpty())
+            action.params.forEach { (key, value) ->
+                append(' ')
+                append(key)
+                append(' ')
+                append(value)
+            }
+        }.lowercase(Locale.US)
+
+        return directExecutionHints.any { text.contains(it) }
     }
 }

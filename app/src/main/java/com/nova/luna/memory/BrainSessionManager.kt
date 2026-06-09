@@ -584,6 +584,9 @@ class BrainSessionManager(
             BrainModelRole.SCREEN_UNDERSTANDING -> BrainSessionType.SCREEN
             BrainModelRole.ONLINE_AI_HELPER -> BrainSessionType.ONLINE_HELPER
             BrainModelRole.GEMMA_REASONING -> BrainSessionType.LOCAL_LLM
+            BrainModelRole.CORE_BRAIN -> BrainSessionType.LOCAL_LLM
+            BrainModelRole.MULTILINGUAL_BACKUP -> BrainSessionType.LOCAL_LLM
+            BrainModelRole.LITE_FALLBACK -> BrainSessionType.LOCAL_LLM
             BrainModelRole.LITE_COMMAND -> BrainSessionType.BASIC_CONTROL
             BrainModelRole.ACTION_JSON -> BrainSessionType.UNKNOWN
             BrainModelRole.MOCK_FALLBACK -> BrainSessionType.UNKNOWN
