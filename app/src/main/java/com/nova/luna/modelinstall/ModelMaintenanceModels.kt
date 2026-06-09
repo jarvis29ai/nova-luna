@@ -1,5 +1,6 @@
 package com.nova.luna.modelinstall
 
+import com.nova.luna.model.BrainModelRole
 import java.security.MessageDigest
 
 enum class ModelRuntimeStatus {
@@ -309,6 +310,169 @@ internal fun ModelDownloadSource.toInstalledFileSpec(fileLength: Long): ModelFil
         sha256 = expectedSha256,
         byteCount = fileLength
     ).normalized()
+}
+
+enum class ModelUserFacingState {
+    CHECKING_PHONE,
+    INSTALLING_AI_BRAIN,
+    VERIFYING_AI_BRAIN,
+    READY,
+    REPAIRING,
+    STORAGE_NEEDED,
+    UNAVAILABLE
+}
+
+data class ModelUserFacingStatus(
+    val packId: ModelPackId,
+    val displayName: String,
+    val state: ModelUserFacingState,
+    val message: String,
+    val canRetry: Boolean = false,
+    val canRepair: Boolean = false,
+    val canUpdate: Boolean = false,
+    val busy: Boolean = false
+) {
+    fun normalized(): ModelUserFacingStatus {
+        return copy(
+            displayName = displayName.trim(),
+            message = message.trim().takeIf { it.isNotBlank() }
+                ?: defaultMessage(state, displayName)
+        )
+    }
+
+    companion object {
+        fun create(
+            packId: ModelPackId,
+            displayName: String,
+            runtimeStatus: ModelRuntimeStatus,
+            installState: ModelInstallState,
+            ready: Boolean,
+            message: String?,
+            canUpdate: Boolean = false
+        ): ModelUserFacingStatus {
+            val state = mapState(runtimeStatus, installState, ready, message)
+            return ModelUserFacingStatus(
+                packId = packId,
+                displayName = displayName.trim(),
+                state = state,
+                message = defaultMessage(state, displayName),
+                canRetry = state in setOf(
+                    ModelUserFacingState.REPAIRING,
+                    ModelUserFacingState.UNAVAILABLE,
+                    ModelUserFacingState.STORAGE_NEEDED
+                ),
+                canRepair = state in setOf(
+                    ModelUserFacingState.REPAIRING,
+                    ModelUserFacingState.UNAVAILABLE,
+                    ModelUserFacingState.STORAGE_NEEDED
+                ),
+                canUpdate = canUpdate || state == ModelUserFacingState.READY,
+                busy = state in setOf(
+                    ModelUserFacingState.CHECKING_PHONE,
+                    ModelUserFacingState.INSTALLING_AI_BRAIN,
+                    ModelUserFacingState.VERIFYING_AI_BRAIN,
+                    ModelUserFacingState.REPAIRING
+                )
+            ).normalized()
+        }
+
+        private fun mapState(
+            runtimeStatus: ModelRuntimeStatus,
+            installState: ModelInstallState,
+            ready: Boolean,
+            message: String?
+        ): ModelUserFacingState {
+            if (ready && runtimeStatus == ModelRuntimeStatus.READY && installState == ModelInstallState.READY) {
+                return ModelUserFacingState.READY
+            }
+
+            val normalizedMessage = message?.lowercase().orEmpty()
+            val storageHints = listOf("storage", "space", "disk full", "no space", "insufficient")
+            val repairHints = listOf("repair", "corrupt", "missing", "verification", "checksum")
+
+            return when (runtimeStatus) {
+                ModelRuntimeStatus.DOWNLOADING -> ModelUserFacingState.INSTALLING_AI_BRAIN
+                ModelRuntimeStatus.VERIFYING -> ModelUserFacingState.VERIFYING_AI_BRAIN
+                ModelRuntimeStatus.READY -> ModelUserFacingState.READY
+                ModelRuntimeStatus.CORRUPT,
+                ModelRuntimeStatus.MISSING,
+                ModelRuntimeStatus.CANCELLED -> ModelUserFacingState.REPAIRING
+
+                ModelRuntimeStatus.FAILED,
+                ModelRuntimeStatus.UNAVAILABLE -> {
+                    when {
+                        storageHints.any { normalizedMessage.contains(it) } -> ModelUserFacingState.STORAGE_NEEDED
+                        repairHints.any { normalizedMessage.contains(it) } -> ModelUserFacingState.REPAIRING
+                        installState == ModelInstallState.REPAIR_NEEDED -> ModelUserFacingState.REPAIRING
+                        installState == ModelInstallState.DOWNLOADING -> ModelUserFacingState.INSTALLING_AI_BRAIN
+                        installState == ModelInstallState.VERIFYING -> ModelUserFacingState.VERIFYING_AI_BRAIN
+                        installState == ModelInstallState.NOT_INSTALLED -> ModelUserFacingState.CHECKING_PHONE
+                        else -> ModelUserFacingState.UNAVAILABLE
+                    }
+                }
+
+                ModelRuntimeStatus.IDLE -> ModelUserFacingState.CHECKING_PHONE
+            }
+        }
+
+        private fun defaultMessage(state: ModelUserFacingState, displayName: String): String {
+            return when (state) {
+                ModelUserFacingState.CHECKING_PHONE -> "Checking phone compatibility for $displayName."
+                ModelUserFacingState.INSTALLING_AI_BRAIN -> "Installing AI brain."
+                ModelUserFacingState.VERIFYING_AI_BRAIN -> "Verifying AI brain."
+                ModelUserFacingState.READY -> "$displayName is ready."
+                ModelUserFacingState.REPAIRING -> "Repairing AI brain."
+                ModelUserFacingState.STORAGE_NEEDED -> "Additional storage is needed."
+                ModelUserFacingState.UNAVAILABLE -> "$displayName is unavailable."
+            }
+        }
+    }
+}
+
+data class ModelHealthScanResult(
+    val packId: ModelPackId,
+    val displayName: String,
+    val runtimeStatus: ModelRuntimeStatus,
+    val installState: ModelInstallState,
+    val ready: Boolean,
+    val registryConfirmed: Boolean,
+    val verificationPassed: Boolean,
+    val runtimeLoaded: Boolean,
+    val healthCheckPassed: Boolean,
+    val installedVersion: String,
+    val availableVersion: String,
+    val reason: String,
+    val expectedFileKeys: List<String>,
+    val installedFileKeys: List<String>,
+    val missingFileKeys: List<String>,
+    val corruptFileKeys: List<String>,
+    val userFacingStatus: ModelUserFacingStatus
+) {
+    val upToDate: Boolean
+        get() = installedVersion == availableVersion
+
+    val requiresRepair: Boolean
+        get() = runtimeStatus in setOf(ModelRuntimeStatus.MISSING, ModelRuntimeStatus.CORRUPT, ModelRuntimeStatus.FAILED, ModelRuntimeStatus.UNAVAILABLE)
+}
+
+data class ModelCleanupResult(
+    val packId: ModelPackId? = null,
+    val deletedPaths: List<String> = emptyList(),
+    val refusedPaths: List<String> = emptyList(),
+    val skippedPaths: List<String> = emptyList(),
+    val restoredPaths: List<String> = emptyList(),
+    val message: String = "",
+    val success: Boolean = true
+)
+
+internal fun BrainModelRole.toModelPackIdOrNull(): ModelPackId? {
+    return when (this) {
+        BrainModelRole.CORE_BRAIN,
+        BrainModelRole.GEMMA_REASONING -> ModelPackId.CORE
+        BrainModelRole.MULTILINGUAL_BACKUP -> ModelPackId.FULL
+        BrainModelRole.LITE_FALLBACK -> ModelPackId.LITE
+        else -> null
+    }
 }
 
 private fun sha256Hex(value: String): String {

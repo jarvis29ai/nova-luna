@@ -16,7 +16,21 @@ class HttpModelDownloader(
     private val connectionFactory: (URL) -> HttpURLConnection = { url ->
         (url.openConnection() as HttpURLConnection)
     }
-) {
+    ) {
+    fun fork(
+        storage: PrivateAppModelStorage,
+        stateStore: DownloadStateStore = DownloadStateStore(storage),
+        registry: LocalModelRegistry = LocalModelRegistry(storage)
+    ): HttpModelDownloader {
+        return HttpModelDownloader(
+            storage = storage,
+            stateStore = stateStore,
+            registry = registry,
+            verifier = verifier,
+            connectionFactory = connectionFactory
+        )
+    }
+
     fun download(
         source: ModelDownloadSource,
         cancelRequested: () -> Boolean = { false },

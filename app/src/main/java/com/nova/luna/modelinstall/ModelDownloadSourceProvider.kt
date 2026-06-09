@@ -4,9 +4,17 @@ class ModelDownloadSourceProvider(
     private val catalog: List<ModelPackSpec> = ModelPackCatalog.defaultPacks(),
     private val baseDownloadUrl: String? = null
 ) {
-    fun sourcesFor(packId: ModelPackId): List<ModelDownloadSource> {
-        val pack = catalog.firstOrNull { it.id == packId }
+    fun packSpec(packId: ModelPackId): ModelPackSpec {
+        return catalog.firstOrNull { it.id == packId }
             ?: error("Unknown model pack: $packId")
+    }
+
+    fun availableVersion(packId: ModelPackId): String {
+        return packSpec(packId).versionTag()
+    }
+
+    fun sourcesFor(packId: ModelPackId): List<ModelDownloadSource> {
+        val pack = packSpec(packId)
 
         return pack.files.mapIndexed { index, file ->
             val normalized = file.normalized()

@@ -161,6 +161,29 @@ class ModelRuntimeStateStore(
         )
     }
 
+    fun markUnavailable(
+        pack: ModelPackSpec,
+        message: String? = null,
+        expectedFileCount: Int = pack.files.size,
+        verifiedFileCount: Int = 0,
+        missingFileCount: Int = 0,
+        corruptFileCount: Int = 0
+    ): ModelRuntimeState {
+        return writeState(
+            pack = pack,
+            runtimeStatus = ModelRuntimeStatus.UNAVAILABLE,
+            registryConfirmed = false,
+            verificationPassed = false,
+            ready = false,
+            expectedFileCount = expectedFileCount,
+            verifiedFileCount = verifiedFileCount,
+            missingFileCount = missingFileCount,
+            corruptFileCount = corruptFileCount,
+            modelRootPath = File(storage.modelsRootDir, pack.id.wireValue).path,
+            message = message
+        )
+    }
+
     fun markCorrupt(
         pack: ModelPackSpec,
         message: String? = null,

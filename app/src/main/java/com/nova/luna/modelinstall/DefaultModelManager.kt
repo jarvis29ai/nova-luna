@@ -1,5 +1,7 @@
 package com.nova.luna.modelinstall
 
+import com.nova.luna.model.BrainModelRole
+
 class DefaultModelManager(
     val coordinator: ModelInstallCoordinator,
     private val capabilityChecker: DeviceCapabilityChecker = DeviceCapabilityChecker(),
@@ -48,6 +50,52 @@ class DefaultModelManager(
 
     fun detectMissingOrCorruptModel(packId: ModelPackId): Boolean {
         return coordinator.detectMissingOrCorruptModel(packId)
+    }
+
+    fun scanHealth(packId: ModelPackId): ModelHealthScanResult {
+        return coordinator.scanHealth(packId)
+    }
+
+    fun scanHealth(): List<ModelHealthScanResult> {
+        return coordinator.scanHealth()
+    }
+
+    fun getUserSafeState(packId: ModelPackId): ModelUserFacingStatus {
+        return coordinator.getUserSafeState(packId)
+    }
+
+    fun repairModel(
+        packId: ModelPackId,
+        cancelRequested: () -> Boolean = { false }
+    ): ModelHealthScanResult {
+        return coordinator.repairModel(packId, cancelRequested)
+    }
+
+    fun repairModel(
+        role: BrainModelRole,
+        cancelRequested: () -> Boolean = { false }
+    ): ModelHealthScanResult {
+        return coordinator.repairModel(role, cancelRequested)
+    }
+
+    fun updateModel(
+        packId: ModelPackId,
+        force: Boolean = false,
+        cancelRequested: () -> Boolean = { false }
+    ): ModelHealthScanResult {
+        return coordinator.updateModel(packId, force, cancelRequested)
+    }
+
+    fun updateModel(
+        role: BrainModelRole,
+        force: Boolean = false,
+        cancelRequested: () -> Boolean = { false }
+    ): ModelHealthScanResult {
+        return coordinator.updateModel(role, force, cancelRequested)
+    }
+
+    fun deletePack(packId: ModelPackId): ModelCleanupResult {
+        return coordinator.deletePack(packId)
     }
 
     fun selectRecommendedPack(snapshot: DeviceCapabilitySnapshot): ModelPackSelection {

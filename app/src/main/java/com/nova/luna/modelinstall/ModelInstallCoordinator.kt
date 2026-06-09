@@ -3,10 +3,11 @@ package com.nova.luna.modelinstall
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import com.nova.luna.model.BrainModelRole
 
 class ModelInstallCoordinator(
     val storage: PrivateAppModelStorage,
-    private val catalog: List<ModelPackSpec> = ModelPackCatalog.defaultPacks(),
+    val catalog: List<ModelPackSpec> = ModelPackCatalog.defaultPacks(),
     downloadSourceProviderOverride: ModelDownloadSourceProvider? = null,
     downloaderOverride: HttpModelDownloader? = null,
     verifierOverride: Sha256ModelVerifier? = null,
@@ -23,12 +24,19 @@ class ModelInstallCoordinator(
     val runtimeStateStore: ModelRuntimeStateStore =
         runtimeStateStoreOverride ?: ModelRuntimeStateStore(storage)
 
+    val downloadStateStore: DownloadStateStore = DownloadStateStore(storage)
+
     val downloader: HttpModelDownloader = downloaderOverride ?: HttpModelDownloader(
         storage = storage,
-        stateStore = DownloadStateStore(storage),
+        stateStore = downloadStateStore,
         registry = registry,
         verifier = verifier
     )
+
+    val healthScanner by lazy { ModelHealthScanner(this) }
+    val cleanupPolicy by lazy { ModelCleanupPolicy(this) }
+    val updateManager by lazy { ModelUpdateManager(this, healthScanner, cleanupPolicy) }
+    val repairManager by lazy { ModelRepairManager(this, updateManager, healthScanner, cleanupPolicy) }
 
     fun getInstallStatus(packId: ModelPackId): ModelInstallStatusSnapshot {
         val pack = packFor(packId)
@@ -237,6 +245,62 @@ class ModelInstallCoordinator(
             ModelRuntimeStatus.CORRUPT,
             ModelRuntimeStatus.MISSING
         )
+    }
+
+    fun packSpec(packId: ModelPackId): ModelPackSpec {
+        return packFor(packId)
+    }
+
+    fun scanHealth(packId: ModelPackId): ModelHealthScanResult {
+        return healthScanner.scan(packId)
+    }
+
+    fun scanHealth(): List<ModelHealthScanResult> {
+        return healthScanner.scan()
+    }
+
+    fun getUserSafeState(packId: ModelPackId): ModelUserFacingStatus {
+        return healthScanner.userSafeState(packId)
+    }
+
+    fun updateModel(
+        packId: ModelPackId,
+        force: Boolean = false,
+        cancelRequested: () -> Boolean = { false }
+    ): ModelHealthScanResult {
+        return updateManager.updateModel(packId, force, cancelRequested)
+    }
+
+    fun updateModel(
+        role: BrainModelRole,
+        force: Boolean = false,
+        cancelRequested: () -> Boolean = { false }
+    ): ModelHealthScanResult {
+        return updateManager.updateModel(role, force, cancelRequested)
+    }
+
+    fun repairModel(
+        packId: ModelPackId,
+        cancelRequested: () -> Boolean = { false }
+    ): ModelHealthScanResult {
+        return repairManager.repairModel(packId, cancelRequested)
+    }
+
+    fun repairModel(
+        role: BrainModelRole,
+        cancelRequested: () -> Boolean = { false }
+    ): ModelHealthScanResult {
+        return repairManager.repairModel(role, cancelRequested)
+    }
+
+    fun deletePack(packId: ModelPackId): ModelCleanupResult {
+        return cleanupPolicy.deletePack(packId)
+    }
+
+    fun cleanupInactiveVersions(
+        activeVersions: Map<ModelPackId, String?> = emptyMap()
+    ): ModelCleanupResult {
+        return cleanupPolicy.cleanupAllInactiveVersions(activeVersions)
     }
 
     private fun onStateChangedAndReturn(
