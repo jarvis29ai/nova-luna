@@ -339,6 +339,20 @@ internal fun Map<String, Any?>.jsonIntOrNull(key: String): Int? {
     return jsonLongOrNull(key)?.toInt()
 }
 
+internal fun Map<String, Any?>.jsonBooleanOrNull(key: String): Boolean? {
+    return when (val value = this[key]) {
+        null -> null
+        is Boolean -> value
+        is String -> value.toBooleanStrictOrNull()
+            ?: error("Expected boolean value for '$key'")
+        else -> error("Expected boolean value for '$key'")
+    }
+}
+
+internal fun Map<String, Any?>.jsonBoolean(key: String, default: Boolean = false): Boolean {
+    return jsonBooleanOrNull(key) ?: default
+}
+
 internal fun Map<String, Any?>.jsonObject(key: String): Map<String, Any?> {
     return when (val value = this[key]) {
         null -> error("Missing object value for '$key'")

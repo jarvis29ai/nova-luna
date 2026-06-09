@@ -30,8 +30,16 @@ class PrivateAppModelStorage private constructor(
         return File(modelsDir(packId), fileName.trim())
     }
 
+    fun packFile(packId: ModelPackId, relativePath: String, fileName: String): File {
+        return File(modelsDir(packId), resolvePackRelativeFilePath(packId, relativePath, fileName))
+    }
+
     fun stagedFile(packId: ModelPackId, fileName: String): File {
         return File(downloadsDir(packId), fileName.trim())
+    }
+
+    fun stagedFile(packId: ModelPackId, relativePath: String, fileName: String): File {
+        return File(downloadsDir(packId), resolvePackRelativeFilePath(packId, relativePath, fileName))
     }
 
     fun describe(packId: ModelPackId): String {
@@ -62,4 +70,41 @@ private fun ensureDir(file: File): File {
         file.mkdirs()
     }
     return file
+}
+
+private fun resolvePackRelativeFilePath(
+    packId: ModelPackId,
+    relativePath: String,
+    fileName: String
+): String {
+    val normalizedRelativePath = relativePath.trim().trim('/').let { path ->
+        if (path.isBlank()) return fileName.trim()
+
+        val segments = path.split('/')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+        if (segments.isEmpty()) {
+            return fileName.trim()
+        }
+
+        val packSegment = packId.wireValue
+        val storageSegments = if (segments.first().equals(packSegment, ignoreCase = true)) {
+            segments.drop(1)
+        } else {
+            segments
+        }
+
+        if (storageSegments.isEmpty()) {
+            return fileName.trim()
+        }
+
+        storageSegments.joinToString("/")
+    }
+
+    return if (normalizedRelativePath.isBlank()) {
+        fileName.trim()
+    } else {
+        "$normalizedRelativePath/${fileName.trim()}"
+    }
 }
