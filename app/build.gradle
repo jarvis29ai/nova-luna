@@ -1,1 +1,116 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.kapt'
+}
 
+android {
+    namespace 'com.nova.luna'
+    compileSdk 34
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+        }
+    }
+
+    defaultConfig {
+        applicationId "com.nova.luna"
+        minSdk 29
+        targetSdk 34
+        versionCode 1
+        versionName "0.1.0"
+
+        def brainProvider = (project.findProperty('brain_provider') ?: 'mock').toString()
+        def ollamaBaseUrl = (project.findProperty('ollama_base_url') ?: 'http://127.0.0.1:11434').toString()
+        def ollamaModel = (project.findProperty('ollama_model') ?: 'qwen2.5:3b').toString()
+        def llmEnabled = (project.findProperty('llm_enabled') ?: 'false').toString().toBoolean()
+        def brainCapabilityMode = (project.findProperty('brain_capability_mode') ?: 'offline_only').toString()
+        def gemmaEnabled = (project.findProperty('gemma_enabled') ?: 'false').toString().toBoolean()
+        def gemmaModelAssetPath = (project.findProperty('gemma_model_asset_path') ?: '').toString()
+        def gemmaMaxTokens = (project.findProperty('gemma_max_tokens') ?: '512').toString().toInteger()
+        def gemmaTemperature = (project.findProperty('gemma_temperature') ?: '0.2').toString().toDouble()
+        def gemmaTopK = (project.findProperty('gemma_top_k') ?: '40').toString().toInteger()
+        def gemmaContextWindow = (project.findProperty('gemma_context_window') ?: '8192').toString().toInteger()
+        def gemmaRoleEnabled = (project.findProperty('gemma_role_enabled') ?: 'true').toString().toBoolean()
+        def onlineAiEnabled = (project.findProperty('online_ai_enabled') ?: 'false').toString().toBoolean()
+        def onlineAiRequireConfirmation = (project.findProperty('online_ai_require_confirmation') ?: 'true').toString().toBoolean()
+        def onlineAiProvider = (project.findProperty('online_ai_provider') ?: 'unavailable').toString()
+        def onlineAiTimeoutMs = (project.findProperty('online_ai_timeout_ms') ?: '4000').toString().toLong()
+        def onlineAiSendScreenText = (project.findProperty('online_ai_send_screen_text') ?: 'false').toString().toBoolean()
+        def onlineAiSendPrivateMessages = (project.findProperty('online_ai_send_private_messages') ?: 'false').toString().toBoolean()
+
+        buildConfigField "String", "BRAIN_PROVIDER", "\"${brainProvider.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "String", "OLLAMA_BASE_URL", "\"${ollamaBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "String", "OLLAMA_MODEL", "\"${ollamaModel.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "boolean", "LLM_ENABLED", "${llmEnabled}"
+        buildConfigField "String", "BRAIN_CAPABILITY_MODE", "\"${brainCapabilityMode.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "boolean", "GEMMA_ENABLED", "${gemmaEnabled}"
+        buildConfigField "String", "GEMMA_MODEL_ASSET_PATH", "\"${gemmaModelAssetPath.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "int", "GEMMA_MAX_TOKENS", "${gemmaMaxTokens}"
+        buildConfigField "double", "GEMMA_TEMPERATURE", "${gemmaTemperature}"
+        buildConfigField "int", "GEMMA_TOP_K", "${gemmaTopK}"
+        buildConfigField "int", "GEMMA_CONTEXT_WINDOW", "${gemmaContextWindow}"
+        buildConfigField "boolean", "GEMMA_ROLE_ENABLED", "${gemmaRoleEnabled}"
+        buildConfigField "boolean", "ONLINE_AI_ENABLED", "${onlineAiEnabled}"
+        buildConfigField "boolean", "ONLINE_AI_REQUIRE_CONFIRMATION", "${onlineAiRequireConfirmation}"
+        buildConfigField "String", "ONLINE_AI_PROVIDER", "\"${onlineAiProvider.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "long", "ONLINE_AI_TIMEOUT_MS", "${onlineAiTimeoutMs}"
+        buildConfigField "boolean", "ONLINE_AI_SEND_SCREEN_TEXT", "${onlineAiSendScreenText}"
+        buildConfigField "boolean", "ONLINE_AI_SEND_PRIVATE_MESSAGES", "${onlineAiSendPrivateMessages}"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    packaging {
+        resources {
+            excludes += ['META-INF/AL2.0', 'META-INF/LGPL2.1']
+        }
+    }
+}
+
+dependencies {
+    implementation project(':shared')
+
+    implementation 'androidx.activity:activity-ktx:1.9.0'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.biometric:biometric:1.1.0'
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.datastore:datastore-preferences:1.1.1'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.4'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+
+    kapt 'androidx.room:room-compiler:2.6.1'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core:5.12.0'
+    testImplementation 'androidx.test:core:1.6.1'
+    testImplementation 'org.robolectric:robolectric:4.16.1'
+}
