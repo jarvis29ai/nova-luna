@@ -1,11 +1,16 @@
 package com.nova.luna
 
+import android.app.ActivityManager
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.os.StatFs
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -19,9 +24,15 @@ import androidx.lifecycle.lifecycleScope
 import com.nova.luna.history.CommandHistoryActivity
 import com.nova.luna.data.PreferencesManager
 import com.nova.luna.model.VoiceProfile
+import com.nova.luna.modelinstall.DefaultModelManager
+import com.nova.luna.modelinstall.DeviceCapabilitySnapshot
+import com.nova.luna.modelinstall.ModelBrainDownloadPresenter
+import com.nova.luna.modelinstall.PrivateAppModelStorage
 import com.nova.luna.service.VoiceCommandService
 import com.nova.luna.util.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 import com.nova.luna.brain.AssistantSession
 import com.nova.luna.brain.CommandBrain
@@ -50,6 +61,8 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
     private lateinit var onboardingController: OnboardingController
     private lateinit var settingsController: SettingsController
     private lateinit var diagnosticsReporter: SafeDiagnosticsReporter
+    private lateinit var modelManager: DefaultModelManager
+    private lateinit var brainDownloadPresenter: ModelBrainDownloadPresenter
 
     private var suppressProfileCallback = false
     private var pendingStartAfterPermissionGrant = false
@@ -103,7 +116,15 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
         healthMonitor = RuntimeHealthMonitor(this)
         onboardingController = OnboardingController(this)
         settingsController = SettingsController(assistantSession, personalMemoryManager)
-        diagnosticsReporter = SafeDiagnosticsReporter(this, readinessChecker, healthMonitor, personalMemoryStore)
+        modelManager = DefaultModelManager(PrivateAppModelStorage.from(this))
+        brainDownloadPresenter = ModelBrainDownloadPresenter(modelManager)
+        diagnosticsReporter = SafeDiagnosticsReporter(
+            this,
+            readinessChecker,
+            healthMonitor,
+            personalMemoryStore,
+            brainDownloadReportProvider = { brainDownloadPresenter.buildReportText(buildDeviceCapabilitySnapshot()) }
+        )
 
         popupController = AssistantPopupController(findViewById(R.id.popupContainer), assistantSession) { event ->
             when (event) {
@@ -242,11 +263,18 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
     }
 
     private fun showDiagnostics() {
+        val snapshot = buildDeviceCapabilitySnapshot()
+        val canDownloadBrain = brainDownloadPresenter.canDownloadRecommended(snapshot)
         val report: String = diagnosticsReporter.generateReport()
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Diagnostics")
             .setMessage(report as CharSequence)
-            .setPositiveButton("Copy") { _, _ ->
+
+        if (canDownloadBrain) {
+            dialog.setPositiveButton("Download AI Brain") { _, _ ->
+                handleBrainDownloadAction()
+            }
+            .setNeutralButton("Copy") { _, _ ->
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                 val clip = android.content.ClipData.newPlainText("Nova Diagnostics", report)
                 clipboard.setPrimaryClip(clip)
@@ -254,6 +282,16 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
             }
             .setNegativeButton("Close", null)
             .show()
+        } else {
+            dialog.setPositiveButton("OK", null)
+                .setNeutralButton("Copy") { _, _ ->
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("Nova Diagnostics", report)
+                    clipboard.setPrimaryClip(clip)
+                    showToast("Copied to clipboard.")
+                }
+                .show()
+        }
     }
 
     private fun showDemoMode() {
@@ -441,5 +479,81 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
 
     private fun showToast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun handleBrainDownloadAction() {
+        val snapshot = buildDeviceCapabilitySnapshot()
+        val report = brainDownloadPresenter.buildReport(snapshot)
+        if (report.recommendedRow == null) {
+            showToast("AI brain pack unavailable.")
+            return
+        }
+
+        if (report.recommendedRow?.status?.state == com.nova.luna.modelinstall.ModelUserFacingState.READY) {
+            showToast("AI brain is already ready.")
+            return
+        }
+
+        if (!report.recommendedSourceConfigured) {
+            showToast("Model source not configured.")
+            return
+        }
+
+        lifecycleScope.launch {
+            showToast("Starting AI brain download.")
+            val result = withContext(Dispatchers.IO) {
+                brainDownloadPresenter.startRecommendedDownload(
+                    snapshot = snapshot,
+                    onStateChanged = {}
+                )
+            }
+
+            val message = when {
+                result?.runtimeStatus == com.nova.luna.modelinstall.ModelRuntimeStatus.READY ->
+                    "AI brain download complete."
+                result?.runtimeStatus == com.nova.luna.modelinstall.ModelRuntimeStatus.CORRUPT ->
+                    "AI brain download failed verification."
+                result?.runtimeStatus == com.nova.luna.modelinstall.ModelRuntimeStatus.FAILED ->
+                    "AI brain download failed."
+                result?.runtimeStatus == com.nova.luna.modelinstall.ModelRuntimeStatus.CANCELLED ->
+                    "AI brain download cancelled."
+                else -> "AI brain download finished."
+            }
+            showToast(message)
+        }
+    }
+
+    private fun buildDeviceCapabilitySnapshot(): DeviceCapabilitySnapshot {
+        return runCatching {
+            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val memoryInfo = ActivityManager.MemoryInfo()
+            activityManager.getMemoryInfo(memoryInfo)
+            val totalRamMb = (memoryInfo.totalMem / (1024 * 1024)).toInt().coerceAtLeast(0)
+            val statFs = StatFs(filesDir.absolutePath)
+            val freeStorageMb = (statFs.availableBytes / (1024 * 1024)).toInt().coerceAtLeast(0)
+            val cpuAbi = Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
+            val networkAvailable = runCatching {
+                val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                val network = connectivityManager.activeNetwork ?: return@runCatching false
+                val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return@runCatching false
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            }.getOrDefault(true)
+
+            DeviceCapabilitySnapshot(
+                totalRamMb = totalRamMb,
+                freeStorageMb = freeStorageMb,
+                androidVersion = Build.VERSION.SDK_INT,
+                cpuAbi = cpuAbi,
+                networkAvailable = networkAvailable
+            )
+        }.getOrElse {
+            DeviceCapabilitySnapshot(
+                totalRamMb = 0,
+                freeStorageMb = 0,
+                androidVersion = Build.VERSION.SDK_INT,
+                cpuAbi = Build.SUPPORTED_ABIS.firstOrNull().orEmpty(),
+                networkAvailable = true
+            )
+        }
     }
 }

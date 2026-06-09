@@ -8,7 +8,8 @@ class SafeDiagnosticsReporter(
     private val context: Context,
     private val readinessChecker: PrototypeReadinessChecker,
     private val healthMonitor: RuntimeHealthMonitor,
-    private val memoryStore: PersonalMemoryStore
+    private val memoryStore: PersonalMemoryStore,
+    private val brainDownloadReportProvider: (() -> String)? = null
 ) {
     fun generateReport(): String {
         val readiness = readinessChecker.check()
@@ -29,6 +30,11 @@ class SafeDiagnosticsReporter(
             appendLine()
             appendLine("--- Memory Status ---")
             appendLine("Items Count: ${memoryStore.list().size}")
+            appendLine()
+            appendLine("--- AI Brain Downloads ---")
+            val brainSection = runCatching { brainDownloadReportProvider?.invoke()?.trim() }
+                .getOrNull()
+            appendLine(brainSection?.takeIf { it.isNotBlank() } ?: "Unavailable")
             appendLine()
             appendLine("--- Missing Requirements ---")
             if (readiness.missingRequirements.isEmpty()) appendLine("None")

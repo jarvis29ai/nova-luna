@@ -37,6 +37,29 @@ class ModelDownloadSourceProvider(
         return sourcesFor(packId).firstOrNull()
     }
 
+    fun isConfigured(packId: ModelPackId): Boolean {
+        val sources = sourcesFor(packId)
+        if (sources.isEmpty()) {
+            return false
+        }
+
+        return sources.none { it.downloadUrl.isNullOrBlank() || it.expectedSha256.isNullOrBlank() }
+    }
+
+    fun configurationMessage(packId: ModelPackId): String {
+        val sources = sourcesFor(packId)
+        if (sources.isEmpty()) {
+            return "Model source not configured."
+        }
+
+        val hasMissingUrl = sources.any { it.downloadUrl.isNullOrBlank() }
+        val hasMissingSha = sources.any { it.expectedSha256.isNullOrBlank() }
+        return when {
+            hasMissingUrl || hasMissingSha -> "Model source not configured."
+            else -> "Model source configured."
+        }
+    }
+
     private fun buildDownloadUrl(file: ModelFileSpec): String? {
         val base = baseDownloadUrl?.trim()?.trimEnd('/')
             ?.takeIf { it.isNotBlank() }
