@@ -14,10 +14,11 @@ data class ModelBrainDownloadRow(
     val canDownload: Boolean
 ) {
     fun displayMessage(): String {
-        return if (status.state == ModelUserFacingState.READY || sourceConfigured) {
-            status.message
-        } else {
-            sourceMessage
+        return when {
+            status.state == ModelUserFacingState.READY -> status.message
+            sourceConfigured && status.state == ModelUserFacingState.CHECKING_PHONE -> sourceMessage
+            sourceConfigured -> status.message
+            else -> sourceMessage
         }
     }
 

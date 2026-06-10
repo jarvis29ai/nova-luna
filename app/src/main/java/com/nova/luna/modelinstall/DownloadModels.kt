@@ -33,6 +33,18 @@ data class ModelDownloadSource(
         )
     }
 
+    fun configurationProblems(): List<String> {
+        return buildList {
+            if (downloadUrl.isNullOrBlank()) add("download URL")
+            if (expectedSha256.isNullOrBlank()) add("SHA-256")
+            if (expectedByteCount == null || expectedByteCount <= 0L) add("expected byte size")
+        }
+    }
+
+    fun isConfigured(): Boolean {
+        return configurationProblems().isEmpty()
+    }
+
     val fileKey: String
         get() = if (relativePath.isBlank()) fileName else "$relativePath/$fileName"
 }

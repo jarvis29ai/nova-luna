@@ -97,7 +97,7 @@ class ModelInstallCoordinatorTest {
     @Test
     fun failedShaVerificationStoresCorruptStateAndDoesNotMarkModelReady() {
         val expectedPayload = "expected payload".toByteArray()
-        val wrongPayload = "wrong payload".toByteArray()
+        val wrongPayload = "expected payloae".toByteArray()
         val pack = singleFilePack(ModelPackId.CORE, "gemma-3n-q4.gguf", "core", expectedPayload)
         responses = mapOf("/core/gemma-3n-q4.gguf" to FakeResponse(200, wrongPayload))
 

@@ -159,10 +159,89 @@ class HttpModelDownloaderTest {
         assertEquals(listOf(ModelPackId.CORE), registry.readyPacks())
     }
 
+    @Test
+    fun stateChangesToFailedWhenDownloadUrlIsMissing() {
+        val payload = "missing url payload".toByteArray()
+        val source = sourceFor(
+            path = "/missing-url",
+            payload = payload,
+            sourceId = "core-missing-url",
+            downloadUrl = null
+        )
+
+        val result = downloader.download(source)
+
+        assertEquals(ModelDownloadStatus.FAILED, result.status)
+        assertEquals(ModelDownloadStatus.FAILED, stateStore.find(ModelPackId.CORE, source.sourceId)!!.status)
+        assertTrue(registry.readyPacks().isEmpty())
+        assertFalse(storage.packFile(ModelPackId.CORE, source.fileName).exists())
+    }
+
+    @Test
+    fun stateChangesToFailedWhenSha256IsMissing() {
+        val payload = "missing sha payload".toByteArray()
+        responses = mapOf("/missing-sha" to FakeResponse(200, payload))
+        val source = sourceFor(
+            path = "/missing-sha",
+            payload = payload,
+            sourceId = "core-missing-sha",
+            expectedSha256 = null
+        )
+
+        val result = downloader.download(source)
+
+        assertEquals(ModelDownloadStatus.FAILED, result.status)
+        assertEquals(ModelDownloadStatus.FAILED, stateStore.find(ModelPackId.CORE, source.sourceId)!!.status)
+        assertTrue(registry.readyPacks().isEmpty())
+        assertFalse(storage.packFile(ModelPackId.CORE, source.fileName).exists())
+    }
+
+    @Test
+    fun stateChangesToFailedWhenExpectedSizeIsMissing() {
+        val payload = "missing size payload".toByteArray()
+        responses = mapOf("/missing-size" to FakeResponse(200, payload))
+        val source = sourceFor(
+            path = "/missing-size",
+            payload = payload,
+            sourceId = "core-missing-size",
+            expectedByteCount = null
+        )
+
+        val result = downloader.download(source)
+
+        assertEquals(ModelDownloadStatus.FAILED, result.status)
+        assertEquals(ModelDownloadStatus.FAILED, stateStore.find(ModelPackId.CORE, source.sourceId)!!.status)
+        assertTrue(registry.readyPacks().isEmpty())
+        assertFalse(storage.packFile(ModelPackId.CORE, source.fileName).exists())
+    }
+
+    @Test
+    fun stateChangesToFailedWhenDownloadedSizeDoesNotMatchExpectedSize() {
+        val goodPayload = "expected size payload".toByteArray()
+        val partialPayload = goodPayload.copyOfRange(0, goodPayload.size / 2)
+        responses = mapOf("/size-mismatch" to FakeResponse(200, partialPayload))
+        val source = sourceFor(
+            path = "/size-mismatch",
+            payload = goodPayload,
+            sourceId = "core-size-mismatch",
+            expectedSha256 = sha256Hex(partialPayload),
+            expectedByteCount = goodPayload.size.toLong()
+        )
+
+        val result = downloader.download(source)
+
+        assertEquals(ModelDownloadStatus.FAILED, result.status)
+        assertEquals(ModelDownloadStatus.FAILED, stateStore.find(ModelPackId.CORE, source.sourceId)!!.status)
+        assertTrue(registry.readyPacks().isEmpty())
+        assertFalse(storage.packFile(ModelPackId.CORE, source.fileName).exists())
+        assertFalse(storage.stagedFile(ModelPackId.CORE, "${source.fileName}.part").exists())
+    }
+
     private fun sourceFor(
         path: String,
         payload: ByteArray,
         sourceId: String,
+        downloadUrl: String? = "http://local$path",
         expectedSha256: String? = sha256Hex(payload),
         expectedByteCount: Long? = payload.size.toLong()
     ): ModelDownloadSource {
@@ -172,7 +251,7 @@ class HttpModelDownloaderTest {
             sourceId = sourceId,
             fileName = "gemma-3n-q4.gguf",
             relativePath = "core",
-            downloadUrl = "http://local$path",
+            downloadUrl = downloadUrl,
             expectedSha256 = expectedSha256,
             expectedByteCount = expectedByteCount,
             notes = listOf("Test source")

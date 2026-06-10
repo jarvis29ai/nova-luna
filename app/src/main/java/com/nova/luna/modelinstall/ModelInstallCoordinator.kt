@@ -15,7 +15,10 @@ class ModelInstallCoordinator(
     runtimeStateStoreOverride: ModelRuntimeStateStore? = null
 ) {
     val downloadSourceProvider: ModelDownloadSourceProvider =
-        downloadSourceProviderOverride ?: ModelDownloadSourceProvider(catalog = catalog)
+        downloadSourceProviderOverride ?: ModelDownloadSourceProvider(
+            catalog = catalog,
+            sourceManifest = ModelSourceManifest.fromBuildConfig()
+        )
 
     val verifier: Sha256ModelVerifier = verifierOverride ?: Sha256ModelVerifier()
 
@@ -61,9 +64,13 @@ class ModelInstallCoordinator(
         onStateChanged: (ModelInstallStatusSnapshot) -> Unit = {}
     ): ModelInstallStatusSnapshot {
         val pack = packFor(packId)
+        val sourceStates = downloadSourceProvider.sourcesFor(packId)
+        if (sourceStates.isEmpty()) {
+            return getInstallStatus(packId)
+        }
+
         cleanPackStorage(packId)
 
-        val sourceStates = downloadSourceProvider.sourcesFor(packId)
         runtimeStateStore.markDownloading(
             pack = pack,
             expectedFileCount = sourceStates.size,

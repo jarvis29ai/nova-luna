@@ -25,6 +25,19 @@ android {
         versionCode 1
         versionName "0.1.0"
 
+        // Signed model source config is read from local.properties or -P overrides
+        // so the APK can stay source-free until a real pack URL is supplied locally.
+        def localProperties = new Properties()
+        def localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.withInputStream { stream ->
+                localProperties.load(stream)
+            }
+        }
+        def readConfigValue = { String name, String fallback = '' ->
+            (project.findProperty(name) ?: localProperties.getProperty(name) ?: fallback).toString()
+        }
+
         def brainProvider = (project.findProperty('brain_provider') ?: 'mock').toString()
         def ollamaBaseUrl = (project.findProperty('ollama_base_url') ?: 'http://127.0.0.1:11434').toString()
         def ollamaModel = (project.findProperty('ollama_model') ?: 'qwen2.5:3b').toString()
@@ -43,6 +56,12 @@ android {
         def onlineAiTimeoutMs = (project.findProperty('online_ai_timeout_ms') ?: '4000').toString().toLong()
         def onlineAiSendScreenText = (project.findProperty('online_ai_send_screen_text') ?: 'false').toString().toBoolean()
         def onlineAiSendPrivateMessages = (project.findProperty('online_ai_send_private_messages') ?: 'false').toString().toBoolean()
+        def novaLunaModelBaseUrl = readConfigValue('NOVA_LUNA_MODEL_BASE_URL')
+        def novaLunaLiteModelEnabled = readConfigValue('NOVA_LUNA_LITE_MODEL_ENABLED', 'true').toBoolean()
+        def novaLunaLiteModelFileName = readConfigValue('NOVA_LUNA_LITE_MODEL_FILENAME')
+        def novaLunaLiteModelRelativePath = readConfigValue('NOVA_LUNA_LITE_MODEL_RELATIVE_PATH')
+        def novaLunaLiteModelSha256 = readConfigValue('NOVA_LUNA_LITE_MODEL_SHA256')
+        def novaLunaLiteModelBytes = readConfigValue('NOVA_LUNA_LITE_MODEL_BYTES', '-1').toLong()
 
         buildConfigField "String", "BRAIN_PROVIDER", "\"${brainProvider.replace("\\", "\\\\").replace("\"", "\\\"")}\""
         buildConfigField "String", "OLLAMA_BASE_URL", "\"${ollamaBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\""
@@ -62,6 +81,12 @@ android {
         buildConfigField "long", "ONLINE_AI_TIMEOUT_MS", "${onlineAiTimeoutMs}"
         buildConfigField "boolean", "ONLINE_AI_SEND_SCREEN_TEXT", "${onlineAiSendScreenText}"
         buildConfigField "boolean", "ONLINE_AI_SEND_PRIVATE_MESSAGES", "${onlineAiSendPrivateMessages}"
+        buildConfigField "String", "NOVA_LUNA_MODEL_BASE_URL", "\"${novaLunaModelBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "boolean", "NOVA_LUNA_LITE_MODEL_ENABLED", "${novaLunaLiteModelEnabled}"
+        buildConfigField "String", "NOVA_LUNA_LITE_MODEL_FILENAME", "\"${novaLunaLiteModelFileName.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "String", "NOVA_LUNA_LITE_MODEL_RELATIVE_PATH", "\"${novaLunaLiteModelRelativePath.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "String", "NOVA_LUNA_LITE_MODEL_SHA256", "\"${novaLunaLiteModelSha256.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "long", "NOVA_LUNA_LITE_MODEL_BYTES", "${novaLunaLiteModelBytes}"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -1,5 +1,6 @@
 package com.nova.luna.modelinstall
 
+import com.nova.luna.model.BrainModelRole
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -29,35 +30,43 @@ class ModelBrainDownloadPresenterTest {
     fun reportAllowsDownloadWhenSourceIsConfigured() {
         val payload = "downloadable payload".toByteArray()
         val pack = ModelPackSpec(
-            id = ModelPackId.CORE,
-            displayName = "Core",
-            description = "Test pack for the core brain.",
+            id = ModelPackId.LITE,
+            displayName = "Lite",
+            description = "Test pack for the lite brain.",
             requirement = ModelPackRequirement(
                 minRamMb = 1,
                 minFreeStorageMb = 1
             ),
             files = listOf(
                 ModelFileSpec(
-                    fileName = "gemma-3n-q4.gguf",
-                    relativePath = "core",
+                    fileName = "gemma-3-270m-q4.gguf",
+                    relativePath = "lite",
                     sha256 = sha256Hex(payload),
                     byteCount = payload.size.toLong()
                 )
             )
         ).normalized()
+        val sourceEntry = ModelSourceEntry(
+            role = BrainModelRole.LITE_FALLBACK,
+            displayName = pack.displayName,
+            fileName = pack.files.first().fileName,
+            relativePath = pack.files.first().relativePath,
+            downloadUrl = "https://example.com/models/lite.gguf",
+            expectedSha256 = sha256Hex(payload),
+            expectedByteCount = payload.size.toLong(),
+            enabled = true,
+            minimumRamMb = pack.requirement.minRamMb,
+            minimumFreeStorageMb = pack.requirement.minFreeStorageMb
+        ).normalized()
 
-        withMaintenanceEnvironment(
-            catalog = listOf(pack)
-        ) { env ->
-            val manager = DefaultModelManager(
-                env.coordinator,
-                capabilityChecker = DeviceCapabilityChecker(ModelPackSelector(catalog = listOf(pack)))
-            )
+        withConfiguredEnvironment(pack, sourceEntry) { manager ->
             val presenter = ModelBrainDownloadPresenter(manager)
             val report = presenter.buildReport(sampleSnapshot())
 
+            assertTrue(report.recommendedSourceConfigured)
             assertTrue(report.canDownloadRecommended)
             assertEquals("Download available.", report.recommendedActionLabel)
+            assertTrue(presenter.buildStatusLine(sampleSnapshot()).contains("Download available", ignoreCase = true))
             assertTrue(report.toText().contains("Download available", ignoreCase = true))
         }
     }
@@ -70,5 +79,36 @@ class ModelBrainDownloadPresenterTest {
             cpuAbi = "arm64-v8a",
             networkAvailable = true
         )
+    }
+
+    private inline fun withConfiguredEnvironment(
+        pack: ModelPackSpec,
+        sourceEntry: ModelSourceEntry,
+        block: (DefaultModelManager) -> Unit
+    ) {
+        val baseDir = Files.createTempDirectory("nova_luna_brain_download_presenter_test").toFile()
+        try {
+            val storage = PrivateAppModelStorage.from(baseDir)
+            val registry = LocalModelRegistry(storage)
+            val stateStore = ModelRuntimeStateStore(storage)
+            val sourceProvider = ModelDownloadSourceProvider(
+                catalog = listOf(pack),
+                sourceManifest = ModelSourceManifest(entries = listOf(sourceEntry))
+            )
+            val coordinator = ModelInstallCoordinator(
+                storage = storage,
+                catalog = listOf(pack),
+                downloadSourceProviderOverride = sourceProvider,
+                registryOverride = registry,
+                runtimeStateStoreOverride = stateStore
+            )
+            val manager = DefaultModelManager(
+                coordinator,
+                capabilityChecker = DeviceCapabilityChecker(ModelPackSelector(catalog = listOf(pack)))
+            )
+            block(manager)
+        } finally {
+            baseDir.deleteRecursively()
+        }
     }
 }

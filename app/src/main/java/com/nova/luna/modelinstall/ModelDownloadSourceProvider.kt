@@ -5,6 +5,7 @@ internal const val MODEL_SOURCE_NOT_CONFIGURED_MESSAGE =
 
 class ModelDownloadSourceProvider(
     private val catalog: List<ModelPackSpec> = ModelPackCatalog.defaultPacks(),
+    val sourceManifest: ModelSourceManifest = ModelSourceManifest.empty(),
     private val baseDownloadUrl: String? = null
 ) {
     fun packSpec(packId: ModelPackId): ModelPackSpec {
@@ -18,9 +19,34 @@ class ModelDownloadSourceProvider(
 
     fun sourcesFor(packId: ModelPackId): List<ModelDownloadSource> {
         val pack = packSpec(packId)
+        val configuredManifestSources = sourceManifest.configuredEntriesFor(packId)
+        if (configuredManifestSources.isNotEmpty()) {
+            val manifestSources = sourceManifest.entriesFor(packId)
+            if (manifestSources.size != pack.files.size ||
+                configuredManifestSources.size != pack.files.size
+            ) {
+                return emptyList()
+            }
+
+            return configuredManifestSources.mapIndexed { index, entry ->
+                entry.toDownloadSource(pack, index)
+            }
+        }
+
+        if (sourceManifest.entriesFor(packId).isNotEmpty()) {
+            return emptyList()
+        }
+
+        if (baseDownloadUrl.isNullOrBlank()) {
+            return emptyList()
+        }
 
         return pack.files.mapIndexed { index, file ->
             val normalized = file.normalized()
+            if (normalized.sha256.isNullOrBlank() || normalized.byteCount == null || normalized.byteCount <= 0L) {
+                return@mapIndexed null
+            }
+
             val sourceId = "${pack.id.wireValue}-${index + 1}-${normalized.fileName}"
             ModelDownloadSource(
                 packId = pack.id,
@@ -33,7 +59,7 @@ class ModelDownloadSourceProvider(
                 expectedByteCount = normalized.byteCount,
                 notes = pack.notes
             ).normalized()
-        }
+        }.filterNotNull().takeIf { it.size == pack.files.size } ?: emptyList()
     }
 
     fun sourceFor(packId: ModelPackId): ModelDownloadSource? {
@@ -41,26 +67,23 @@ class ModelDownloadSourceProvider(
     }
 
     fun isConfigured(packId: ModelPackId): Boolean {
-        val sources = sourcesFor(packId)
-        if (sources.isEmpty()) {
-            return false
-        }
-
-        return sources.none { it.downloadUrl.isNullOrBlank() || it.expectedSha256.isNullOrBlank() }
+        return sourcesFor(packId).isNotEmpty()
     }
 
     fun configurationMessage(packId: ModelPackId): String {
-        val sources = sourcesFor(packId)
-        if (sources.isEmpty()) {
-            return MODEL_SOURCE_NOT_CONFIGURED_MESSAGE
+        return if (isConfigured(packId)) {
+            "Download available."
+        } else {
+            MODEL_SOURCE_NOT_CONFIGURED_MESSAGE
         }
+    }
 
-        val hasMissingUrl = sources.any { it.downloadUrl.isNullOrBlank() }
-        val hasMissingSha = sources.any { it.expectedSha256.isNullOrBlank() }
-        return when {
-            hasMissingUrl || hasMissingSha -> MODEL_SOURCE_NOT_CONFIGURED_MESSAGE
-            else -> "Model source configured."
-        }
+    fun withCatalog(catalog: List<ModelPackSpec>): ModelDownloadSourceProvider {
+        return ModelDownloadSourceProvider(
+            catalog = catalog,
+            sourceManifest = sourceManifest,
+            baseDownloadUrl = baseDownloadUrl
+        )
     }
 
     private fun buildDownloadUrl(file: ModelFileSpec): String? {
@@ -76,5 +99,24 @@ class ModelDownloadSourceProvider(
             append(file.fileName)
         }
         return "$base/$path"
+    }
+
+    private fun ModelSourceEntry.toDownloadSource(
+        pack: ModelPackSpec,
+        sourceIndex: Int
+    ): ModelDownloadSource {
+        val normalized = normalized()
+        val sourceId = "${pack.id.wireValue}-${sourceIndex + 1}-${normalized.fileName}"
+        return ModelDownloadSource(
+            packId = pack.id,
+            packDisplayName = pack.displayName,
+            sourceId = sourceId,
+            fileName = normalized.fileName,
+            relativePath = normalized.relativePath,
+            downloadUrl = normalized.downloadUrl,
+            expectedSha256 = normalized.expectedSha256,
+            expectedByteCount = normalized.expectedByteCount,
+            notes = pack.notes
+        ).normalized()
     }
 }

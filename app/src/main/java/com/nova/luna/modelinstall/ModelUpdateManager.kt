@@ -37,9 +37,7 @@ class ModelUpdateManager(
         val tempCoordinator = ModelInstallCoordinator(
             storage = tempStorage,
             catalog = listOf(pack),
-            downloadSourceProviderOverride = ModelDownloadSourceProvider(
-                catalog = listOf(pack)
-            ),
+            downloadSourceProviderOverride = coordinator.downloadSourceProvider.withCatalog(listOf(pack)),
             downloaderOverride = tempDownloader,
             registryOverride = tempRegistry,
             runtimeStateStoreOverride = tempStateStore
@@ -47,6 +45,11 @@ class ModelUpdateManager(
         val tempScanner = ModelHealthScanner(tempCoordinator)
 
         val sourceStates = coordinator.downloadSourceProvider.sourcesFor(packId)
+        if (sourceStates.isEmpty()) {
+            cleanupPolicy.deleteIfSafe(tempStorage.rootDir)
+            return currentScan
+        }
+
         for ((index, source) in sourceStates.withIndex()) {
             if (cancelRequested()) {
                 cleanupPolicy.deleteIfSafe(tempStorage.rootDir)

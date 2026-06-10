@@ -37,6 +37,14 @@ class HttpModelDownloader(
         onStateChanged: (ModelDownloadState) -> Unit = {}
     ): ModelDownloadState {
         val normalized = source.normalized()
+        val configurationProblems = normalized.configurationProblems()
+        if (configurationProblems.isNotEmpty()) {
+            return fail(
+                source = normalized,
+                message = configurationProblems.first().toReadableConfigurationMessage()
+            ).also(onStateChanged)
+        }
+
         val urlString = normalized.downloadUrl
             ?: return fail(
                 source = normalized,
@@ -124,6 +132,19 @@ class HttpModelDownloader(
                 finalFilePath = finalFile.path,
                 message = "Verifying SHA-256."
             ).also(onStateChanged)
+
+            val expectedBytes = normalized.expectedByteCount
+            if (expectedBytes != null && bytesDownloaded != expectedBytes) {
+                cleanupBadFile(stagedFile)
+                return fail(
+                    source = normalized,
+                    bytesDownloaded = bytesDownloaded,
+                    totalBytes = contentLength,
+                    stagedFilePath = stagedFile.path,
+                    finalFilePath = finalFile.path,
+                    message = "Downloaded file size does not match the expected size."
+                ).also(onStateChanged)
+            }
 
             val expectedSha = normalized.expectedSha256?.takeIf { it.isNotBlank() }
                 ?: throw IOException("Expected SHA-256 is not configured.")
@@ -246,5 +267,14 @@ class HttpModelDownloader(
         fallback: Long?
     ): Long? {
         return connection?.contentLengthLong?.takeIf { it > 0L } ?: fallback
+    }
+
+    private fun String.toReadableConfigurationMessage(): String {
+        return when (this) {
+            "download URL" -> "Download URL is not configured."
+            "SHA-256" -> "Expected SHA-256 is not configured."
+            "expected byte size" -> "Expected byte size is not configured."
+            else -> "$this is not configured."
+        }
     }
 }
