@@ -33,8 +33,8 @@ class BrainRouterPhase5OnlineAiTest {
             allowOnlineHelper = false
         )
 
-        assertEquals(BrainModelRole.GEMMA_REASONING, decision.selectedRole)
-        assertTrue(decision.reason.contains("local reasoning", ignoreCase = true))
+        assertEquals(BrainModelRole.MOCK_FALLBACK, decision.selectedRole)
+        assertTrue(decision.reason.contains("AI brain is not installed yet", ignoreCase = true))
     }
 
     @Test
@@ -47,7 +47,7 @@ class BrainRouterPhase5OnlineAiTest {
 
         val decision = router.route(BrainRequest("latest phone under 30000"))
 
-        assertEquals(BrainModelRole.GEMMA_REASONING, decision.selectedRole)
-        assertTrue(decision.reason.contains("local reasoning", ignoreCase = true))
+        assertEquals(BrainModelRole.MOCK_FALLBACK, decision.selectedRole)
+        assertTrue(decision.reason.contains("AI brain is not installed yet", ignoreCase = true))
     }
 }

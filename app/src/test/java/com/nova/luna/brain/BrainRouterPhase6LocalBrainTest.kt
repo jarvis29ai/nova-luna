@@ -8,16 +8,16 @@ import org.junit.Test
 
 class BrainRouterPhase6LocalBrainTest {
     @Test
-    fun `simple commands still use the deterministic rule parser even when local bridge is ready`() {
+    fun `simple commands can use the lightweight fallback role when it is ready`() {
         val router = BrainRouter(
             localBrainRouterBridge = FixedBrainRouterBridge(
-                decision = routeDecision(BrainModelRole.CORE_BRAIN)
+                decision = routeDecision(BrainModelRole.LITE_FALLBACK)
             )
         )
 
         val decision = router.route(BrainRequest("open whatsapp"))
 
-        assertEquals(BrainModelRole.LITE_COMMAND, decision.selectedRole)
+        assertEquals(BrainModelRole.LITE_FALLBACK, decision.selectedRole)
     }
 
     @Test
@@ -49,13 +49,13 @@ class BrainRouterPhase6LocalBrainTest {
     }
 
     @Test
-    fun `router falls back to gemma reasoning when no local role is available`() {
+    fun `router asks for model setup when no local role is available`() {
         val router = BrainRouter()
 
         val decision = router.route(BrainRequest("please explain how offline model verification works"))
 
-        assertEquals(BrainModelRole.GEMMA_REASONING, decision.selectedRole)
-        assertTrue(decision.reason.contains("local reasoning", ignoreCase = true))
+        assertEquals(BrainModelRole.MOCK_FALLBACK, decision.selectedRole)
+        assertTrue(decision.reason.contains("AI brain is not installed yet", ignoreCase = true))
     }
 
     private class FixedBrainRouterBridge(

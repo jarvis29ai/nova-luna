@@ -24,7 +24,7 @@ class BrainServicePhase4LocalLlmFallbackTest {
         assertEquals(BrainActionType.NONE, action.actionType)
         assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
         assertFalse(action.finalActionAllowed)
-        assertTrue(action.reply.contains("Local AI model", ignoreCase = true))
+        assertTrue(action.reply.contains("not ready yet", ignoreCase = true))
         assertNotNull(action.nextQuestion)
         assertTrue(action.params["routeRole"]?.contains("gemma", ignoreCase = true) == true)
     }

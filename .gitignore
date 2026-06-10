@@ -4,6 +4,15 @@ build/
 app/build/
 wear/build/
 shared/build/
+*.gguf
+*.litertlm
+*.bin
+*.safetensors
+*.onnx
+*.tflite
+*.task
+nova-luna-models/
+models/
 flutter_app/.dart_tool/
 flutter_app/build/
 flutter_app/android/.gradle/

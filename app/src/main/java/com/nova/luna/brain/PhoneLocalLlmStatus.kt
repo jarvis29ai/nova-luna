@@ -5,6 +5,7 @@ enum class PhoneLocalLlmStatus(val wireValue: String) {
     DISABLED("disabled"),
     MODEL_DISABLED("model_disabled"),
     MODEL_ASSET_MISSING("model_asset_missing"),
+    MODEL_RUNTIME_NOT_AVAILABLE("model_runtime_not_available"),
     RUNTIME_UNAVAILABLE("runtime_unavailable"),
     PROMPT_TOO_LARGE("prompt_too_large"),
     OUTPUT_PARSE_FAILED("output_parse_failed"),

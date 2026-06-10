@@ -95,16 +95,9 @@ class BrainRouter(
         if (isFlexibleReasoningRequest(request.rawText, normalized)) {
             val internetDecision = internetPermissionPolicy.classify(request.rawText)
             selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
-            return decision(
-                role = BrainModelRole.GEMMA_REASONING,
-                reason = "This is a fuzzy, multilingual, or natural-language request that should stay on the local reasoning model.",
+            return brainSetupRequiredDecision(
                 requiresInternet = internetDecision.category == InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO ||
-                    internetDecision.category == InternetPermissionCategory.INTERNET_OPTIONAL,
-                safetyNotes = listOf(
-                    "Gemma is the final on-device reasoning model for fuzzy or multilingual prompts.",
-                    "Any action it suggests must still pass BrainActionValidator.",
-                    "SafetyGate must still control any sensitive step."
-                )
+                    internetDecision.category == InternetPermissionCategory.INTERNET_OPTIONAL
             )
         }
 
@@ -121,6 +114,7 @@ class BrainRouter(
         }
 
         if (isSimpleCommand(normalized)) {
+            selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
             return decision(
                 role = BrainModelRole.LITE_COMMAND,
                 reason = "This is a fast local device command.",
@@ -150,15 +144,9 @@ class BrainRouter(
         if (isConversation(normalized)) {
             val internetDecision = internetPermissionPolicy.classify(request.rawText)
             selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
-            return decision(
-                role = BrainModelRole.GEMMA_REASONING,
-                reason = "This is general conversation or explanation, so the reasoning role fits best.",
+            return brainSetupRequiredDecision(
                 requiresInternet = internetDecision.category == InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO ||
-                    internetDecision.category == InternetPermissionCategory.INTERNET_OPTIONAL,
-                safetyNotes = listOf(
-                    "Gemma is intended to be the final on-device reasoning model.",
-                    "Any action it suggests must still pass BrainActionValidator."
-                )
+                    internetDecision.category == InternetPermissionCategory.INTERNET_OPTIONAL
             )
         }
 
@@ -183,16 +171,9 @@ class BrainRouter(
                 )
             } else {
                 selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
-                decision(
-                    role = BrainModelRole.GEMMA_REASONING,
-                    reason = "This request is suited to online help, but it will stay on the local reasoning model because online help is disabled or unavailable.",
+                brainSetupRequiredDecision(
                     requiresInternet = internetDecision.category == InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO ||
-                        internetDecision.category == InternetPermissionCategory.INTERNET_OPTIONAL,
-                    safetyNotes = listOf(
-                        "Optional online helper is unavailable, so the local reasoning model takes over.",
-                        "Any action it suggests must still pass BrainActionValidator.",
-                        "SafetyGate must still control any sensitive step."
-                    )
+                        internetDecision.category == InternetPermissionCategory.INTERNET_OPTIONAL
                 )
             }
         }
@@ -295,31 +276,13 @@ class BrainRouter(
                         )
                     )
                 } else {
-                    selectLocalBrainRoute(request, allowOnlineHelper)
-                        ?.takeUnless { isSimpleCommand(normalized) }
-                        ?.let { return it }
-                    decision(
-                        role = BrainModelRole.GEMMA_REASONING,
-                        reason = "An online helper session is active, but it will stay on the local reasoning model because online help is disabled or unavailable.",
-                        requiresInternet = false,
-                        safetyNotes = listOf(
-                            "Optional online helper is unavailable, so the local reasoning model takes over.",
-                            "Any action it suggests must still pass BrainActionValidator."
-                        )
-                    )
+                    selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
+                    brainSetupRequiredDecision()
                 }
             }
 
             BrainSessionType.LOCAL_LLM -> selectLocalBrainRoute(request, allowOnlineHelper)
-                ?.takeUnless { isSimpleCommand(normalized) }
-                ?: decision(
-                    role = BrainModelRole.GEMMA_REASONING,
-                    reason = "An active local LLM session should stay on the local reasoning model.",
-                    safetyNotes = listOf(
-                        "Gemma is the final on-device reasoning model for active local sessions.",
-                        "Any action it suggests must still pass BrainActionValidator."
-                    )
-                )
+                ?: brainSetupRequiredDecision()
 
             else -> null
         }
@@ -330,6 +293,20 @@ class BrainRouter(
         allowOnlineHelper: Boolean
     ): BrainRouteDecision? {
         return localBrainRouterBridge.selectLocalRoute(request, allowOnlineHelper)
+    }
+
+    private fun brainSetupRequiredDecision(
+        requiresInternet: Boolean = false
+    ): BrainRouteDecision {
+        return decision(
+            role = BrainModelRole.MOCK_FALLBACK,
+            reason = "AI brain is not installed yet. Open model setup to download Nova/Luna AI Brain.",
+            requiresInternet = requiresInternet,
+            safetyNotes = listOf(
+                "No downloaded local brain role is ready yet.",
+                "Install or import CORE_BRAIN, MULTILINGUAL_BACKUP, or LIGHTWEIGHT_FALLBACK into private app storage."
+            )
+        )
     }
 
     private fun isSimpleCommand(normalized: String): Boolean {

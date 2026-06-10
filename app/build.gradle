@@ -57,6 +57,21 @@ android {
         def onlineAiSendScreenText = (project.findProperty('online_ai_send_screen_text') ?: 'false').toString().toBoolean()
         def onlineAiSendPrivateMessages = (project.findProperty('online_ai_send_private_messages') ?: 'false').toString().toBoolean()
         def novaLunaModelBaseUrl = readConfigValue('NOVA_LUNA_MODEL_BASE_URL')
+        def novaLunaCoreModelEnabled = readConfigValue('NOVA_LUNA_CORE_MODEL_ENABLED', 'false').toBoolean()
+        def novaLunaCoreModelDownloadUrl = readConfigValue('NOVA_LUNA_CORE_MODEL_DOWNLOAD_URL')
+        def novaLunaCoreModelSha256 = readConfigValue('NOVA_LUNA_CORE_MODEL_SHA256')
+        def novaLunaCoreModelBytes = readConfigValue('NOVA_LUNA_CORE_MODEL_BYTES', '-1').toLong()
+
+        def novaLunaMultilingualModelEnabled = readConfigValue('NOVA_LUNA_MULTILINGUAL_MODEL_ENABLED', 'false').toBoolean()
+        def novaLunaMultilingualModelDownloadUrl = readConfigValue('NOVA_LUNA_MULTILINGUAL_MODEL_DOWNLOAD_URL')
+        def novaLunaMultilingualModelSha256 = readConfigValue('NOVA_LUNA_MULTILINGUAL_MODEL_SHA256')
+        def novaLunaMultilingualModelBytes = readConfigValue('NOVA_LUNA_MULTILINGUAL_MODEL_BYTES', '-1').toLong()
+
+        def novaLunaLightweightModelEnabled = readConfigValue('NOVA_LUNA_LIGHTWEIGHT_MODEL_ENABLED', 'false').toBoolean()
+        def novaLunaLightweightModelDownloadUrl = readConfigValue('NOVA_LUNA_LIGHTWEIGHT_MODEL_DOWNLOAD_URL')
+        def novaLunaLightweightModelSha256 = readConfigValue('NOVA_LUNA_LIGHTWEIGHT_MODEL_SHA256')
+        def novaLunaLightweightModelBytes = readConfigValue('NOVA_LUNA_LIGHTWEIGHT_MODEL_BYTES', '-1').toLong()
+
         def novaLunaLiteModelEnabled = readConfigValue('NOVA_LUNA_LITE_MODEL_ENABLED', 'true').toBoolean()
         def novaLunaLiteModelFileName = readConfigValue('NOVA_LUNA_LITE_MODEL_FILENAME')
         def novaLunaLiteModelRelativePath = readConfigValue('NOVA_LUNA_LITE_MODEL_RELATIVE_PATH')
@@ -82,6 +97,21 @@ android {
         buildConfigField "boolean", "ONLINE_AI_SEND_SCREEN_TEXT", "${onlineAiSendScreenText}"
         buildConfigField "boolean", "ONLINE_AI_SEND_PRIVATE_MESSAGES", "${onlineAiSendPrivateMessages}"
         buildConfigField "String", "NOVA_LUNA_MODEL_BASE_URL", "\"${novaLunaModelBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "boolean", "NOVA_LUNA_CORE_MODEL_ENABLED", "${novaLunaCoreModelEnabled}"
+        buildConfigField "String", "NOVA_LUNA_CORE_MODEL_DOWNLOAD_URL", "\"${novaLunaCoreModelDownloadUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "String", "NOVA_LUNA_CORE_MODEL_SHA256", "\"${novaLunaCoreModelSha256.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "long", "NOVA_LUNA_CORE_MODEL_BYTES", "${novaLunaCoreModelBytes}"
+
+        buildConfigField "boolean", "NOVA_LUNA_MULTILINGUAL_MODEL_ENABLED", "${novaLunaMultilingualModelEnabled}"
+        buildConfigField "String", "NOVA_LUNA_MULTILINGUAL_MODEL_DOWNLOAD_URL", "\"${novaLunaMultilingualModelDownloadUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "String", "NOVA_LUNA_MULTILINGUAL_MODEL_SHA256", "\"${novaLunaMultilingualModelSha256.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "long", "NOVA_LUNA_MULTILINGUAL_MODEL_BYTES", "${novaLunaMultilingualModelBytes}"
+
+        buildConfigField "boolean", "NOVA_LUNA_LIGHTWEIGHT_MODEL_ENABLED", "${novaLunaLightweightModelEnabled}"
+        buildConfigField "String", "NOVA_LUNA_LIGHTWEIGHT_MODEL_DOWNLOAD_URL", "\"${novaLunaLightweightModelDownloadUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "String", "NOVA_LUNA_LIGHTWEIGHT_MODEL_SHA256", "\"${novaLunaLightweightModelSha256.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "long", "NOVA_LUNA_LIGHTWEIGHT_MODEL_BYTES", "${novaLunaLightweightModelBytes}"
+
         buildConfigField "boolean", "NOVA_LUNA_LITE_MODEL_ENABLED", "${novaLunaLiteModelEnabled}"
         buildConfigField "String", "NOVA_LUNA_LITE_MODEL_FILENAME", "\"${novaLunaLiteModelFileName.replace("\\", "\\\\").replace("\"", "\\\"")}\""
         buildConfigField "String", "NOVA_LUNA_LITE_MODEL_RELATIVE_PATH", "\"${novaLunaLiteModelRelativePath.replace("\\", "\\\\").replace("\"", "\\\"")}\""

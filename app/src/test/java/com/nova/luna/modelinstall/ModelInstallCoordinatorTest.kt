@@ -79,6 +79,50 @@ class ModelInstallCoordinatorTest {
     }
 
     @Test
+    fun coreFullAndLitePacksCanAllStayReadyAtTheSameTime() {
+        val corePayload = "core simultaneous payload".toByteArray()
+        val multilingualPayload = "multilingual simultaneous payload".toByteArray()
+        val litePayload = "lite simultaneous payload".toByteArray()
+        val corePack = singleFilePack(
+            ModelPackId.CORE,
+            "gemma-3n-E2B-it-int4.litertlm",
+            "core",
+            corePayload
+        )
+        val multilingualPack = singleFilePack(
+            ModelPackId.FULL,
+            "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+            "full",
+            multilingualPayload
+        )
+        val litePack = singleFilePack(
+            ModelPackId.LITE,
+            "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+            "lite",
+            litePayload
+        )
+        responses = mapOf(
+            "/core/gemma-3n-E2B-it-int4.litertlm" to FakeResponse(200, corePayload),
+            "/full/qwen2.5-1.5b-instruct-q4_k_m.gguf" to FakeResponse(200, multilingualPayload),
+            "/lite/qwen2.5-0.5b-instruct-q4_k_m.gguf" to FakeResponse(200, litePayload)
+        )
+
+        withEnvironment(listOf(corePack, multilingualPack, litePack)) { env ->
+            assertEquals(ModelRuntimeStatus.READY, env.coordinator.startInstall(ModelPackId.CORE).runtimeStatus)
+            assertEquals(ModelRuntimeStatus.READY, env.coordinator.startInstall(ModelPackId.FULL).runtimeStatus)
+            assertEquals(ModelRuntimeStatus.READY, env.coordinator.startInstall(ModelPackId.LITE).runtimeStatus)
+
+            assertEquals(
+                listOf(ModelPackId.LITE, ModelPackId.CORE, ModelPackId.FULL),
+                env.registry.readyPacks()
+            )
+            assertTrue(env.coordinator.detectReadyModel(ModelPackId.CORE))
+            assertTrue(env.coordinator.detectReadyModel(ModelPackId.FULL))
+            assertTrue(env.coordinator.detectReadyModel(ModelPackId.LITE))
+        }
+    }
+
+    @Test
     fun failedDownloadStoresFailedStateAndDoesNotMarkModelReady() {
         val payload = "ignored".toByteArray()
         val pack = singleFilePack(ModelPackId.CORE, "gemma-3n-q4.gguf", "core", payload)

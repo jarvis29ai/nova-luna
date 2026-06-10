@@ -1,3 +1,17 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        // AGP's SDK parser still relies on legacy javax.xml.bind runtime classes on JDK 17.
+        classpath 'jakarta.xml.bind:jakarta.xml.bind-api:2.3.2'
+        classpath 'org.glassfish.jaxb:jaxb-runtime:2.3.2'
+        classpath 'com.sun.activation:javax.activation:1.2.0'
+    }
+}
+
 plugins {
     id 'com.android.application' version '8.5.2' apply false
     id 'com.android.library' version '8.5.2' apply false

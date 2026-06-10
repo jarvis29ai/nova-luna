@@ -25,7 +25,7 @@ class ModelInstallBrainRouterBridge(
             return false
         }
 
-        return runCatching { runtimeReadinessChecker.inspect(packId).ready }
+        return runCatching { runtimeReadinessChecker.installReady(packId) }
             .getOrDefault(false)
     }
 

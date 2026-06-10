@@ -52,9 +52,9 @@ class LocalBrainModelClient(
         if (!roleReadinessProvider.isReady(role)) {
             return BrainModelResult.unavailable(
                 role = role,
-                reason = "${entry.displayName} is not runtime-ready.",
+                reason = "AI brain is not installed yet for ${entry.displayName}.",
                 safetyNotes = routeDecision.safetyNotes + listOf(
-                    "Downloaded model runtime is unavailable or not verified."
+                    "Download or import the ${entry.displayName} model into private app storage before using it."
                 ),
                 localModelId = localModelId(),
                 localModelDisplayName = entry.displayName,
@@ -73,7 +73,7 @@ class LocalBrainModelClient(
                 ),
                 localModelId = localModelId(),
                 localModelDisplayName = entry.displayName,
-                localModelStatus = PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE,
+                localModelStatus = PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE,
                 promptBuilt = false,
                 jsonParsed = false
             )
@@ -92,7 +92,7 @@ class LocalBrainModelClient(
                 ),
                 localModelId = localModelId(),
                 localModelDisplayName = entry.displayName,
-                localModelStatus = PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE,
+                localModelStatus = PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE,
                 promptBuilt = true,
                 jsonParsed = false
             )

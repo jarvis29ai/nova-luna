@@ -407,7 +407,12 @@ class ModelInstallCoordinator(
         val registryConfirmed = registryManifest?.let { manifest ->
             manifest.packId == pack.id &&
                 manifest.state == ModelInstallState.READY &&
-                manifest.files.map { it.forPackStorage(pack.id) } == expectedFiles
+                manifest.files.size == expectedFiles.size &&
+                manifest.files.zip(expectedFiles).all { (actual, expected) ->
+                    actual.fileName == expected.fileName &&
+                        actual.relativePath == expected.relativePath &&
+                        actual.sha256 == expected.sha256
+                }
         } ?: false
 
         val hasArtifacts = currentRuntimeState != null ||

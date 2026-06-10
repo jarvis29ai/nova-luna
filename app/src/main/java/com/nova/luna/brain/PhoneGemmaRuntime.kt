@@ -66,7 +66,7 @@ class PhoneGemmaRuntime(
                 return if (backend.isRuntimeAvailable()) {
                     PhoneLocalLlmStatus.READY
                 } else {
-                    PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE
+                    PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE
                 }
             }
 
@@ -79,7 +79,7 @@ class PhoneGemmaRuntime(
             override fun generate(prompt: String, timeoutMs: Long): PhoneLocalLlmGenerationResult {
                 if (!backend.isRuntimeAvailable()) {
                     return PhoneLocalLlmGenerationResult.unavailable(
-                        status = PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE,
+                        status = PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE,
                         reason = "No phone Gemma inference backend is wired yet.",
                         modelId = PhoneLocalLlmModelId.GEMMA_3N,
                         modelDisplayName = PhoneLocalLlmModelId.GEMMA_3N.displayName
@@ -107,7 +107,7 @@ class PhoneGemmaRuntime(
                     }
                 }.getOrElse {
                     PhoneLocalLlmGenerationResult.unavailable(
-                        status = PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE,
+                        status = PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE,
                         reason = "Gemma backend failed: ${it.message.orEmpty()}",
                         modelId = PhoneLocalLlmModelId.GEMMA_3N,
                         modelDisplayName = PhoneLocalLlmModelId.GEMMA_3N.displayName

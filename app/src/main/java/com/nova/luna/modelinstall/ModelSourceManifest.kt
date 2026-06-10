@@ -1,6 +1,6 @@
 package com.nova.luna.modelinstall
 
-import com.nova.luna.BuildConfig
+import com.nova.luna.model.BrainModelCatalog
 import com.nova.luna.model.BrainModelRole
 
 data class ModelSourceEntry(
@@ -46,6 +46,23 @@ data class ModelSourceEntry(
     }
 }
 
+enum class ModelSourceConfigurationState {
+    READY,
+    SOURCE_NOT_CONFIGURED,
+    HASH_NOT_CONFIGURED,
+    SIZE_NOT_CONFIGURED
+}
+
+data class ModelSourceConfigurationStatus(
+    val state: ModelSourceConfigurationState,
+    val message: String,
+    val sourceConfigured: Boolean,
+    val hashConfigured: Boolean,
+    val sizeConfigured: Boolean,
+    val ready: Boolean,
+    val problems: List<String> = emptyList()
+)
+
 data class ModelSourceManifest(
     val entries: List<ModelSourceEntry> = emptyList()
 ) {
@@ -70,72 +87,62 @@ data class ModelSourceManifest(
         return configuredEntriesFor(packId).isNotEmpty()
     }
 
+    fun configurationStatus(packId: ModelPackId): ModelSourceConfigurationStatus {
+        val packEntries = entriesFor(packId)
+        if (packEntries.isEmpty()) {
+            return ModelSourceConfigurationStatus(
+                state = ModelSourceConfigurationState.SOURCE_NOT_CONFIGURED,
+                message = "SOURCE_NOT_CONFIGURED",
+                sourceConfigured = false,
+                hashConfigured = false,
+                sizeConfigured = false,
+                ready = false,
+                problems = listOf("source")
+            )
+        }
+
+        val sourceConfigured = packEntries.all { !it.downloadUrl.isNullOrBlank() && it.enabled }
+        val hashConfigured = packEntries.all { !it.expectedSha256.isNullOrBlank() }
+        val sizeConfigured = packEntries.all { it.expectedByteCount != null && it.expectedByteCount > 0L }
+
+        val state = when {
+            !sourceConfigured -> ModelSourceConfigurationState.SOURCE_NOT_CONFIGURED
+            !hashConfigured -> ModelSourceConfigurationState.HASH_NOT_CONFIGURED
+            !sizeConfigured -> ModelSourceConfigurationState.SIZE_NOT_CONFIGURED
+            else -> ModelSourceConfigurationState.READY
+        }
+
+        val problems = buildList {
+            if (!sourceConfigured) add("source")
+            if (!hashConfigured) add("hash")
+            if (!sizeConfigured) add("size")
+        }
+
+        return ModelSourceConfigurationStatus(
+            state = state,
+            message = when (state) {
+                ModelSourceConfigurationState.READY -> "READY"
+                ModelSourceConfigurationState.SOURCE_NOT_CONFIGURED -> "SOURCE_NOT_CONFIGURED"
+                ModelSourceConfigurationState.HASH_NOT_CONFIGURED -> "HASH_NOT_CONFIGURED"
+                ModelSourceConfigurationState.SIZE_NOT_CONFIGURED -> "SIZE_NOT_CONFIGURED"
+            },
+            sourceConfigured = sourceConfigured,
+            hashConfigured = hashConfigured,
+            sizeConfigured = sizeConfigured,
+            ready = state == ModelSourceConfigurationState.READY,
+            problems = problems
+        )
+    }
+
     companion object {
         fun empty(): ModelSourceManifest {
             return ModelSourceManifest(emptyList())
         }
 
         fun fromBuildConfig(): ModelSourceManifest {
-            val corePack = ModelPackCatalog.requirePack(ModelPackId.CORE)
-            val fullPack = ModelPackCatalog.requirePack(ModelPackId.FULL)
-            val litePack = ModelPackCatalog.requirePack(ModelPackId.LITE)
-
             return ModelSourceManifest(
-                entries = buildList {
-                    addAll(disabledEntriesForPack(
-                        role = BrainModelRole.CORE_BRAIN,
-                        pack = corePack
-                    ))
-                    addAll(disabledEntriesForPack(
-                        role = BrainModelRole.MULTILINGUAL_BACKUP,
-                        pack = fullPack
-                    ))
-                    add(buildLiteEntry(litePack))
-                }
+                entries = BrainModelCatalog.entries.map { it.toSourceEntry() }
             )
-        }
-
-        private fun disabledEntriesForPack(
-            role: BrainModelRole,
-            pack: ModelPackSpec
-        ): List<ModelSourceEntry> {
-            return pack.files.map { file ->
-                ModelSourceEntry(
-                    role = role,
-                    displayName = pack.displayName,
-                    fileName = file.fileName,
-                    relativePath = file.relativePath,
-                    downloadUrl = null,
-                    expectedSha256 = null,
-                    expectedByteCount = null,
-                    enabled = false,
-                    minimumRamMb = pack.requirement.minRamMb,
-                    minimumFreeStorageMb = pack.requirement.minFreeStorageMb
-                ).normalized()
-            }
-        }
-
-        private fun buildLiteEntry(pack: ModelPackSpec): ModelSourceEntry {
-            val defaultFile = pack.files.firstOrNull()
-            val fileName = BuildConfig.NOVA_LUNA_LITE_MODEL_FILENAME
-                .trim()
-                .ifBlank { defaultFile?.fileName.orEmpty() }
-            val relativePath = BuildConfig.NOVA_LUNA_LITE_MODEL_RELATIVE_PATH
-                .trim()
-                .ifBlank { defaultFile?.relativePath.orEmpty() }
-
-            return ModelSourceEntry(
-                role = BrainModelRole.LITE_FALLBACK,
-                displayName = pack.displayName,
-                fileName = fileName,
-                relativePath = relativePath,
-                downloadUrl = BuildConfig.NOVA_LUNA_MODEL_BASE_URL,
-                expectedSha256 = BuildConfig.NOVA_LUNA_LITE_MODEL_SHA256,
-                expectedByteCount = BuildConfig.NOVA_LUNA_LITE_MODEL_BYTES.takeIf { it > 0L },
-                enabled = BuildConfig.NOVA_LUNA_LITE_MODEL_ENABLED,
-                minimumRamMb = pack.requirement.minRamMb,
-                minimumFreeStorageMb = pack.requirement.minFreeStorageMb
-            ).normalized()
         }
     }
 }

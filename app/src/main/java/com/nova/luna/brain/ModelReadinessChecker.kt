@@ -83,7 +83,7 @@ class ModelReadinessChecker(
             )
 
             !engineAvailable -> PhoneLocalLlmReadiness(
-                status = PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE,
+                status = PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE,
                 selectedModel = selectedModel,
                 runtimeAvailable = false,
                 assetMissing = false,

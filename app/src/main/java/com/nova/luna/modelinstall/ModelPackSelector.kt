@@ -4,17 +4,24 @@ class ModelPackSelector(
     private val catalog: List<ModelPackSpec> = ModelPackCatalog.defaultPacks()
 ) {
     fun select(snapshot: DeviceCapabilitySnapshot): ModelPackSelection {
-        val packsByPriority = catalog.sortedByDescending { it.id.priority }
-        var selected = packsByPriority.firstOrNull { it.requirement.matches(snapshot) }
-            ?: packsByPriority.lastOrNull()
+        val packsById = catalog.associateBy { it.id }
+        val corePack = packsById[ModelPackId.CORE]
+        val multilingualPack = packsById[ModelPackId.FULL]
+        val litePack = packsById[ModelPackId.LITE]
+        val availablePacks = listOf(multilingualPack, corePack, litePack).filterNotNull()
+        val fallbackPack = availablePacks.firstOrNull()
             ?: error("No model packs are available.")
+
+        val selected = when {
+            !snapshot.isArm64 -> litePack ?: fallbackPack
+            else -> availablePacks.firstOrNull { it.requirement.matches(snapshot) }
+                ?: litePack
+                ?: fallbackPack
+        }
 
         val warnings = mutableListOf<String>()
         if (!snapshot.isArm64) {
-            warnings += "CPU ABI ${snapshot.cpuAbi} is not arm64; using the Lite pack fallback."
-            if (selected.id != ModelPackId.LITE) {
-                selected = packsByPriority.first { it.id == ModelPackId.LITE }
-            }
+            warnings += "CPU ABI ${snapshot.cpuAbi} is not arm64; using the lightweight fallback."
         }
 
         warnings += selected.requirement.warnings(snapshot)
@@ -23,9 +30,9 @@ class ModelPackSelector(
         }
 
         val reason = when (selected.id) {
-            ModelPackId.LITE -> "Lite fits the current RAM and storage budget."
-            ModelPackId.CORE -> "Core balances memory use with stronger local reasoning."
-            ModelPackId.FULL -> "Full fits the device and keeps multilingual support ready."
+            ModelPackId.LITE -> "Lite / lightweight fallback fits the current RAM and storage budget."
+            ModelPackId.CORE -> "Core Brain balances memory use with stronger local reasoning."
+            ModelPackId.FULL -> "Full / Multilingual Backup is available as a secondary language role."
         }
 
         return ModelPackSelection(

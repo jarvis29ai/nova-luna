@@ -31,7 +31,7 @@ class SafeDiagnosticsReporter(
             appendLine("--- Memory Status ---")
             appendLine("Items Count: ${memoryStore.list().size}")
             appendLine()
-            appendLine("--- AI Brain Downloads ---")
+            appendLine("--- Nova/Luna AI Brain Downloads ---")
             val brainSection = runCatching { brainDownloadReportProvider?.invoke()?.trim() }
                 .getOrNull()
             appendLine(brainSection?.takeIf { it.isNotBlank() } ?: "Unavailable")

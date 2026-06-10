@@ -59,7 +59,7 @@ class UnavailablePhoneLocalLlmEngine : PhoneLocalLlmEngine {
 
     override fun available(): Boolean = false
 
-    override fun readinessStatus(): PhoneLocalLlmStatus = PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE
+    override fun readinessStatus(): PhoneLocalLlmStatus = PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE
 
     override fun modelId(): PhoneLocalLlmModelId? = null
 
@@ -69,12 +69,12 @@ class UnavailablePhoneLocalLlmEngine : PhoneLocalLlmEngine {
 
     override fun generate(prompt: String, timeoutMs: Long): PhoneLocalLlmGenerationResult {
         return PhoneLocalLlmGenerationResult.unavailable(
-            status = PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE,
+            status = PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE,
             reason = "No phone-local inference engine is wired yet."
         )
     }
 
     override fun cancel(): Boolean = false
 
-    override fun diagnostics(): String = "engine=$engineName, status=${PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE.wireValue}"
+    override fun diagnostics(): String = "engine=$engineName, status=${PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE.wireValue}"
 }

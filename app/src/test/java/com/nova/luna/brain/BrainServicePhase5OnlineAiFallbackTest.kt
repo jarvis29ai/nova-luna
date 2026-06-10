@@ -2,6 +2,7 @@ package com.nova.luna.brain
 
 import com.nova.luna.model.BrainModelRole
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -22,10 +23,11 @@ class BrainServicePhase5OnlineAiFallbackTest {
 
         val diagnostics = service.diagnose("latest phone under 30000")
 
-        assertEquals(BrainModelRole.ONLINE_AI_HELPER, diagnostics.selectedRole)
-        assertTrue(diagnostics.fallbackUsed)
+        assertEquals(BrainModelRole.MOCK_FALLBACK, diagnostics.selectedRole)
+        assertFalse(diagnostics.fallbackUsed)
         assertNotNull(diagnostics.runtimeStatus)
         assertTrue(diagnostics.runtimeStatus?.onlineTrace?.failed == true)
+        assertEquals(BrainModelRole.MOCK_FALLBACK, diagnostics.runtimeStatus?.selectedBrainRole)
         assertEquals("local_model_unavailable", diagnostics.finalBrainAction.intent)
         assertTrue(diagnostics.finalSafetyDecision.allowed)
     }

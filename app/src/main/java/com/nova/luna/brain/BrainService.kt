@@ -150,6 +150,15 @@ class BrainService(
 
         val routeDecision = brainRouter.route(request)
         val routedRequest = request.withScreenStateIfNeeded(routeDecision)
+        if (routeDecision.selectedRole == BrainModelRole.MOCK_FALLBACK &&
+            routeDecision.reason.contains("AI brain is not installed yet", ignoreCase = true)
+        ) {
+            return rememberBrainAction(
+                request,
+                routeDecision,
+                brainSetupRequiredAction(rawText, routeDecision.reason)
+            )
+        }
         val primaryAttempt = evaluateRouteDecision(routeDecision, routedRequest)
         val primaryAccepted = isAccepted(primaryAttempt.parsedAction)
         recordLocalModelOutcome(routeDecision.selectedRole, primaryAccepted, primaryAttempt.reason)
@@ -159,6 +168,15 @@ class BrainService(
 
         if (routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER) {
             val fallbackRouteDecision = brainRouter.route(request, allowOnlineHelper = false)
+            if (fallbackRouteDecision.selectedRole == BrainModelRole.MOCK_FALLBACK &&
+                fallbackRouteDecision.reason.contains("AI brain is not installed yet", ignoreCase = true)
+            ) {
+                return rememberBrainAction(
+                    request,
+                    fallbackRouteDecision,
+                    brainSetupRequiredAction(rawText, fallbackRouteDecision.reason)
+                )
+            }
             val fallbackRoutedRequest = request.withScreenStateIfNeeded(fallbackRouteDecision)
             val fallbackRouteAttempt = evaluateRouteDecision(fallbackRouteDecision, fallbackRoutedRequest)
             val fallbackAccepted = isAccepted(fallbackRouteAttempt.parsedAction)
@@ -437,6 +455,57 @@ class BrainService(
 
         val routeDecision = brainRouter.route(request)
         val routedRequest = request.withScreenStateIfNeeded(routeDecision)
+        if (routeDecision.selectedRole == BrainModelRole.MOCK_FALLBACK &&
+            routeDecision.reason.contains("AI brain is not installed yet", ignoreCase = true)
+        ) {
+            val action = brainSetupRequiredAction(rawText, routeDecision.reason)
+            val onlineTrace = skippedOnlineTrace(routeDecision, request, policyDecision)
+            return BrainDiagnostics(
+                userInput = rawText,
+                activeCabSession = activeCabSession,
+                selectedProvider = runtimeState.selectedProvider,
+                selectedRole = routeDecision.selectedRole,
+                routeDecision = routeDecision,
+                rawModelResponse = null,
+                extractedBrainActionJson = null,
+                parsedBrainAction = null,
+                modelAvailable = null,
+                validatorResult = true,
+                fallbackUsed = false,
+                finalProvider = runtimeState.selectedProvider,
+                finalBrainAction = action,
+                finalSafetyDecision = safetyGate.evaluate(
+                    action,
+                    pendingConfirmation = request.pendingConfirmation,
+                    userConfirmed = request.onlineConsentGiven
+                ),
+                runtimeStatus = runtimeState.copy(
+                    selectedBrainRole = routeDecision.selectedRole,
+                    fallbackActive = false,
+                    reason = runtimeReason(
+                        policyDecision = policyDecision,
+                        fallbackUsed = false,
+                        routeDecision = routeDecision,
+                        finalProvider = runtimeState.selectedProvider
+                    ),
+                    onlineTrace = onlineTrace,
+                    activeSessionType = effectiveActiveSessionType,
+                    pendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+                    memoryLoaded = true,
+                    memorySessionCount = memorySnapshot.activeSessionCount
+                ),
+                internetPermissionDecision = policyDecision,
+                onlineTrace = onlineTrace,
+                activeSessionType = effectiveActiveSessionType,
+                pendingConfirmationId = effectivePendingConfirmation?.confirmationId,
+                pendingConfirmationType = effectivePendingConfirmation?.type,
+                recoveryState = request.recoveryState,
+                memorySessionCount = memorySnapshot.activeSessionCount,
+                memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+                preferences = memorySnapshot.preferences,
+                agentLoopCandidate = taskPlan.loopCapable
+            )
+        }
         val primaryAttempt = evaluateRouteDecision(routeDecision, routedRequest)
         val primaryAccepted = isAccepted(primaryAttempt.parsedAction)
 
@@ -444,6 +513,62 @@ class BrainService(
             brainRouter.route(request, allowOnlineHelper = false)
         } else {
             null
+        }
+        if (localFallbackDecision?.selectedRole == BrainModelRole.MOCK_FALLBACK &&
+            localFallbackDecision.reason.contains("AI brain is not installed yet", ignoreCase = true)
+        ) {
+            val action = brainSetupRequiredAction(rawText, localFallbackDecision.reason)
+            val onlineTrace = primaryAttempt.onlineTrace
+                ?: skippedOnlineTrace(
+                    routeDecision = localFallbackDecision,
+                    request = request,
+                    policyDecision = policyDecision
+                )
+            return BrainDiagnostics(
+                userInput = rawText,
+                activeCabSession = activeCabSession,
+                selectedProvider = primaryAttempt.providerName,
+                selectedRole = localFallbackDecision.selectedRole,
+                routeDecision = localFallbackDecision,
+                rawModelResponse = null,
+                extractedBrainActionJson = null,
+                parsedBrainAction = null,
+                modelAvailable = null,
+                validatorResult = true,
+                fallbackUsed = false,
+                finalProvider = runtimeState.selectedProvider,
+                finalBrainAction = action,
+                finalSafetyDecision = safetyGate.evaluate(
+                    action,
+                    pendingConfirmation = request.pendingConfirmation,
+                    userConfirmed = request.onlineConsentGiven
+                ),
+                runtimeStatus = runtimeState.copy(
+                    selectedBrainRole = localFallbackDecision.selectedRole,
+                    fallbackActive = false,
+                    reason = runtimeReason(
+                        policyDecision = policyDecision,
+                        fallbackUsed = false,
+                        routeDecision = localFallbackDecision,
+                        finalProvider = runtimeState.selectedProvider
+                    ),
+                    onlineTrace = onlineTrace,
+                    activeSessionType = effectiveActiveSessionType,
+                    pendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+                    memoryLoaded = true,
+                    memorySessionCount = memorySnapshot.activeSessionCount
+                ),
+                internetPermissionDecision = policyDecision,
+                onlineTrace = onlineTrace,
+                activeSessionType = effectiveActiveSessionType,
+                pendingConfirmationId = effectivePendingConfirmation?.confirmationId,
+                pendingConfirmationType = effectivePendingConfirmation?.type,
+                recoveryState = request.recoveryState,
+                memorySessionCount = memorySnapshot.activeSessionCount,
+                memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
+                preferences = memorySnapshot.preferences,
+                agentLoopCandidate = taskPlan.loopCapable
+            )
         }
         val localFallbackAttempt = localFallbackDecision?.let { fallbackDecision ->
             val fallbackRequest = request.withScreenStateIfNeeded(fallbackDecision)
@@ -1026,10 +1151,19 @@ class BrainService(
         routeDecision: BrainRouteDecision,
         reason: String
     ): BrainAction {
-        val readiness = gemmaRuntime.localReadinessStatus()
+        val roleDisplayName = brainRoleDisplayName(routeDecision.selectedRole)
+        val runtimeUnavailable = reason.contains("runtime", ignoreCase = true) ||
+            reason.contains("backend", ignoreCase = true) ||
+            reason.contains("engine", ignoreCase = true) ||
+            reason.contains("wired", ignoreCase = true)
+        val localModelStatus = if (runtimeUnavailable) {
+            PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE
+        } else {
+            PhoneLocalLlmStatus.UNAVAILABLE
+        }
         return BrainAction(
             intent = "local_model_unavailable",
-            reply = "Local AI model is not ready yet, but I can still handle basic commands.",
+            reply = "$roleDisplayName is not ready yet, but I can still handle basic commands.",
             actionType = BrainActionType.NONE,
             riskLevel = BrainRiskLevel.SAFE,
             requiresConfirmation = false,
@@ -1037,17 +1171,50 @@ class BrainService(
             params = buildMap {
                 put("rawText", rawText)
                 put("routeRole", routeDecision.selectedRole.wireValue)
+                put("routeRoleDisplayName", roleDisplayName)
                 put("routeReason", routeDecision.reason)
-                put("localModelStatus", readiness.status.wireValue)
-                put("localModelAvailable", readiness.available.toString())
-                put("runtimeAvailable", readiness.runtimeAvailable.toString())
-                put("assetMissing", readiness.assetMissing.toString())
-                readiness.selectedModelId?.wireValue?.let { put("localModelId", it) }
-                readiness.selectedModelDisplayName?.takeIf { it.isNotBlank() }?.let { put("localModelDisplayName", it) }
+                put("localModelStatus", localModelStatus.wireValue)
+                put("localModelAvailable", "false")
+                put("runtimeAvailable", runtimeUnavailable.toString())
+                put("assetMissing", "false")
                 put("reason", reason)
             },
             nextQuestion = "Try a simple command like open app, home, or stop listening."
         )
+    }
+
+    private fun brainSetupRequiredAction(
+        rawText: String,
+        reason: String
+    ): BrainAction {
+        return BrainAction(
+            intent = "local_model_unavailable",
+            reply = "AI brain is not installed yet. Open model setup to download Nova/Luna AI Brain.",
+            actionType = BrainActionType.NONE,
+            riskLevel = BrainRiskLevel.SAFE,
+            requiresConfirmation = false,
+            finalActionAllowed = false,
+            params = mapOf(
+                "rawText" to rawText,
+                "reason" to reason,
+                "routeRole" to BrainModelRole.MOCK_FALLBACK.wireValue
+            ),
+            nextQuestion = "Open model setup to download or import a model pack."
+        )
+    }
+
+    private fun brainRoleDisplayName(role: BrainModelRole): String {
+        return when (role) {
+            BrainModelRole.CORE_BRAIN -> "Core Brain"
+            BrainModelRole.MULTILINGUAL_BACKUP -> "Multilingual Backup"
+            BrainModelRole.LITE_FALLBACK -> "Lightweight Fallback"
+            BrainModelRole.GEMMA_REASONING -> "Gemma reasoning model"
+            BrainModelRole.ACTION_JSON -> "Action JSON"
+            BrainModelRole.LITE_COMMAND -> "Lite Command"
+            BrainModelRole.SCREEN_UNDERSTANDING -> "Screen Understanding"
+            BrainModelRole.ONLINE_AI_HELPER -> "Online AI Helper"
+            BrainModelRole.MOCK_FALLBACK -> "AI brain"
+        }
     }
 
     private fun blockedHumanOnlyAction(rawText: String, reason: String): BrainAction {

@@ -93,7 +93,7 @@ class PhoneLocalLlmRuntime(
             engine.generateJson(prompt, readiness.timeoutMs)
         }.getOrElse {
             return PhoneLocalLlmGenerationResult.unavailable(
-                status = PhoneLocalLlmStatus.RUNTIME_UNAVAILABLE,
+                status = PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE,
                 reason = "Local LLM engine failed: ${it.message.orEmpty()}",
                 modelId = selectedModel.id,
                 modelDisplayName = selectedModel.id.displayName

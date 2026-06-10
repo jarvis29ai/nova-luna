@@ -52,6 +52,14 @@ class LocalRuntimeReadinessChecker(
         return inspect(packId, null)
     }
 
+    fun installStatus(packId: ModelPackId): ModelInstallStatusSnapshot {
+        return coordinator.getInstallStatus(packId)
+    }
+
+    fun installReady(packId: ModelPackId): Boolean {
+        return installStatus(packId).ready
+    }
+
     fun load(packId: ModelPackId): LocalModelLoadResult {
         return loader.load(packId)
     }

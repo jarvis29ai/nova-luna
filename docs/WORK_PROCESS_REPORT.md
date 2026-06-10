@@ -5,6 +5,7 @@
 - Current app readiness: green for the audited scope on 2026-06-07, including the Phase 7 safe agent loop, the Phase 6 universal memory/session brain layer, and the Phase 5 optional online AI helper layer
 - `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, and `:app:assembleDebug` all passed in this audit pass
 - `docs/NOVA_LUNA_FULL_PROJECT_MODEL_FLOW_AUDIT_REPORT.md` records the current full-model verification
+- The model-pack workflow keeps binaries out of APK resources, stores packs in app-private `model_install` storage, and exposes a debug-only import receiver for local file imports
 
 ## Current Setup
 

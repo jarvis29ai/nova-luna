@@ -242,7 +242,7 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
         val report = brainDownloadPresenter.buildReport(snapshot)
         val brainStatusLine = brainDownloadPresenter.buildStatusLine(snapshot)
         val brainActionHint = if (report.recommendedSourceConfigured && report.recommendedRow?.status?.state != com.nova.luna.modelinstall.ModelUserFacingState.READY) {
-            "Open Diagnostics after setup to download the recommended AI brain."
+            "Open Diagnostics to Download Nova/Luna AI Brain."
         } else {
             "Open Diagnostics after setup to review the AI brain status."
         }
@@ -280,7 +280,7 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
             .setMessage(report as CharSequence)
 
         if (canDownloadBrain) {
-            dialog.setPositiveButton("Download AI Brain") { _, _ ->
+            dialog.setPositiveButton("Download Nova/Luna AI Brain") { _, _ ->
                 handleBrainDownloadAction()
             }
             .setNeutralButton("Copy") { _, _ ->
@@ -509,7 +509,7 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
         }
 
         lifecycleScope.launch {
-            showToast("Starting AI brain download.")
+            showToast("Starting Nova/Luna AI Brain download.")
             val result = withContext(Dispatchers.IO) {
                 brainDownloadPresenter.startRecommendedDownload(
                     snapshot = snapshot,
@@ -519,14 +519,14 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
 
             val message = when {
                 result?.runtimeStatus == com.nova.luna.modelinstall.ModelRuntimeStatus.READY ->
-                    "AI brain download complete."
+                    "Nova/Luna AI Brain download complete."
                 result?.runtimeStatus == com.nova.luna.modelinstall.ModelRuntimeStatus.CORRUPT ->
-                    "AI brain download failed verification."
+                    "Nova/Luna AI Brain download failed verification."
                 result?.runtimeStatus == com.nova.luna.modelinstall.ModelRuntimeStatus.FAILED ->
-                    "AI brain download failed."
+                    "Nova/Luna AI Brain download failed."
                 result?.runtimeStatus == com.nova.luna.modelinstall.ModelRuntimeStatus.CANCELLED ->
-                    "AI brain download cancelled."
-                else -> "AI brain download finished."
+                    "Nova/Luna AI Brain download cancelled."
+                else -> "Nova/Luna AI Brain download finished."
             }
             showToast(message)
         }

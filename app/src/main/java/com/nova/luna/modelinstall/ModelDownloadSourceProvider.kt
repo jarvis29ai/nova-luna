@@ -1,7 +1,15 @@
 package com.nova.luna.modelinstall
 
+import com.nova.luna.model.BrainModelCatalog
+
 internal const val MODEL_SOURCE_NOT_CONFIGURED_MESSAGE =
     "Model source not configured. Add a signed model pack source before download."
+
+internal const val MODEL_HASH_NOT_CONFIGURED_MESSAGE =
+    "Model hash not configured. Add a SHA-256 before download."
+
+internal const val MODEL_SIZE_NOT_CONFIGURED_MESSAGE =
+    "Model size not configured. Add an expected byte size before download."
 
 class ModelDownloadSourceProvider(
     private val catalog: List<ModelPackSpec> = ModelPackCatalog.defaultPacks(),
@@ -67,14 +75,18 @@ class ModelDownloadSourceProvider(
     }
 
     fun isConfigured(packId: ModelPackId): Boolean {
-        return sourcesFor(packId).isNotEmpty()
+        return configurationStatus(packId).ready
     }
 
     fun configurationMessage(packId: ModelPackId): String {
-        return if (isConfigured(packId)) {
-            "Download available."
-        } else {
-            MODEL_SOURCE_NOT_CONFIGURED_MESSAGE
+        return configurationStatus(packId).message
+    }
+
+    fun configurationStatus(packId: ModelPackId): ModelSourceConfigurationStatus {
+        val rawStatus = sourceManifest.configurationStatus(packId)
+        return when (rawStatus.state) {
+            ModelSourceConfigurationState.READY -> rawStatus.copy(message = "Download available.")
+            else -> rawStatus.copy(message = rawStatus.state.name)
         }
     }
 

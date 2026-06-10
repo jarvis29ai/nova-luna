@@ -48,10 +48,11 @@ class BrainRouterPhase5Test {
     }
 
     @Test
-    fun `normal question routes to gemma reasoning`() {
+    fun `normal question asks for model setup when no local role is ready`() {
         val decision = router.route(BrainRequest("why is the sky blue?"))
 
-        assertEquals(BrainModelRole.GEMMA_REASONING, decision.selectedRole)
+        assertEquals(BrainModelRole.MOCK_FALLBACK, decision.selectedRole)
+        assertTrue(decision.reason.contains("AI brain is not installed yet", ignoreCase = true))
     }
 
     @Test

@@ -30,10 +30,6 @@ class MultiModelRoleSelector(
 
         val normalized = normalize(stripped)
         val signal = complexityClassifier.classify(normalized)
-        if (signal.simpleCommand) {
-            return null
-        }
-
         val candidateRoles = candidateRoles(request, normalized, signal)
         if (candidateRoles.isEmpty()) {
             return null
@@ -98,6 +94,11 @@ class MultiModelRoleSelector(
                 BrainModelRole.MULTILINGUAL_BACKUP,
                 BrainModelRole.CORE_BRAIN,
                 BrainModelRole.LITE_FALLBACK
+            )
+
+            signal.simpleCommand -> listOf(
+                BrainModelRole.LITE_FALLBACK,
+                BrainModelRole.CORE_BRAIN
             )
 
             signal.liteFallbackCandidate -> listOf(
