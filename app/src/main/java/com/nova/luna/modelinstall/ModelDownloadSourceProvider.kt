@@ -1,5 +1,8 @@
 package com.nova.luna.modelinstall
 
+internal const val MODEL_SOURCE_NOT_CONFIGURED_MESSAGE =
+    "Model source not configured. Add a signed model pack source before download."
+
 class ModelDownloadSourceProvider(
     private val catalog: List<ModelPackSpec> = ModelPackCatalog.defaultPacks(),
     private val baseDownloadUrl: String? = null
@@ -49,13 +52,13 @@ class ModelDownloadSourceProvider(
     fun configurationMessage(packId: ModelPackId): String {
         val sources = sourcesFor(packId)
         if (sources.isEmpty()) {
-            return "Model source not configured."
+            return MODEL_SOURCE_NOT_CONFIGURED_MESSAGE
         }
 
         val hasMissingUrl = sources.any { it.downloadUrl.isNullOrBlank() }
         val hasMissingSha = sources.any { it.expectedSha256.isNullOrBlank() }
         return when {
-            hasMissingUrl || hasMissingSha -> "Model source not configured."
+            hasMissingUrl || hasMissingSha -> MODEL_SOURCE_NOT_CONFIGURED_MESSAGE
             else -> "Model source configured."
         }
     }

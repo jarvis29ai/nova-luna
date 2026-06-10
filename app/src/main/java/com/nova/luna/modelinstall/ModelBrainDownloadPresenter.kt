@@ -54,7 +54,7 @@ data class ModelBrainDownloadReport(
             recommendedRow == null -> "Model pack unavailable."
             recommendedRow?.status?.state == ModelUserFacingState.READY -> "Already ready."
             recommendedSourceConfigured -> "Download available."
-            else -> "Model source not configured."
+            else -> MODEL_SOURCE_NOT_CONFIGURED_MESSAGE
         }
 
     fun toText(): String {

@@ -16,7 +16,7 @@ class ModelBrainDownloadPresenterTest {
             val report = presenter.buildReport(sampleSnapshot())
 
             assertFalse(report.canDownloadRecommended)
-            assertEquals("Model source not configured.", report.recommendedActionLabel)
+            assertEquals(MODEL_SOURCE_NOT_CONFIGURED_MESSAGE, report.recommendedActionLabel)
             assertTrue(report.toText().contains("model source not configured", ignoreCase = true))
             assertFalse(report.toText().contains(".gguf", ignoreCase = true))
             assertFalse(report.toText().contains("model_install", ignoreCase = true))

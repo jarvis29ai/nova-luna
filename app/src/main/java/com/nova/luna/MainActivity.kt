@@ -27,6 +27,7 @@ import com.nova.luna.model.VoiceProfile
 import com.nova.luna.modelinstall.DefaultModelManager
 import com.nova.luna.modelinstall.DeviceCapabilitySnapshot
 import com.nova.luna.modelinstall.ModelBrainDownloadPresenter
+import com.nova.luna.modelinstall.MODEL_SOURCE_NOT_CONFIGURED_MESSAGE
 import com.nova.luna.modelinstall.PrivateAppModelStorage
 import com.nova.luna.service.VoiceCommandService
 import com.nova.luna.util.*
@@ -237,7 +238,15 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
 
     private fun showOnboarding() {
         val steps = onboardingController.getSteps()
-        val message = steps.joinToString("\n\n") { "${it.title}: ${it.message}" }
+        val snapshot = buildDeviceCapabilitySnapshot()
+        val report = brainDownloadPresenter.buildReport(snapshot)
+        val brainStatusLine = brainDownloadPresenter.buildStatusLine(snapshot)
+        val brainActionHint = if (report.recommendedSourceConfigured && report.recommendedRow?.status?.state != com.nova.luna.modelinstall.ModelUserFacingState.READY) {
+            "Open Diagnostics after setup to download the recommended AI brain."
+        } else {
+            "Open Diagnostics after setup to review the AI brain status."
+        }
+        val message = buildOnboardingMessage(steps, brainStatusLine, brainActionHint)
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Welcome to Nova/Luna")
             .setMessage(message)
@@ -495,7 +504,7 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
         }
 
         if (!report.recommendedSourceConfigured) {
-            showToast("Model source not configured.")
+            showToast(MODEL_SOURCE_NOT_CONFIGURED_MESSAGE)
             return
         }
 
