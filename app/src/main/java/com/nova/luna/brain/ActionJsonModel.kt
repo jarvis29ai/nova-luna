@@ -71,6 +71,10 @@ class ActionJsonModel(
             candidateAction = candidateAction,
             rawResponse = codec.encode(candidateAction),
             reason = "Structured action JSON candidate produced locally.",
+            realInference = false,
+            nativeGenerationAvailable = false,
+            jsonParseAttempted = false,
+            jsonParseSuccess = false,
             safetyNotes = routeDecision.safetyNotes + buildSafetyNotes(reasoningHint)
         )
     }

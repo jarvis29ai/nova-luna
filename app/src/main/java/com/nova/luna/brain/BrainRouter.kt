@@ -53,17 +53,35 @@ class BrainRouter(
         routeForActiveSession(request, allowOnlineHelper)?.let { return it }
 
         if (normalized == "compare") {
+            readyLocalDecision(
+                request = request,
+                allowOnlineHelper = allowOnlineHelper,
+                reason = "A ready local model can compare options directly.",
+                safetyNotes = listOf(
+                    "Comparison stays local and read-only.",
+                    "No model may execute phone actions directly."
+                )
+            )?.let { return it }
             return decision(
                 role = BrainModelRole.MOCK_FALLBACK,
-                reason = "Bare 'compare' request stays on fallback path.",
-                safetyNotes = listOf("LocalMockBrainProvider handles ambiguous bare commands.")
+                reason = "No ready local model was available, so the ambiguous compare request stays on the guaranteed fallback path.",
+                safetyNotes = listOf("LocalMockBrainProvider handles ambiguous compare requests when no local model is ready.")
             )
         }
 
         if (isMessagePlanning(normalized)) {
+            readyLocalDecision(
+                request = request,
+                allowOnlineHelper = allowOnlineHelper,
+                reason = "A ready local model can handle message planning directly.",
+                safetyNotes = listOf(
+                    "Message planning stays local and structured.",
+                    "Final send, OTP, login, CAPTCHA, and other sensitive steps must remain manual."
+                )
+            )?.let { return it }
             return decision(
                 role = BrainModelRole.ACTION_JSON,
-                reason = "This request is message planning and should stay structured locally.",
+                reason = "No ready local model was available, so this message-planning request stays on structured local action JSON.",
                 requiresInternet = false,
                 safetyNotes = listOf(
                     "ActionJsonModel may only produce safe BrainAction JSON for message drafting flows.",
@@ -73,12 +91,25 @@ class BrainRouter(
         }
 
         if (request.activeGrocerySession || isGroceryPlanning(request.rawText)) {
+            readyLocalDecision(
+                request = request,
+                allowOnlineHelper = allowOnlineHelper,
+                reason = if (request.activeGrocerySession) {
+                    "A ready local model can continue the active grocery session directly."
+                } else {
+                    "A ready local model can handle grocery planning directly."
+                },
+                safetyNotes = listOf(
+                    "Grocery planning stays local and structured.",
+                    "Payment, OTP, login, CAPTCHA, and other sensitive steps must remain manual."
+                )
+            )?.let { return it }
             return decision(
                 role = BrainModelRole.ACTION_JSON,
                 reason = if (request.activeGrocerySession) {
-                    "An active grocery session needs structured action JSON continuity."
+                    "No ready local model was available, so an active grocery session stays on structured local action JSON."
                 } else {
-                    "This request is grocery planning and should stay structured locally."
+                    "No ready local model was available, so this grocery-planning request stays on structured local action JSON."
                 },
                 requiresInternet = false,
                 safetyNotes = listOf(
@@ -89,12 +120,25 @@ class BrainRouter(
         }
 
         if (request.activeFoodSession || isFoodPlanning(request.rawText)) {
+            readyLocalDecision(
+                request = request,
+                allowOnlineHelper = allowOnlineHelper,
+                reason = if (request.activeFoodSession) {
+                    "A ready local model can continue the active food session directly."
+                } else {
+                    "A ready local model can handle food planning directly."
+                },
+                safetyNotes = listOf(
+                    "Food planning stays local and structured.",
+                    "Payment, OTP, login, CAPTCHA, and other sensitive steps must remain manual."
+                )
+            )?.let { return it }
             return decision(
                 role = BrainModelRole.ACTION_JSON,
                 reason = if (request.activeFoodSession) {
-                    "An active food session needs structured action JSON continuity."
+                    "No ready local model was available, so an active food session stays on structured local action JSON."
                 } else {
-                    "This request is food planning and should stay structured locally."
+                    "No ready local model was available, so this food-planning request stays on structured local action JSON."
                 },
                 requiresInternet = false,
                 safetyNotes = listOf(
@@ -107,7 +151,15 @@ class BrainRouter(
         val reasoningRequest = isFlexibleReasoningRequest(request.rawText, normalized) || isConversation(normalized)
         if (reasoningRequest) {
             val internetDecision = internetPermissionPolicy.classify(request.rawText)
-            selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
+            readyLocalDecision(
+                request = request,
+                allowOnlineHelper = allowOnlineHelper,
+                reason = "A ready local model can handle this reasoning request directly.",
+                safetyNotes = listOf(
+                    "Reasoning stays local when a model is ready.",
+                    "No final actions allowed."
+                )
+            )?.let { return it }
             
             if (gemmaReady()) {
                 return decision(
@@ -130,9 +182,18 @@ class BrainRouter(
         }
 
         if (isContentPlanning(request.rawText)) {
+            readyLocalDecision(
+                request = request,
+                allowOnlineHelper = allowOnlineHelper,
+                reason = "A ready local model can handle content planning directly.",
+                safetyNotes = listOf(
+                    "Content planning stays local and structured.",
+                    "Any final export, share, login, payment, or confirmation step must remain manual."
+                )
+            )?.let { return it }
             return decision(
                 role = BrainModelRole.ACTION_JSON,
-                reason = "This request is content creation or editing and should stay structured locally.",
+                reason = "No ready local model was available, so this content-planning request stays on structured local action JSON.",
                 requiresInternet = false,
                 safetyNotes = listOf(
                     "ActionJsonModel may only produce safe BrainAction JSON for content creation flows.",
@@ -142,7 +203,15 @@ class BrainRouter(
         }
 
         if (isSimpleCommand(normalized)) {
-            selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
+            readyLocalDecision(
+                request = request,
+                allowOnlineHelper = allowOnlineHelper,
+                reason = "A ready local model can handle this simple command directly.",
+                safetyNotes = listOf(
+                    "Quick device commands stay local when a model is ready.",
+                    "No model may call ActionExecutor directly."
+                )
+            )?.let { return it }
             return decision(
                 role = BrainModelRole.LITE_COMMAND,
                 reason = "This is a fast local device command.",
@@ -154,12 +223,25 @@ class BrainRouter(
         }
 
         if (isPlanningRequest(normalized, request.activeCabSession)) {
+            readyLocalDecision(
+                request = request,
+                allowOnlineHelper = allowOnlineHelper,
+                reason = if (request.activeCabSession) {
+                    "A ready local model can continue the active cab session directly."
+                } else {
+                    "A ready local model can handle planning requests directly."
+                },
+                safetyNotes = listOf(
+                    "Planning stays local and structured.",
+                    "Final payment, OTP, login, send-money, and delete steps must remain manual."
+                )
+            )?.let { return it }
             return decision(
                 role = BrainModelRole.ACTION_JSON,
                 reason = if (request.activeCabSession) {
-                    "An active cab session needs structured action JSON continuity."
+                    "No ready local model was available, so an active cab session stays on structured local action JSON."
                 } else {
-                    "This request is cab, food, or task planning and should stay structured."
+                    "No ready local model was available, so this planning request stays on structured local action JSON."
                 },
                 requiresInternet = needsInternetForPlanning(normalized),
                 safetyNotes = listOf(
@@ -197,11 +279,19 @@ class BrainRouter(
             }
         }
 
-        selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
+        readyLocalDecision(
+            request = request,
+            allowOnlineHelper = allowOnlineHelper,
+            reason = "A ready local model can handle this request directly.",
+            safetyNotes = listOf(
+                "Unknown requests stay local when a model is ready.",
+                "No model may execute phone actions directly."
+            )
+        )?.let { return it }
 
         return decision(
             role = BrainModelRole.MOCK_FALLBACK,
-            reason = "No confident phone model role matched this input.",
+            reason = "No ready local model was available, so this request stays on the guaranteed fallback path.",
             requiresInternet = internetPermissionPolicy.classify(request.rawText).category == InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO,
             safetyNotes = listOf(
                 "Unknown requests stay on the guaranteed fallback path.",
@@ -228,6 +318,34 @@ class BrainRouter(
         )
     }
 
+    private fun readyLocalDecision(
+        request: BrainRequest,
+        allowOnlineHelper: Boolean,
+        reason: String,
+        safetyNotes: List<String>,
+        requiresInternet: Boolean = false,
+        requiresScreenContext: Boolean = false,
+        preferredRoles: List<BrainModelRole> = listOf(
+            BrainModelRole.CORE_BRAIN,
+            BrainModelRole.MULTILINGUAL_BACKUP,
+            BrainModelRole.LITE_FALLBACK
+        )
+    ): BrainRouteDecision? {
+        selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
+
+        val readyRole = preferredRoles.firstOrNull { localBrainRouterBridge.isReady(it) } ?: return null
+        return decision(
+            role = readyRole,
+            reason = reason,
+            requiresInternet = requiresInternet,
+            requiresScreenContext = requiresScreenContext,
+            fallbackAllowed = false,
+            safetyNotes = safetyNotes + listOf(
+                "A ready local model is available, so the real native path will handle this request."
+            )
+        )
+    }
+
     private fun routeForActiveSession(
         request: BrainRequest,
         allowOnlineHelper: Boolean
@@ -249,9 +367,17 @@ class BrainRouter(
             BrainSessionType.SHOPPING,
             BrainSessionType.CONTENT,
             BrainSessionType.COMMUNICATION,
-            BrainSessionType.PHONE -> decision(
+            BrainSessionType.PHONE -> readyLocalDecision(
+                request = request,
+                allowOnlineHelper = allowOnlineHelper,
+                reason = "A ready local model can handle the active ${activeSessionType.wireValue} session directly.",
+                safetyNotes = listOf(
+                    "Active session continuity stays local and structured.",
+                    "Final payment, OTP, login, send, and other sensitive steps must remain manual."
+                )
+            ) ?: decision(
                 role = BrainModelRole.ACTION_JSON,
-                reason = "An active ${activeSessionType.wireValue} session should stay on structured local action JSON.",
+                reason = "No ready local model was available, so an active ${activeSessionType.wireValue} session stays on structured local action JSON.",
                 requiresInternet = false,
                 safetyNotes = listOf(
                     "Active session continuity stays local and structured.",
@@ -261,9 +387,17 @@ class BrainRouter(
 
             BrainSessionType.MUSIC,
             BrainSessionType.MEDIA,
-            BrainSessionType.BASIC_CONTROL -> decision(
+            BrainSessionType.BASIC_CONTROL -> readyLocalDecision(
+                request = request,
+                allowOnlineHelper = allowOnlineHelper,
+                reason = "A ready local model can handle the active ${activeSessionType.wireValue} session directly.",
+                safetyNotes = listOf(
+                    "Active control sessions stay local and lightweight.",
+                    "No model may call ActionExecutor directly."
+                )
+            ) ?: decision(
                 role = BrainModelRole.LITE_COMMAND,
-                reason = "An active ${activeSessionType.wireValue} session should stay on a fast local command path.",
+                reason = "No ready local model was available, so an active ${activeSessionType.wireValue} session stays on the lightweight fallback path.",
                 safetyNotes = listOf(
                     "Active control sessions stay local and lightweight.",
                     "No model may call ActionExecutor directly."
@@ -296,13 +430,27 @@ class BrainRouter(
                         )
                     )
                 } else {
-                    selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
-                    brainSetupRequiredDecision()
+                    readyLocalDecision(
+                        request = request,
+                        allowOnlineHelper = allowOnlineHelper,
+                        reason = "A ready local model can continue the active online helper session locally.",
+                        safetyNotes = listOf(
+                            "Active online-helper continuity stays local when a ready model is available.",
+                            "It must never control the phone directly."
+                        )
+                    ) ?: brainSetupRequiredDecision()
                 }
             }
 
-            BrainSessionType.LOCAL_LLM -> selectLocalBrainRoute(request, allowOnlineHelper)
-                ?: brainSetupRequiredDecision()
+            BrainSessionType.LOCAL_LLM -> readyLocalDecision(
+                request = request,
+                allowOnlineHelper = allowOnlineHelper,
+                reason = "A ready local model can continue the active local-LLM session directly.",
+                safetyNotes = listOf(
+                    "Active local-LLM continuity stays local.",
+                    "No model may call ActionExecutor directly."
+                )
+            ) ?: brainSetupRequiredDecision()
 
             else -> null
         }

@@ -40,7 +40,7 @@ class BrainRouterPhase6MemoryTest {
         )
 
         assertEquals(BrainModelRole.LITE_COMMAND, decision.selectedRole)
-        assertTrue(decision.reason.contains("fast local command", ignoreCase = true))
+        assertTrue(decision.reason.contains("No ready local model was available", ignoreCase = true))
     }
 
     private fun activeSession(sessionType: BrainSessionType): BrainSession {

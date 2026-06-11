@@ -59,7 +59,7 @@ class Phase8ModelRuntimeIntegrationTest {
     }
 
     @Test
-    fun `BrainRouter prefers lite model for action JSON when ready`() {
+    fun `BrainRouter uses the ready lite model for message planning`() {
         // We need a BrainService wired with dynamic runtimes
         val liteModel = LocalBrainModelClient(
             role = BrainModelRole.LITE_FALLBACK,
@@ -79,13 +79,17 @@ class Phase8ModelRuntimeIntegrationTest {
         println("DEBUG: selectedRole=${diagnostics.routeDecision?.selectedRole}")
         println("DEBUG: selectedProvider=${diagnostics.runtimeStatus?.selectedProvider}")
 
-        assertEquals(BrainModelRole.ACTION_JSON, diagnostics.routeDecision?.selectedRole)
-        // In Phase 8, BrainService.evaluateRouteDecision prefers liteFallbackModel for ACTION_JSON if ready
+        assertEquals(BrainModelRole.LITE_FALLBACK, diagnostics.routeDecision?.selectedRole)
         assertEquals("Qwen 2.5 0.5B (Lite)", diagnostics.runtimeStatus?.selectedLocalModelDisplayName)
+        assertNotNull(diagnostics.routerTrace)
+        assertTrue(diagnostics.routerTrace?.brain_router_used == true)
+        assertEquals(BrainModelRole.LITE_FALLBACK, diagnostics.routerTrace?.selected_model_role)
+        assertFalse(diagnostics.routerTrace?.mock_fallback_used ?: true)
+        assertTrue(diagnostics.routerTrace?.real_model_invoked == true)
     }
 
     @Test
-    fun `Missing model falls back safely to rule-based ActionJsonModel`() {
+    fun `Missing model falls back safely with an honest router reason`() {
         // Simulate missing model via readiness checker
         (readinessChecker as FakeReadinessChecker).liteReady = false
         assertFalse(readinessChecker.installReady(ModelPackId.LITE))
@@ -108,7 +112,7 @@ class Phase8ModelRuntimeIntegrationTest {
         println("DEBUG: fallback selectedLocalModelDisplayName=${diagnostics.runtimeStatus?.selectedLocalModelDisplayName}")
 
         assertEquals(BrainModelRole.ACTION_JSON, diagnostics.routeDecision?.selectedRole)
-        // Should fall back to rule-based ActionJsonModel because lite LLM is not ready
+        assertTrue(diagnostics.routeDecision?.reason?.contains("No ready local model was available", ignoreCase = true) == true)
         assertNotEquals("Qwen 2.5 0.5B (Lite)", diagnostics.runtimeStatus?.selectedLocalModelDisplayName)
     }
 

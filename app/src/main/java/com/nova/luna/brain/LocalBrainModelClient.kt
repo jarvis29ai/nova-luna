@@ -34,7 +34,11 @@ class LocalBrainModelClient(
                 localModelDisplayName = catalog.entryForRole(role)?.displayName,
                 localModelStatus = PhoneLocalLlmStatus.UNAVAILABLE,
                 promptBuilt = false,
-                jsonParsed = false
+                jsonParsed = false,
+                realInference = false,
+                nativeGenerationAvailable = false,
+                jsonParseAttempted = false,
+                jsonParseSuccess = false
             )
         }
 
@@ -44,9 +48,14 @@ class LocalBrainModelClient(
                 reason = "Unknown local brain role: ${role.wireValue}.",
                 safetyNotes = routeDecision.safetyNotes,
                 localModelId = localModelId(),
+                localModelDisplayName = catalog.entryForRole(role)?.displayName,
                 localModelStatus = PhoneLocalLlmStatus.UNAVAILABLE,
                 promptBuilt = false,
-                jsonParsed = false
+                jsonParsed = false,
+                realInference = false,
+                nativeGenerationAvailable = false,
+                jsonParseAttempted = false,
+                jsonParseSuccess = false
             )
 
         if (!roleReadinessProvider.isReady(role)) {
@@ -60,7 +69,11 @@ class LocalBrainModelClient(
                 localModelDisplayName = entry.displayName,
                 localModelStatus = PhoneLocalLlmStatus.UNAVAILABLE,
                 promptBuilt = false,
-                jsonParsed = false
+                jsonParsed = false,
+                realInference = false,
+                nativeGenerationAvailable = false,
+                jsonParseAttempted = false,
+                jsonParseSuccess = false
             )
         }
 
@@ -75,7 +88,11 @@ class LocalBrainModelClient(
                 localModelDisplayName = entry.displayName,
                 localModelStatus = PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE,
                 promptBuilt = false,
-                jsonParsed = false
+                jsonParsed = false,
+                realInference = false,
+                nativeGenerationAvailable = false,
+                jsonParseAttempted = false,
+                jsonParseSuccess = false
             )
         }
 
@@ -94,7 +111,11 @@ class LocalBrainModelClient(
                 localModelDisplayName = entry.displayName,
                 localModelStatus = PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE,
                 promptBuilt = true,
-                jsonParsed = false
+                jsonParsed = false,
+                realInference = true,
+                nativeGenerationAvailable = true,
+                jsonParseAttempted = false,
+                jsonParseSuccess = false
             )
         }
 
@@ -111,6 +132,10 @@ class LocalBrainModelClient(
                 localModelStatus = generation.status,
                 promptBuilt = true,
                 jsonParsed = false,
+                realInference = true,
+                nativeGenerationAvailable = true,
+                jsonParseAttempted = true,
+                jsonParseSuccess = false,
                 latencyMillis = generation.latencyMillis
             )
         }
@@ -129,6 +154,10 @@ class LocalBrainModelClient(
                 localModelStatus = parseResult.status.toPhoneLocalLlmStatus(),
                 promptBuilt = true,
                 jsonParsed = false,
+                realInference = true,
+                nativeGenerationAvailable = true,
+                jsonParseAttempted = true,
+                jsonParseSuccess = false,
                 latencyMillis = generation.latencyMillis
             )
         }
@@ -151,6 +180,10 @@ class LocalBrainModelClient(
                 localModelStatus = PhoneLocalLlmStatus.VALIDATION_REJECTED,
                 promptBuilt = true,
                 jsonParsed = true,
+                realInference = true,
+                nativeGenerationAvailable = true,
+                jsonParseAttempted = true,
+                jsonParseSuccess = false,
                 latencyMillis = generation.latencyMillis
             )
         }
@@ -169,6 +202,10 @@ class LocalBrainModelClient(
             localModelStatus = generation.status,
             promptBuilt = true,
             jsonParsed = true,
+            realInference = true,
+            nativeGenerationAvailable = true,
+            jsonParseAttempted = true,
+            jsonParseSuccess = true,
             latencyMillis = generation.latencyMillis
         )
     }

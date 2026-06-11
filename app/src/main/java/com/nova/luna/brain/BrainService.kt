@@ -490,6 +490,11 @@ class BrainService(
                     pendingConfirmation = request.pendingConfirmation,
                     userConfirmed = request.onlineConsentGiven
                 ),
+                routerTrace = buildRouterTrace(
+                    routeDecision = routeDecision,
+                    mockFallbackUsed = true,
+                    fallbackReason = routeDecision.reason
+                ),
                 runtimeStatus = runtimeState.copy(
                     selectedBrainRole = routeDecision.selectedRole,
                     fallbackActive = false,
@@ -554,6 +559,11 @@ class BrainService(
                     action,
                     pendingConfirmation = request.pendingConfirmation,
                     userConfirmed = request.onlineConsentGiven
+                ),
+                routerTrace = buildRouterTrace(
+                    routeDecision = localFallbackDecision,
+                    mockFallbackUsed = true,
+                    fallbackReason = localFallbackDecision.reason
                 ),
                 runtimeStatus = runtimeState.copy(
                     selectedBrainRole = localFallbackDecision.selectedRole,
@@ -732,6 +742,11 @@ class BrainService(
                 finalAction,
                 pendingConfirmation = request.pendingConfirmation,
                 userConfirmed = request.onlineConsentGiven
+            ),
+            routerTrace = buildRouterTrace(
+                routeDecision = routeDecision,
+                primaryAttempt = primaryAttempt,
+                fallbackReason = if (fallbackUsed) primaryAttempt.reason else null
             ),
             runtimeStatus = status.copy(
                 activeSessionType = effectiveActiveSessionType,
@@ -1013,6 +1028,7 @@ class BrainService(
         }
 
         return BrainAttempt(
+            role = model.role,
             providerName = modelName(model),
             rawResponse = result.rawResponse,
             extractedJson = result.rawResponse,
@@ -1024,6 +1040,10 @@ class BrainService(
             localModelStatus = result.localModelStatus?.wireValue,
             promptBuilt = result.promptBuilt,
             jsonParsed = result.jsonParsed,
+            realInference = result.realInference,
+            nativeGenerationAvailable = result.nativeGenerationAvailable,
+            jsonParseAttempted = result.jsonParseAttempted,
+            jsonParseSuccess = result.jsonParseSuccess,
             latencyMillis = result.latencyMillis,
             onlineTrace = result.onlineTrace
         )
@@ -1192,6 +1212,36 @@ class BrainService(
         }
     }
 
+    private fun buildRouterTrace(
+        routeDecision: BrainRouteDecision?,
+        primaryAttempt: BrainAttempt? = null,
+        mockFallbackUsed: Boolean = false,
+        fallbackReason: String? = null
+    ): BrainRouterTrace? {
+        val selectedModelRole = routeDecision?.selectedRole ?: primaryAttempt?.role
+        if (routeDecision == null && selectedModelRole == null && !mockFallbackUsed) {
+            return null
+        }
+
+        val actualModelRole = primaryAttempt?.role
+        return BrainRouterTrace(
+            brain_router_used = routeDecision != null,
+            selected_model_role = selectedModelRole,
+            mock_fallback_used = mockFallbackUsed || selectedModelRole == BrainModelRole.MOCK_FALLBACK,
+            fallback_reason = fallbackReason ?: when {
+                mockFallbackUsed || selectedModelRole == BrainModelRole.MOCK_FALLBACK ->
+                    routeDecision?.reason ?: primaryAttempt?.reason
+
+                else -> null
+            },
+            real_model_invoked = actualModelRole?.isLocalBrainRole() == true,
+            real_inference = primaryAttempt?.realInference == true,
+            native_generation_available = primaryAttempt?.nativeGenerationAvailable == true,
+            json_parse_attempted = primaryAttempt?.jsonParseAttempted == true,
+            json_parse_success = primaryAttempt?.jsonParseSuccess == true
+        )
+    }
+
     private fun localModelFallbackAction(
         rawText: String,
         routeDecision: BrainRouteDecision,
@@ -1328,6 +1378,7 @@ class BrainService(
     }
 
     private data class BrainAttempt(
+        val role: BrainModelRole? = null,
         val providerName: String,
         val rawResponse: String?,
         val extractedJson: String?,
@@ -1339,6 +1390,10 @@ class BrainService(
         val localModelStatus: String? = null,
         val promptBuilt: Boolean = false,
         val jsonParsed: Boolean = false,
+        val realInference: Boolean = false,
+        val nativeGenerationAvailable: Boolean = false,
+        val jsonParseAttempted: Boolean = false,
+        val jsonParseSuccess: Boolean = false,
         val latencyMillis: Long? = null,
         val onlineTrace: OnlineAiTrace? = null
     )

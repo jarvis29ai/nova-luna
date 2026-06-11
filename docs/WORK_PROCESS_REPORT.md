@@ -2,14 +2,23 @@
 
 ## Progress Snapshot
 
-- Current app readiness: green for the audited scope on 2026-06-11, including the Phase 19 native GGUF generation bridge, the Phase 7 safe agent loop, and the Phase 6 universal memory/session brain layer
-- `:app:compileDebugKotlin` and `:app:testDebugUnitTest --tests com.nova.luna.brain.Phase18NativeLlamaIntegrationTest` passed in this audit pass
+- Current app readiness: green for the audited scope on 2026-06-11, including the Phase 20 BrainRouter real model flow, the Phase 19 native GGUF generation bridge, the Phase 7 safe agent loop, and the Phase 6 universal memory/session brain layer
+- `:app:testDebugUnitTest --tests com.nova.luna.brain.*` and `:app:assembleDebug` passed in this audit pass
 - `docs/NOVA_LUNA_FULL_PROJECT_MODEL_FLOW_AUDIT_REPORT.md` records the current full-model verification
 - The model-pack workflow keeps binaries out of APK resources, stores packs in app-private `model_install` storage, and exposes a debug-only import receiver for local file imports
 - The Phase 19 native GGUF generation path now keeps backend honesty strict: `tokenizer_loaded`, `vocab_size`, `tokenization_ok`, and `token_ids_preview` only surface when the GGUF metadata and vocabulary mapping were actually parsed, and successful runs now also report `load_ms`, `generation_ms`, model load/generation counts, prompt/generated token samples, parsed intent/risk, and finish reason instead of pretending generation never happened
 - The debug diagnostic broadcast now goes straight to the native GGUF load/generate path, prefers the `command` extra over the older `request` extra, and logs the exact lite model path plus the missing/disabled/reuse reason before it decides whether a native load is possible
 - The Android native build now forces CMake try-compile onto the static-library path to work around an arm64 `cmTC_9ff68` configure stall during external native build setup
 - The Android native build also pre-seeds CMake compiler-work cache values on Windows so the bundled Ninja/CMake configure step can skip the stalled ABI probe after manual compiler verification
+
+## Phase 20 Update (BrainRouter Real Model Flow)
+
+- `BrainRouter` now selects a real local model role for ready commands instead of silently falling back to the mock path when a native model is available.
+- Mock fallback is now reserved for not-ready states only, and the fallback reason is surfaced explicitly when it is used.
+- Router diagnostics are now carried through `BrainDiagnostics` as `BrainRouterTrace`, including the selected model role, mock fallback usage, fallback reason, real model invocation, and JSON parse honesty fields.
+- Strict JSON honesty remains intact: real native generation still records parse attempts and success/failure separately, and invalid text is preserved instead of being treated as a valid action.
+- `SafetyGate` still runs after router output, so a ready model never bypasses the final safety check.
+- Validation for this phase passed with `:app:testDebugUnitTest --tests com.nova.luna.brain.*` and `:app:assembleDebug`.
 
 ## Current Setup
 

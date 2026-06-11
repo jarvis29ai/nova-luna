@@ -205,6 +205,10 @@ class LiteCommandModel(
             candidateAction = candidateAction,
             rawResponse = codec.encode(candidateAction),
             reason = "Lite command path produced a safe local candidate.",
+            realInference = false,
+            nativeGenerationAvailable = false,
+            jsonParseAttempted = false,
+            jsonParseSuccess = false,
             safetyNotes = routeDecision.safetyNotes + listOf(
                 "LiteCommandModel handles simple offline phone actions.",
                 "It must never execute phone actions directly."

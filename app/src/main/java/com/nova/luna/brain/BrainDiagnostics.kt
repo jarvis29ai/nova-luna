@@ -20,6 +20,18 @@ data class BrainProviderTrace(
     val error: String? = null
 )
 
+data class BrainRouterTrace(
+    val brain_router_used: Boolean,
+    val selected_model_role: BrainModelRole? = null,
+    val mock_fallback_used: Boolean,
+    val fallback_reason: String? = null,
+    val real_model_invoked: Boolean,
+    val real_inference: Boolean,
+    val native_generation_available: Boolean,
+    val json_parse_attempted: Boolean,
+    val json_parse_success: Boolean
+)
+
 data class BrainDiagnostics(
     val userInput: String,
     val activeCabSession: Boolean,
@@ -35,6 +47,7 @@ data class BrainDiagnostics(
     val finalProvider: String,
     val finalBrainAction: BrainAction,
     val finalSafetyDecision: SafetyDecision,
+    val routerTrace: BrainRouterTrace? = null,
     val runtimeStatus: BrainRuntimeStatus? = null,
     val internetPermissionDecision: InternetPermissionDecision? = null,
     val onlineTrace: OnlineAiTrace? = null,

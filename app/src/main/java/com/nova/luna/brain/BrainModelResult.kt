@@ -15,6 +15,10 @@ data class BrainModelResult(
     val localModelStatus: PhoneLocalLlmStatus? = null,
     val promptBuilt: Boolean = false,
     val jsonParsed: Boolean = false,
+    val realInference: Boolean = false,
+    val nativeGenerationAvailable: Boolean = false,
+    val jsonParseAttempted: Boolean = false,
+    val jsonParseSuccess: Boolean = false,
     val latencyMillis: Long? = null,
     val onlineTrace: OnlineAiTrace? = null
 ) {
@@ -32,6 +36,10 @@ data class BrainModelResult(
             localModelStatus: PhoneLocalLlmStatus? = null,
             promptBuilt: Boolean = false,
             jsonParsed: Boolean = false,
+            realInference: Boolean = false,
+            nativeGenerationAvailable: Boolean = false,
+            jsonParseAttempted: Boolean = false,
+            jsonParseSuccess: Boolean = false,
             latencyMillis: Long? = null,
             rawResponse: String? = null,
             onlineTrace: OnlineAiTrace? = null
@@ -48,6 +56,10 @@ data class BrainModelResult(
                 localModelStatus = localModelStatus,
                 promptBuilt = promptBuilt,
                 jsonParsed = jsonParsed,
+                realInference = realInference,
+                nativeGenerationAvailable = nativeGenerationAvailable,
+                jsonParseAttempted = jsonParseAttempted,
+                jsonParseSuccess = jsonParseSuccess,
                 latencyMillis = latencyMillis,
                 onlineTrace = onlineTrace
             )
@@ -64,6 +76,10 @@ data class BrainModelResult(
             localModelStatus: PhoneLocalLlmStatus? = null,
             promptBuilt: Boolean = false,
             jsonParsed: Boolean = false,
+            realInference: Boolean = false,
+            nativeGenerationAvailable: Boolean = false,
+            jsonParseAttempted: Boolean = false,
+            jsonParseSuccess: Boolean = false,
             latencyMillis: Long? = null,
             onlineTrace: OnlineAiTrace? = null
         ): BrainModelResult {
@@ -79,6 +95,10 @@ data class BrainModelResult(
                 localModelStatus = localModelStatus,
                 promptBuilt = promptBuilt,
                 jsonParsed = jsonParsed,
+                realInference = realInference,
+                nativeGenerationAvailable = nativeGenerationAvailable,
+                jsonParseAttempted = jsonParseAttempted,
+                jsonParseSuccess = jsonParseSuccess,
                 latencyMillis = latencyMillis,
                 onlineTrace = onlineTrace
             )

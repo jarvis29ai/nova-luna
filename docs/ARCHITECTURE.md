@@ -13,7 +13,8 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Local voice output layer for spoken replies using Android TextToSpeech
 - Nova and Luna are local TTS profiles that tune pitch and speech rate only; exact voice availability still depends on the installed Android TTS engine
 - Local structured BrainService layer that turns user text into a JSON-shaped BrainAction before anything is executed
-- Phone-only multi-model brain routing with `BrainRouter` selecting `GemmaBrainModel`, `ActionJsonModel`, `LiteCommandModel`, `ScreenUnderstandingModel`, or the guaranteed `LocalMockBrainProvider` fallback
+- Phone-only multi-model brain routing with `BrainRouter` selecting the ready local role first (`GemmaBrainModel`, `ActionJsonModel`, `LiteCommandModel`, `ScreenUnderstandingModel`) and using the guaranteed `LocalMockBrainProvider` fallback only when no local model is ready
+- `BrainRouterTrace` records routing honesty for each decision, including the selected model role, whether mock fallback was used, why fallback happened, and whether real native inference and strict JSON parsing were attempted and succeeded
 - Optional online AI helper abstraction for consent-gated research and drafting flows using ChatGPT/Gemini/Claude-style providers, with read-only or draft-only results only
 - `PhoneLocalLlmRuntime` is the shared phone-local reasoning bridge. It resolves the configured model stack, checks asset readiness, builds the strict `BrainAction` prompt, parses strict JSON output, and reports structured readiness diagnostics
 - `LiteLocalModelRuntime` and the native GGUF bridge now perform real local load/generate calls through llama.cpp. They still surface `tokenizer_loaded`, `vocab_size`, `tokenization_ok`, and `token_ids_preview` only when the GGUF metadata and vocabulary mapping were actually parsed and verified, but successful native runs now also report `load_ms`, `generation_ms`, model load/generation counts, prompt/generated token samples, parsed intent/risk, and finish reason instead of pretending generation never exists
@@ -36,6 +37,14 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Local memory and preferences for persona, settings, and lightweight state
 - Memory state is universal but still local-first: active sessions, pending confirmations, screen snapshots, recovery state, and preferences all stay on-device and must be redacted before storage
 - Optional smartwatch companion later for quick commands and watch-first conveniences
+
+## Phase 20 Update (BrainRouter Real Model Flow)
+
+- When a real local model is ready, `BrainRouter` now selects that real model role for command handling instead of silently dropping to the mock fallback path.
+- Mock fallback is reserved for not-ready states only, and the routed result now explains why fallback was used.
+- Local runtime responses keep strict JSON honesty: JSON parsing is attempted, parse success or failure is recorded, and invalid model text is preserved as decoded output instead of being treated as a valid action.
+- `SafetyGate` remains the final execution gate after BrainRouter output, so a ready model still cannot bypass safety checks.
+- Phase 20 is implemented and verified in the current codebase; later model download/path, RAM switching, and UI/voice phases are still intentionally out of scope.
 
 ## Phase 1: Hands / Real Phone Control
 
@@ -192,7 +201,8 @@ Phase 6 hardens the assistant prototype for real-world use on Android devices, f
 - Keep local LLM output opt-in, local-only, and strictly structured; reject invalid JSON or dangerous final actions before routing.
 - Keep optional online AI helper output consent-gated, privacy-filtered, read-only or draft-only, and never let it control the phone directly.
 - Keep Ollama-compatible desktop LLMs dev-only and outside the production brain path.
-- Keep the phone-only model roles local-first and keep `LocalMockBrainProvider` as the guaranteed fallback when a phone model is unavailable or rejected.
+- Keep the phone-only model roles local-first and keep `LocalMockBrainProvider` as the guaranteed fallback only when a phone model is unavailable or not ready.
+- If a phone-local model is ready, route to the real native runtime path instead of silently pretending the mock fallback was chosen.
 - Keep phone-local model assets readiness-checked before the brain path can emit structured actions.
 - Keep `SafetyGate` as the final authority before any action reaches the executor.
 - Keep screen understanding local, accessibility-based, and read-only; do not replace it with OCR, cloud vision, or another backend dependency by default.
