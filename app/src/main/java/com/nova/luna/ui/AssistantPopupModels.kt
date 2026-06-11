@@ -4,14 +4,28 @@ import com.nova.luna.model.ActionType
 import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.BrainRiskLevel
 
+enum class AssistantPersonality {
+    LUNA,
+    NOVA
+}
+
 enum class AssistantPopupState {
     IDLE,
+    WAKE_DETECTED,
     LISTENING,
     THINKING,
-    DOING_ACTION,
-    NEED_CONFIRMATION,
-    COMPLETED,
-    FAILED,
+    ACTION_READY,
+    RUNNING_ACTION,
+    RUNNING_MOCK_ACTION,
+    SUCCESS,
+    ERROR,
+    CONFIRMATION_REQUIRED,
+    LOCK_REQUIRED,
+    PRIVACY_BLOCKED,
+    DOING_ACTION, // Legacy/Internal
+    NEED_CONFIRMATION, // Legacy/Internal
+    COMPLETED, // Legacy/Internal
+    FAILED, // Legacy/Internal
     BLOCKED,
     PERMISSION_REQUIRED,
     CANCELLED,
@@ -20,6 +34,7 @@ enum class AssistantPopupState {
 
 data class AssistantPopupUiModel(
     val state: AssistantPopupState = AssistantPopupState.IDLE,
+    val personality: AssistantPersonality = AssistantPersonality.LUNA,
     val title: String? = null,
     val subtitle: String? = null,
     val transcript: String? = null,
@@ -36,7 +51,7 @@ data class AssistantPopupUiModel(
     val confirmationActionSummary: String? = null,
     val primaryButtonText: String? = "Continue",
     val secondaryButtonText: String? = "Cancel",
-    val showMicButton: Boolean = false,
+    val showMicButton: Boolean = true,
     val showCancelButton: Boolean = false,
     val showContinueButton: Boolean = false,
     val showLoader: Boolean = false,
@@ -56,5 +71,8 @@ enum class AssistantPopupEvent {
     CLOSE_TAPPED,
     TEXT_COMMAND_SUBMITTED,
     CONFIRMATION_VOICE_ACCEPTED,
-    CONFIRMATION_VOICE_REJECTED
+    CONFIRMATION_VOICE_REJECTED,
+    PERSONALITY_CHANGED,
+    WAKE_LUNA_MOCK,
+    WAKE_NOVA_MOCK
 }

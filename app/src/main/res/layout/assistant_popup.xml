@@ -6,23 +6,21 @@
     android:padding="16dp">
 
     <!-- Small Orb for IDLE state -->
-    <View
+    <ImageView
         android:id="@+id/assistantOrb"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
         android:layout_gravity="bottom|center_horizontal"
-        android:background="@drawable/assistant_orb_bg"
+        android:src="@drawable/bg_orb_glow"
         android:visibility="visible" />
 
     <!-- Expanded Panel for active states -->
     <androidx.cardview.widget.CardView
         android:id="@+id/assistantPanel"
+        style="@style/NovaCard"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        app:cardBackgroundColor="@color/nova_surface"
-        app:cardCornerRadius="24dp"
-        app:cardElevation="8dp"
         android:visibility="gone">
 
         <LinearLayout
@@ -31,12 +29,43 @@
             android:orientation="vertical"
             android:padding="20dp">
 
+            <!-- Personality Switch -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:orientation="horizontal"
+                android:background="@drawable/bg_card_rounded"
+                android:backgroundTint="@color/nova_card_dark_2"
+                android:padding="4dp">
+                
+                <Button
+                    android:id="@+id/btnLuna"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:text="Luna"
+                    android:textSize="10sp"
+                    android:textColor="@color/nova_pink"
+                    android:padding="0dp" />
+
+                <Button
+                    android:id="@+id/btnNova"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:text="Nova"
+                    android:textSize="10sp"
+                    android:textColor="@color/nova_muted_text"
+                    android:padding="0dp" />
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/popupTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Luna"
-                android:textColor="@color/nova_secondary"
+                android:textColor="@color/nova_purple"
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
@@ -45,17 +74,17 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="@color/nova_on_surface"
+                android:textColor="@color/nova_white"
                 android:textSize="14sp"
                 android:alpha="0.7" />
 
             <ProgressBar
                 android:id="@+id/popupLoader"
-                style="?android:attr/progressBarStyleSmall"
-                android:layout_width="wrap_content"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:layout_gravity="center_horizontal"
+                android:indeterminate="true"
                 android:visibility="gone" />
 
             <TextView
@@ -64,7 +93,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:textAlignment="center"
-                android:textColor="@color/nova_on_surface"
+                android:textColor="@color/nova_white"
                 android:textSize="16sp"
                 android:textStyle="italic"
                 android:visibility="gone" />
@@ -75,8 +104,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:orientation="vertical"
-                android:background="@drawable/confirmation_bg"
-                android:padding="12dp"
+                android:background="@drawable/bg_card_rounded"
+                android:backgroundTint="@color/nova_card_dark_2"
+                android:padding="16dp"
                 android:visibility="gone">
 
                 <TextView
@@ -84,7 +114,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Confirm Action"
-                    android:textColor="@color/nova_tertiary"
+                    android:textColor="@color/nova_lavender"
                     android:textStyle="bold" />
 
                 <TextView
@@ -92,7 +122,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:textColor="@color/nova_on_surface" />
+                    android:textColor="@color/nova_white" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -103,11 +133,11 @@
 
                     <Button
                         android:id="@+id/btnCancel"
-                        style="?android:attr/buttonBarButtonStyle"
+                        style="@style/Widget.Material3.Button.TextButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Cancel"
-                        android:textColor="@color/nova_on_surface" />
+                        android:textColor="@color/nova_muted_text" />
 
                     <Button
                         android:id="@+id/btnContinue"
@@ -115,8 +145,8 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="8dp"
                         android:text="Continue"
-                        android:backgroundTint="@color/nova_secondary"
-                        android:textColor="@color/nova_on_secondary" />
+                        android:backgroundTint="@color/nova_purple"
+                        android:textColor="@color/nova_white" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -126,7 +156,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:textAlignment="center"
-                android:textColor="@color/nova_secondary"
+                android:textColor="@color/nova_success"
                 android:textStyle="bold"
                 android:visibility="gone" />
 
@@ -136,17 +166,49 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:textAlignment="center"
-                android:textColor="#FF5252"
+                android:textColor="@color/nova_danger"
                 android:visibility="gone" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/commandInput"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_card_rounded"
+                    android:backgroundTint="@color/nova_card_dark_2"
+                    android:hint="Type command..."
+                    android:textColorHint="@color/nova_muted_text"
+                    android:textColor="@color/nova_white"
+                    android:padding="12dp"
+                    android:maxLines="3" />
+
+                <ImageButton
+                    android:id="@+id/btnSendCommand"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_orb_glow"
+                    android:src="@drawable/ic_chat"
+                    app:tint="@color/nova_white"
+                    android:contentDescription="Send" />
+            </LinearLayout>
 
             <ImageButton
                 android:id="@+id/popupMicButton"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
                 android:layout_gravity="center_horizontal"
                 android:layout_marginTop="16dp"
-                android:background="@drawable/mic_button_bg"
-                android:src="@android:drawable/ic_btn_speak_now"
+                android:background="@drawable/bg_orb_glow"
+                android:src="@drawable/ic_mic"
+                app:tint="@color/nova_white"
                 android:contentDescription="Microphone" />
 
         </LinearLayout>

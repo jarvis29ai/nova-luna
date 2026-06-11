@@ -55,6 +55,15 @@
                 <action android:name="com.nova.luna.debug.ACTION_RUN_DEMO_SMOKE" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".brain.DiagnosticBroadcastReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.nova.luna.debug.ACTION_DIAGNOSE_RUNTIME" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

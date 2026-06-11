@@ -59,6 +59,9 @@ class BrainService(
         roleReadinessProvider = (localBrainRouterBridge as? BrainRoleReadinessProvider)
             ?: NoOpBrainRoleReadinessProvider
     ),
+    coreBrainModelOverride: PhoneBrainModel? = null,
+    multilingualBackupModelOverride: PhoneBrainModel? = null,
+    liteFallbackModelOverride: PhoneBrainModel? = null,
     private val brainRouter: BrainRouter = BrainRouter(
         onlineAiConfig = onlineAiConfig,
         internetAvailable = internetAvailable,
@@ -72,6 +75,10 @@ class BrainService(
     private val screenStateReader: ScreenStateReader = ScreenStateReader(),
     private val brainMemoryStore: BrainMemoryStore = InMemoryBrainMemoryStore()
 ) {
+    private val effectiveCoreBrainModel = coreBrainModelOverride ?: coreBrainModel
+    private val effectiveMultilingualBackupModel = multilingualBackupModelOverride ?: multilingualBackupModel
+    private val effectiveLiteFallbackModel = liteFallbackModelOverride ?: liteFallbackModel
+
     private val screenUnderstandingModel: PhoneBrainModel = ScreenUnderstandingModel(screenStateReader)
     private val sessionManager: BrainSessionManager = BrainSessionManager(brainMemoryStore)
 
@@ -235,6 +242,10 @@ class BrainService(
 
         if (isAccepted(fallbackAttempt?.parsedAction)) {
             return rememberBrainAction(request, routeDecision, fallbackAttempt!!.parsedAction!!)
+        }
+
+        if (routeDecision.selectedRole == BrainModelRole.MOCK_FALLBACK && primaryAttempt.parsedAction != null) {
+            return rememberBrainAction(request, routeDecision, primaryAttempt.parsedAction)
         }
 
         return rememberBrainAction(request, routeDecision, fallback(rawText))
@@ -509,6 +520,7 @@ class BrainService(
         val primaryAttempt = evaluateRouteDecision(routeDecision, routedRequest)
         val primaryAccepted = isAccepted(primaryAttempt.parsedAction)
 
+        val fallbackUsed = !primaryAccepted && routeDecision.selectedRole != BrainModelRole.MOCK_FALLBACK
         val localFallbackDecision = if (routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER && !primaryAccepted) {
             brainRouter.route(request, allowOnlineHelper = false)
         } else {
@@ -588,13 +600,15 @@ class BrainService(
             routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER && localFallbackIsLocalBrain ->
                 localFallbackAttempt
 
-            localBrainRoute ->
+            localBrainRoute || routeDecision.selectedRole == BrainModelRole.ACTION_JSON || routeDecision.selectedRole == BrainModelRole.LITE_COMMAND ->
                 primaryAttempt
 
             else -> null
         }
         val localBrainStatusApplies = localBrainRoute ||
-            (routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER && localFallbackIsLocalBrain)
+            (routeDecision.selectedRole == BrainModelRole.ONLINE_AI_HELPER && localFallbackIsLocalBrain) ||
+            routeDecision.selectedRole == BrainModelRole.ACTION_JSON ||
+            routeDecision.selectedRole == BrainModelRole.LITE_COMMAND
 
         val finalAction = when {
             primaryAccepted -> primaryAttempt.parsedAction!!
@@ -639,21 +653,40 @@ class BrainService(
                 }
             else -> providerName(fallbackProvider)
         }
-        val fallbackUsed = !primaryAccepted && routeDecision.selectedRole != BrainModelRole.MOCK_FALLBACK
         val gemmaReadiness = gemmaRuntime.readinessStatus(
             selectedBrainRole = routeDecision.selectedRole,
             fallbackActive = fallbackUsed
         )
         val status = runtimeState.copy(
             selectedBrainRole = routeDecision.selectedRole,
-            modelPathConfigured = if (localBrainStatusApplies) gemmaReadiness.modelPathConfigured else runtimeState.modelPathConfigured,
-            modelFileExists = if (localBrainStatusApplies) gemmaReadiness.modelFileExists else runtimeState.modelFileExists,
-            runtimeAvailable = if (localBrainStatusApplies) gemmaReadiness.runtimeAvailable else runtimeState.runtimeAvailable,
-            modelLoaded = if (localBrainStatusApplies) gemmaReadiness.modelLoaded else runtimeState.modelLoaded,
-            selectedLocalModelId = if (localBrainStatusApplies) localModelSource?.localModelId ?: runtimeState.selectedLocalModelId else runtimeState.selectedLocalModelId,
-            selectedLocalModelDisplayName = if (localBrainStatusApplies) localModelSource?.localModelDisplayName ?: runtimeState.selectedLocalModelDisplayName else runtimeState.selectedLocalModelDisplayName,
-            selectedLocalModelStatus = if (localBrainStatusApplies) localModelSource?.localModelStatus ?: runtimeState.selectedLocalModelStatus else runtimeState.selectedLocalModelStatus,
-            selectedLocalModelAssetMissing = if (localBrainStatusApplies) !gemmaReadiness.modelFileExists else runtimeState.selectedLocalModelAssetMissing,
+            modelPathConfigured = if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING) gemmaReadiness.modelPathConfigured else (localModelSource?.localModelId != null),
+            modelFileExists = if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING) gemmaReadiness.modelFileExists else (localModelSource?.localModelId != null),
+            runtimeAvailable = if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING) {
+                gemmaReadiness.runtimeAvailable
+            } else if (localBrainStatusApplies) {
+                localModelSource?.available ?: false
+            } else {
+                runtimeState.runtimeAvailable
+            },
+            modelLoaded = if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING) {
+                gemmaReadiness.modelLoaded
+            } else if (localBrainStatusApplies) {
+                localModelSource?.localModelStatus == "ready"
+            } else {
+                runtimeState.modelLoaded
+            },
+            selectedLocalModelId = if (localBrainStatusApplies) {
+                localModelSource?.localModelId ?: if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING) gemmaReadiness.selectedBrainRole.wireValue else null
+            } else runtimeState.selectedLocalModelId,
+            selectedLocalModelDisplayName = if (localBrainStatusApplies) {
+                localModelSource?.localModelDisplayName ?: if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING) "Gemma 3n" else null
+            } else runtimeState.selectedLocalModelDisplayName,
+            selectedLocalModelStatus = if (localBrainStatusApplies) {
+                localModelSource?.localModelStatus ?: if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING) (if (gemmaReadiness.modelLoaded) "ready" else "disabled") else null
+            } else runtimeState.selectedLocalModelStatus,
+            selectedLocalModelAssetMissing = if (localBrainStatusApplies) {
+                if (routeDecision.selectedRole == BrainModelRole.GEMMA_REASONING) !gemmaReadiness.modelFileExists else (localModelSource?.localModelId == null)
+            } else runtimeState.selectedLocalModelAssetMissing,
             promptBuilt = if (localBrainStatusApplies) localModelSource?.promptBuilt == true else runtimeState.promptBuilt,
             jsonParseSucceeded = if (localBrainStatusApplies) localModelSource?.jsonParsed == true else runtimeState.jsonParseSucceeded,
             modelLatencyMillis = if (localBrainStatusApplies) localModelSource?.latencyMillis ?: runtimeState.modelLatencyMillis else runtimeState.modelLatencyMillis,
@@ -672,11 +705,8 @@ class BrainService(
                         localFallbackAttempt != null ->
                         localFallbackAttempt.reason ?: routeDecision.reason
 
-                    localBrainStatusApplies && !primaryAttempt.available ->
-                        primaryAttempt.reason ?: routeDecision.reason
-
                     localBrainStatusApplies && !primaryAccepted ->
-                        "${routeDecision.selectedRole.wireValue} candidate was rejected by BrainActionValidator."
+                        primaryAttempt.reason ?: gemmaReadiness.reason
 
                     else -> primaryAttempt.reason
                 }
@@ -945,11 +975,25 @@ class BrainService(
         return when (routeDecision.selectedRole) {
             BrainModelRole.ONLINE_AI_HELPER -> evaluateModel(onlineAiHelper, request, routeDecision)
             BrainModelRole.GEMMA_REASONING -> evaluateModel(gemmaBrainModel, request, routeDecision)
-            BrainModelRole.CORE_BRAIN -> evaluateModel(coreBrainModel, request, routeDecision)
-            BrainModelRole.MULTILINGUAL_BACKUP -> evaluateModel(multilingualBackupModel, request, routeDecision)
-            BrainModelRole.LITE_FALLBACK -> evaluateModel(liteFallbackModel, request, routeDecision)
-            BrainModelRole.ACTION_JSON -> evaluateModel(actionJsonModel, request, routeDecision)
-            BrainModelRole.LITE_COMMAND -> evaluateModel(liteCommandModel, request, routeDecision)
+            BrainModelRole.CORE_BRAIN -> evaluateModel(effectiveCoreBrainModel, request, routeDecision)
+            BrainModelRole.MULTILINGUAL_BACKUP -> evaluateModel(effectiveMultilingualBackupModel, request, routeDecision)
+            BrainModelRole.LITE_FALLBACK -> evaluateModel(effectiveLiteFallbackModel, request, routeDecision)
+            BrainModelRole.ACTION_JSON -> {
+                // Phase 8: Prefer lite model for action JSON if ready
+                if (effectiveLiteFallbackModel.available) {
+                    evaluateModel(effectiveLiteFallbackModel, request, routeDecision.copy(selectedRole = BrainModelRole.LITE_FALLBACK))
+                } else {
+                    evaluateModel(actionJsonModel, request, routeDecision)
+                }
+            }
+            BrainModelRole.LITE_COMMAND -> {
+                // Phase 8: Prefer lite model for lite command if ready
+                if (effectiveLiteFallbackModel.available) {
+                    evaluateModel(effectiveLiteFallbackModel, request, routeDecision.copy(selectedRole = BrainModelRole.LITE_FALLBACK))
+                } else {
+                    evaluateModel(liteCommandModel, request, routeDecision)
+                }
+            }
             BrainModelRole.SCREEN_UNDERSTANDING -> evaluateModel(screenUnderstandingModel, request, routeDecision)
             BrainModelRole.MOCK_FALLBACK -> evaluateProvider(fallbackProvider, request)
         }
@@ -1027,7 +1071,9 @@ class BrainService(
     }
 
     private fun isAccepted(action: BrainAction?): Boolean {
-        return action != null && validator.isAcceptable(action)
+        if (action == null) return false
+        if (action.intent == "unknown" || action.intent == "local_model_unavailable") return false
+        return validator.isAcceptable(action)
     }
 
     private fun providerName(provider: BrainProvider): String {
@@ -1270,14 +1316,14 @@ class BrainService(
 
     private fun fallback(rawText: String): BrainAction {
         return BrainAction(
-            intent = "unknown",
-            reply = "I did not quite catch that. Please try again.",
+            intent = "local_model_unavailable",
+            reply = "I'm sorry, my local brain is not ready yet. I can try to help you if you connect to the internet, or you can try a simpler command.",
             actionType = BrainActionType.NONE,
             riskLevel = BrainRiskLevel.SAFE,
             requiresConfirmation = false,
             finalActionAllowed = false,
             params = mapOf("rawText" to rawText),
-            nextQuestion = "What would you like me to do?"
+            nextQuestion = "Try a simple command like open app, home, or stop listening."
         )
     }
 

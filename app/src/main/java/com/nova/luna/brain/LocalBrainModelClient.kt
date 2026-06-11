@@ -176,8 +176,8 @@ class LocalBrainModelClient(
     private fun localModelId(): PhoneLocalLlmModelId? {
         return when (role) {
             BrainModelRole.CORE_BRAIN -> PhoneLocalLlmModelId.GEMMA_3N
-            BrainModelRole.MULTILINGUAL_BACKUP -> PhoneLocalLlmModelId.QWEN_3_SMALL
-            BrainModelRole.LITE_FALLBACK -> PhoneLocalLlmModelId.GEMMA_3_270M
+            BrainModelRole.MULTILINGUAL_BACKUP -> PhoneLocalLlmModelId.QWEN_1_5B
+            BrainModelRole.LITE_FALLBACK -> PhoneLocalLlmModelId.QWEN_0_5B
             BrainModelRole.GEMMA_REASONING -> PhoneLocalLlmModelId.GEMMA_3N
             else -> null
         }

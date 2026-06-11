@@ -29,7 +29,7 @@ enum class LocalRuntimeReadinessStatus {
     READY
 }
 
-class LocalRuntimeReadinessChecker(
+open class LocalRuntimeReadinessChecker(
     private val storage: PrivateAppModelStorage,
     private val coordinator: ModelInstallCoordinator = ModelInstallCoordinator(storage),
     private val capabilityChecker: DeviceCapabilityChecker = DeviceCapabilityChecker(),
@@ -39,32 +39,32 @@ class LocalRuntimeReadinessChecker(
     private val runtimeStateStore: ModelRuntimeStateStore
         get() = coordinator.runtimeStateStore
 
-    fun select(snapshot: DeviceCapabilitySnapshot): ModelPackSelection {
+    open fun select(snapshot: DeviceCapabilitySnapshot): ModelPackSelection {
         return capabilityChecker.select(snapshot)
     }
 
-    fun inspect(snapshot: DeviceCapabilitySnapshot): LocalRuntimeReadiness {
+    open fun inspect(snapshot: DeviceCapabilitySnapshot): LocalRuntimeReadiness {
         val selection = select(snapshot)
         return inspect(selection.packId, selection)
     }
 
-    fun inspect(packId: ModelPackId): LocalRuntimeReadiness {
+    open fun inspect(packId: ModelPackId): LocalRuntimeReadiness {
         return inspect(packId, null)
     }
 
-    fun installStatus(packId: ModelPackId): ModelInstallStatusSnapshot {
+    open fun installStatus(packId: ModelPackId): ModelInstallStatusSnapshot {
         return coordinator.getInstallStatus(packId)
     }
 
-    fun installReady(packId: ModelPackId): Boolean {
+    open fun installReady(packId: ModelPackId): Boolean {
         return installStatus(packId).ready
     }
 
-    fun load(packId: ModelPackId): LocalModelLoadResult {
+    open fun load(packId: ModelPackId): LocalModelLoadResult {
         return loader.load(packId)
     }
 
-    fun loadRuntime(packId: ModelPackId): LocalRuntimeLoadResult {
+    open fun loadRuntime(packId: ModelPackId): LocalRuntimeLoadResult {
         return runtimeLoader.load(load(packId))
     }
 

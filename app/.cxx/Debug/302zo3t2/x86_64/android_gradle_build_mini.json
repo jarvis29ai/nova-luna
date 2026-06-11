@@ -1,0 +1,27 @@
+{
+  "buildFiles": [
+    "C:\\Users\\cricv\\Desktop\\nova-luna\\app\\src\\main\\cpp\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\cricv\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "C:\\Users\\cricv\\Desktop\\nova-luna\\app\\.cxx\\Debug\\302zo3t2\\x86_64",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\cricv\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "C:\\Users\\cricv\\Desktop\\nova-luna\\app\\.cxx\\Debug\\302zo3t2\\x86_64",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "nova-luna-native::@6890427a1f51a3e7e1df": {
+      "artifactName": "nova-luna-native",
+      "abi": "x86_64",
+      "output": "C:\\Users\\cricv\\Desktop\\nova-luna\\app\\build\\intermediates\\cxx\\Debug\\302zo3t2\\obj\\x86_64\\libllama-jni.so",
+      "runtimeFiles": []
+    }
+  }
+}

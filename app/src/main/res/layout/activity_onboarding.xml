@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_futuristic_main"
+    android:padding="32dp">
+
+    <TextView
+        android:id="@+id/welcomeTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="64dp"
+        android:text="Nova / Luna"
+        android:textAlignment="center"
+        android:textColor="@color/nova_white"
+        android:textSize="40sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/tagline"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Your AI Phone Assistant"
+        android:textAlignment="center"
+        android:textColor="@color/nova_purple"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toBottomOf="@+id/welcomeTitle" />
+
+    <TextView
+        android:id="@+id/subtext"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:alpha="0.8"
+        android:text="Talk naturally. Let Nova or Luna understand your task, guide you safely, and help you control your phone."
+        android:textAlignment="center"
+        android:textColor="@color/nova_white"
+        android:textSize="16sp"
+        app:layout_constraintTop_toBottomOf="@+id/tagline" />
+
+    <ImageView
+        android:id="@+id/heroOrb"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:src="@drawable/bg_orb_glow"
+        app:layout_constraintBottom_toTopOf="@+id/getStartedButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/subtext" />
+
+    <TextView
+        android:id="@+id/chooseTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="Choose your assistant"
+        android:textColor="@color/nova_white"
+        android:textSize="16sp"
+        app:layout_constraintBottom_toTopOf="@+id/assistantSelection"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <RadioGroup
+        android:id="@+id/assistantSelection"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="32dp"
+        android:orientation="horizontal"
+        app:layout_constraintBottom_toTopOf="@+id/getStartedButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <RadioButton
+            android:id="@+id/selectNova"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Nova"
+            android:textColor="@color/nova_white" />
+
+        <RadioButton
+            android:id="@+id/selectLuna"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:checked="true"
+            android:text="Luna"
+            android:textColor="@color/nova_white" />
+    </RadioGroup>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/getStartedButton"
+        style="@style/NovaButton"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_marginBottom="48dp"
+        android:text="Get Started"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

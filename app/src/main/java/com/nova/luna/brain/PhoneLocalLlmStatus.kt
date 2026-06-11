@@ -6,6 +6,7 @@ enum class PhoneLocalLlmStatus(val wireValue: String) {
     MODEL_DISABLED("model_disabled"),
     MODEL_ASSET_MISSING("model_asset_missing"),
     MODEL_RUNTIME_NOT_AVAILABLE("model_runtime_not_available"),
+    REAL_NATIVE_INFERENCE_NOT_IMPLEMENTED("real_native_inference_not_implemented"),
     RUNTIME_UNAVAILABLE("runtime_unavailable"),
     PROMPT_TOO_LARGE("prompt_too_large"),
     OUTPUT_PARSE_FAILED("output_parse_failed"),

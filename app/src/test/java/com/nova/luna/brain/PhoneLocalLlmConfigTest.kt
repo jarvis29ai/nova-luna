@@ -7,26 +7,28 @@ import org.junit.Test
 
 class PhoneLocalLlmConfigTest {
     @Test
-    fun `default model stack keeps gemma first and backups disabled`() {
+    fun `default model stack has expected priorities and defaults`() {
         val stack = PhoneLocalLlmConfig.defaultModelStack()
 
-        assertEquals(4, stack.size)
+        assertEquals(5, stack.size)
         assertEquals(PhoneLocalLlmModelId.GEMMA_3N, stack[0].id)
         assertTrue(stack[0].enabled)
-        assertEquals(PhoneLocalLlmModelId.QWEN_3_SMALL, stack[1].id)
+        assertEquals(PhoneLocalLlmModelId.QWEN_1_5B, stack[1].id)
         assertFalse(stack[1].enabled)
-        assertEquals(PhoneLocalLlmModelId.GEMMA_3_270M, stack[2].id)
+        assertEquals(PhoneLocalLlmModelId.QWEN_0_5B, stack[2].id)
         assertFalse(stack[2].enabled)
-        assertEquals(PhoneLocalLlmModelId.PHI_4_MINI, stack[3].id)
+        assertEquals(PhoneLocalLlmModelId.GEMMA_3_270M, stack[3].id)
         assertFalse(stack[3].enabled)
+        assertEquals(PhoneLocalLlmModelId.PHI_4_MINI, stack[4].id)
+        assertFalse(stack[4].enabled)
     }
 
     @Test
     fun `model ids resolve from wire values`() {
         assertEquals(PhoneLocalLlmModelId.GEMMA_3N, PhoneLocalLlmModelId.fromWireValue("gemma_3n"))
-        assertEquals(PhoneLocalLlmModelId.QWEN_3_SMALL, PhoneLocalLlmModelId.fromWireValue("QWEN_3_SMALL"))
+        assertEquals(PhoneLocalLlmModelId.QWEN_1_5B, PhoneLocalLlmModelId.fromWireValue("QWEN_1_5B"))
         assertEquals("Gemma 3n", PhoneLocalLlmModelId.GEMMA_3N.displayName)
-        assertTrue(PhoneLocalLlmModelId.GEMMA_3N.priority < PhoneLocalLlmModelId.QWEN_3_SMALL.priority)
+        assertTrue(PhoneLocalLlmModelId.GEMMA_3N.priority < PhoneLocalLlmModelId.QWEN_1_5B.priority)
     }
 
     @Test

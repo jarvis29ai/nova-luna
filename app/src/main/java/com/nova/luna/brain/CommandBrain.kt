@@ -26,9 +26,43 @@ import com.nova.luna.llm.*
 class CommandBrain(
     context: Context,
     private val brainMemoryStore: BrainMemoryStore = InMemoryBrainMemoryStore(),
-    private val brainService: BrainService = BrainService(brainMemoryStore = brainMemoryStore),
-    private val personalMemoryStore: com.nova.luna.memory.PersonalMemoryStore = com.nova.luna.memory.LocalPersonalMemoryStore(context)
+    private val personalMemoryStore: com.nova.luna.memory.PersonalMemoryStore = com.nova.luna.memory.LocalPersonalMemoryStore(context),
+    brainService: BrainService? = null
 ) {
+    private val runtimeConfig = BrainRuntimeConfig.fromBuildConfig()
+    private val storage = com.nova.luna.modelinstall.PrivateAppModelStorage.from(context)
+    private val readinessChecker = com.nova.luna.modelinstall.LocalRuntimeReadinessChecker(storage)
+    private val runtimeLoader = ModelRuntimeLoader(
+        storage = storage,
+        readinessChecker = readinessChecker,
+        liteRealInferenceEnabled = runtimeConfig.liteRealInferenceEnabled
+    )
+    private val bridge = com.nova.luna.modelinstall.ModelInstallBrainRouterBridge(readinessChecker)
+
+    private val coreModel = LocalBrainModelClient(
+        role = com.nova.luna.model.BrainModelRole.CORE_BRAIN,
+        roleReadinessProvider = bridge,
+        engine = DynamicModelRuntime(com.nova.luna.model.BrainModelRole.CORE_BRAIN, runtimeLoader)
+    )
+    private val fullModel = LocalBrainModelClient(
+        role = com.nova.luna.model.BrainModelRole.MULTILINGUAL_BACKUP,
+        roleReadinessProvider = bridge,
+        engine = DynamicModelRuntime(com.nova.luna.model.BrainModelRole.MULTILINGUAL_BACKUP, runtimeLoader)
+    )
+    private val liteModel = LocalBrainModelClient(
+        role = com.nova.luna.model.BrainModelRole.LITE_FALLBACK,
+        roleReadinessProvider = bridge,
+        engine = DynamicModelRuntime(com.nova.luna.model.BrainModelRole.LITE_FALLBACK, runtimeLoader)
+    )
+
+    private val brainService: BrainService = brainService ?: BrainService(
+        brainMemoryStore = brainMemoryStore,
+        localBrainRouterBridge = bridge,
+        coreBrainModelOverride = coreModel,
+        multilingualBackupModelOverride = fullModel,
+        liteFallbackModelOverride = liteModel
+    )
+
     private val parser = RuleBasedCommandParser()
     private val appLauncher = AppLauncher(context.applicationContext)
     private val resolver = IntentResolver(appLauncher)
@@ -38,7 +72,7 @@ class CommandBrain(
     private val sessionManager = BrainSessionManager(brainMemoryStore)
     private val brainActionRuntime = BrainActionRuntime(router, safetyGate, brainActionValidator)
     private val taskLoopCoordinator: TaskLoopCoordinator = AgentLoop(
-        brainService = brainService,
+        brainService = this.brainService,
         brainActionRuntime = brainActionRuntime,
         brainSessionManager = sessionManager
     )

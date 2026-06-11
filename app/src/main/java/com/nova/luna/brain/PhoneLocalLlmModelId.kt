@@ -13,22 +13,30 @@ enum class PhoneLocalLlmModelId(
         displayName = "Gemma 3n",
         roleLabel = "core phone brain",
         priority = 0,
-        defaultQuantizedFileName = "gemma-3n-q4.gguf",
+        defaultQuantizedFileName = "gemma-3n-E2B-it-int4.litertlm",
         minimumRamMbHint = 4096
     ),
-    QWEN_3_SMALL(
-        wireValue = "qwen_3_small",
-        displayName = "Qwen 3 Small",
+    QWEN_1_5B(
+        wireValue = "qwen_1_5b",
+        displayName = "Qwen 2.5 1.5B",
         roleLabel = "multilingual backup",
         priority = 1,
-        defaultQuantizedFileName = "qwen-3-small-q4.gguf",
+        defaultQuantizedFileName = "qwen2.5-1.5b-instruct-q4_k_m.gguf",
         minimumRamMbHint = 4096
+    ),
+    QWEN_0_5B(
+        wireValue = "qwen_0_5b",
+        displayName = "Qwen 2.5 0.5B",
+        roleLabel = "lightweight fallback",
+        priority = 2,
+        defaultQuantizedFileName = "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+        minimumRamMbHint = 2048
     ),
     GEMMA_3_270M(
         wireValue = "gemma_3_270m",
         displayName = "Gemma 3 270M",
         roleLabel = "lightweight fallback",
-        priority = 2,
+        priority = 3,
         defaultQuantizedFileName = "gemma-3-270m-q4.gguf",
         minimumRamMbHint = 2048
     ),

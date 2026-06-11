@@ -68,15 +68,26 @@ data class PhoneLocalLlmConfig(
                         priority = PhoneLocalLlmModelId.GEMMA_3N.priority
                     ),
                     PhoneLocalLlmModelConfig(
-                        id = PhoneLocalLlmModelId.QWEN_3_SMALL,
+                        id = PhoneLocalLlmModelId.QWEN_1_5B,
                         enabled = false,
                         assetPath = "",
-                        quantizedFileName = PhoneLocalLlmModelId.QWEN_3_SMALL.defaultQuantizedFileName,
-                        minimumRamMb = PhoneLocalLlmModelId.QWEN_3_SMALL.minimumRamMbHint,
+                        quantizedFileName = PhoneLocalLlmModelId.QWEN_1_5B.defaultQuantizedFileName,
+                        minimumRamMb = PhoneLocalLlmModelId.QWEN_1_5B.minimumRamMbHint,
                         maxInputTokens = 4096,
                         maxPromptChars = 6_144,
                         timeoutMs = 5_000,
-                        priority = PhoneLocalLlmModelId.QWEN_3_SMALL.priority
+                        priority = PhoneLocalLlmModelId.QWEN_1_5B.priority
+                    ),
+                    PhoneLocalLlmModelConfig(
+                        id = PhoneLocalLlmModelId.QWEN_0_5B,
+                        enabled = false,
+                        assetPath = "",
+                        quantizedFileName = PhoneLocalLlmModelId.QWEN_0_5B.defaultQuantizedFileName,
+                        minimumRamMb = PhoneLocalLlmModelId.QWEN_0_5B.minimumRamMbHint,
+                        maxInputTokens = 2_048,
+                        maxPromptChars = 4_096,
+                        timeoutMs = 5_000,
+                        priority = PhoneLocalLlmModelId.QWEN_0_5B.priority
                     ),
                     PhoneLocalLlmModelConfig(
                         id = PhoneLocalLlmModelId.GEMMA_3_270M,
@@ -107,7 +118,8 @@ data class PhoneLocalLlmConfig(
         fun defaultModelStack(): List<PhoneLocalLlmModelConfig> {
             return listOf(
                 PhoneLocalLlmModelConfig(id = PhoneLocalLlmModelId.GEMMA_3N),
-                PhoneLocalLlmModelConfig(id = PhoneLocalLlmModelId.QWEN_3_SMALL, enabled = false),
+                PhoneLocalLlmModelConfig(id = PhoneLocalLlmModelId.QWEN_1_5B, enabled = false),
+                PhoneLocalLlmModelConfig(id = PhoneLocalLlmModelId.QWEN_0_5B, enabled = false),
                 PhoneLocalLlmModelConfig(id = PhoneLocalLlmModelId.GEMMA_3_270M, enabled = false),
                 PhoneLocalLlmModelConfig(id = PhoneLocalLlmModelId.PHI_4_MINI, enabled = false)
             )

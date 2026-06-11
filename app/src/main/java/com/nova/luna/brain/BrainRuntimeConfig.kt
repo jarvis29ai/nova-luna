@@ -19,6 +19,7 @@ data class BrainRuntimeConfig(
     val ollamaBaseUrl: String,
     val ollamaModel: String,
     val llmEnabled: Boolean,
+    val liteRealInferenceEnabled: Boolean = false,
     val capabilityMode: BrainCapabilityMode = inferCapabilityMode(brainProvider, llmEnabled)
 ) {
     fun useLocalLlm(): Boolean {
@@ -34,6 +35,7 @@ data class BrainRuntimeConfig(
                 ollamaBaseUrl = BuildConfig.OLLAMA_BASE_URL,
                 ollamaModel = BuildConfig.OLLAMA_MODEL,
                 llmEnabled = llmEnabled,
+                liteRealInferenceEnabled = BuildConfig.LITE_REAL_INFERENCE_ENABLED,
                 capabilityMode = BrainCapabilityMode.fromWireValue(BuildConfig.BRAIN_CAPABILITY_MODE)
                     ?: inferCapabilityMode(brainProvider, llmEnabled)
             )

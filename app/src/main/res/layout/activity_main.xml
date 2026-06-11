@@ -1,179 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_futuristic_main">
 
-    <ScrollView
+    <FrameLayout
+        android:id="@+id/fragmentContainer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/nova_background"
-        android:fillViewport="true">
-        <!-- ... existing content ... -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="20dp">
-            <!-- (rest of existing LinearLayout content) -->
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toTopOf="@+id/bottomNavigation"
+        app:layout_constraintTop_toTopOf="parent" />
 
-        <TextView
-            android:id="@+id/titleText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/app_name_full"
-            android:textColor="@color/nova_on_background"
-            android:textSize="28sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/assistant_description"
-            android:textColor="@color/nova_on_background"
-            android:textSize="14sp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/voice_profile_label"
-            android:textColor="@color/nova_on_background"
-            android:textStyle="bold" />
-
-        <Spinner
-            android:id="@+id/voiceProfileSpinner"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:spinnerMode="dropdown" />
-
-        <Button
-            android:id="@+id/tapToSpeakButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:text="Tap to Speak"
-            android:backgroundTint="@color/nova_primary"
-            android:textColor="@color/nova_on_primary" />
-
-        <TextView
-            android:id="@+id/voiceTranscriptText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Transcript will appear here..."
-            android:textAlignment="center"
-            android:textColor="@color/nova_on_background"
-            android:textSize="16sp"
-            android:textStyle="italic" />
-
-        <TextView
-            android:id="@+id/voiceResponseText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Response will appear here..."
-            android:textAlignment="center"
-            android:textColor="@color/nova_primary"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <Button
-            android:id="@+id/startListeningButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:text="@string/start_listening" />
-
-        <Button
-            android:id="@+id/stopListeningButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/stop_listening" />
-
-        <Button
-            android:id="@+id/accessibilitySettingsButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/open_accessibility_settings" />
-
-        <Button
-            android:id="@+id/usageAccessButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/open_usage_access_settings" />
-
-        <Button
-            android:id="@+id/refreshStatusButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/refresh_status" />
-
-        <Button
-            android:id="@+id/commandHistoryButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/view_command_history" />
-
-        <Button
-            android:id="@+id/demoModeButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Demo Mode"
-            android:backgroundTint="@color/nova_secondary"
-            android:textColor="@color/nova_on_secondary" />
-
-        <Button
-            android:id="@+id/settingsButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Settings" />
-
-        <Button
-            android:id="@+id/diagnosticsButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Diagnostics" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/permission_status"
-            android:textColor="@color/nova_on_background"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/permissionStatusText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:lineSpacingExtra="4dp"
-            android:textColor="@color/nova_on_background"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/serviceStatusText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:textColor="@color/nova_on_background"
-            android:textSize="14sp" />
-    </LinearLayout>
-    </ScrollView>
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNavigation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/nova_card_dark"
+        app:itemIconTint="@color/nova_purple"
+        app:itemTextColor="@color/nova_white"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:menu="@menu/bottom_nav_menu" />
 
     <FrameLayout
         android:id="@+id/popupContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom" />
-</FrameLayout>
+        android:layout_gravity="bottom"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -38,11 +38,18 @@ data class LocalLlmConfig(
                     minMemoryMbRequired = 4096
                 ),
                 LocalLlmModelConfig(
-                    modelId = LocalLlmModelId.QWEN_3_SMALL_MULTILINGUAL,
-                    displayName = "Qwen 3 Small",
+                    modelId = LocalLlmModelId.QWEN_1_5B_FULL,
+                    displayName = "Qwen 2.5 1.5B",
                     role = LocalLlmRole.MULTILINGUAL_BACKUP,
                     priorityOrder = 2,
                     minMemoryMbRequired = 4096
+                ),
+                LocalLlmModelConfig(
+                    modelId = LocalLlmModelId.QWEN_0_5B_LITE,
+                    displayName = "Qwen 2.5 0.5B",
+                    role = LocalLlmRole.LIGHT_FALLBACK,
+                    priorityOrder = 3,
+                    minMemoryMbRequired = 2048
                 ),
                 LocalLlmModelConfig(
                     modelId = LocalLlmModelId.GEMMA_3_270M_FALLBACK,

@@ -51,7 +51,7 @@ class BrainServicePhase7LocalBrainSelectionTest {
                 multilingualBackupModel = safeModel(
                     role = BrainModelRole.MULTILINGUAL_BACKUP,
                     reply = "मैं मदद कर सकता हूं.",
-                    modelId = PhoneLocalLlmModelId.QWEN_3_SMALL
+                    modelId = PhoneLocalLlmModelId.QWEN_1_5B
                 ),
                 liteFallbackModel = safeModel(
                     role = BrainModelRole.LITE_FALLBACK,

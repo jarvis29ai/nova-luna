@@ -1,6 +1,7 @@
 package com.nova.luna.brain
 
 import com.nova.luna.model.BrainModelRole
+import com.nova.luna.model.BrainRouteDecision
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -10,7 +11,12 @@ import org.junit.Test
 class BrainServicePhase4LocalLlmSafetyTest {
     @Test
     fun `dangerous local llm output is rejected and replaced with a safe fallback`() {
+        val bridge = object : BrainRouterBridge {
+            override fun isReady(role: BrainModelRole): Boolean = role == BrainModelRole.GEMMA_REASONING
+            override fun selectLocalRoute(request: BrainRequest, allowOnlineHelper: Boolean): BrainRouteDecision? = null
+        }
         val service = BrainService(
+            localBrainRouterBridge = bridge,
             gemmaRuntime = PhoneGemmaRuntime(
                 config = gemmaPhoneConfig(gemmaModelAssetPath = tempModelFilePath()),
                 backend = StaticGemmaBackend(response = dangerousGemmaJson())

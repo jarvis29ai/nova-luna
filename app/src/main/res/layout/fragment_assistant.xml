@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/statusPill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_card_rounded"
+        android:backgroundTint="@color/nova_card_dark_2"
+        android:drawablePadding="8dp"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp"
+        android:text="Luna Online"
+        android:textColor="@color/nova_white"
+        android:textSize="14sp"
+        app:drawableStartCompat="@android:drawable/presence_online"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ImageView
+        android:id="@+id/assistantOrb"
+        android:layout_width="280dp"
+        android:layout_height="280dp"
+        android:src="@drawable/bg_orb_glow"
+        app:layout_constraintBottom_toTopOf="@+id/promptText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/statusPill" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnWakeLuna"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="Say Luna (Mock)"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toTopOf="@+id/promptText"
+        app:layout_constraintEnd_toStartOf="@+id/btnWakeNova"
+        app:layout_constraintHorizontal_chainStyle="packed"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnWakeNova"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginBottom="16dp"
+        android:text="Say Nova (Mock)"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toTopOf="@+id/promptText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/btnWakeLuna" />
+
+    <TextView
+        android:id="@+id/promptText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="32dp"
+        android:gravity="center"
+        android:text="What do you want me to do?"
+        android:textColor="@color/nova_white"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@+id/micButton" />
+
+    <TextView
+        android:id="@+id/examplePrompt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:alpha="0.7"
+        android:gravity="center"
+        android:text="Try saying &quot;Open camera&quot;"
+        android:textColor="@color/nova_lavender"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toTopOf="@+id/micButton" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/micButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="32dp"
+        android:src="@drawable/ic_mic"
+        app:backgroundTint="@color/nova_purple"
+        app:fabCustomSize="80dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:maxImageSize="40dp"
+        app:tint="@color/nova_white" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/keyboardButton"
+        style="@style/Widget.Material3.Button.IconButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginEnd="32dp"
+        app:icon="@drawable/ic_keyboard"
+        app:iconTint="@color/nova_muted_text"
+        app:layout_constraintBottom_toBottomOf="@+id/micButton"
+        app:layout_constraintEnd_toStartOf="@+id/micButton"
+        app:layout_constraintTop_toTopOf="@+id/micButton" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/closeButton"
+        style="@style/Widget.Material3.Button.IconButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="32dp"
+        app:icon="@drawable/ic_close"
+        app:iconTint="@color/nova_muted_text"
+        app:layout_constraintBottom_toBottomOf="@+id/micButton"
+        app:layout_constraintStart_toEndOf="@+id/micButton"
+        app:layout_constraintTop_toTopOf="@+id/micButton" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

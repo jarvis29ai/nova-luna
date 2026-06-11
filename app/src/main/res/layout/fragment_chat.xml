@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextView
+        android:id="@+id/chatHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="20dp"
+        android:text="Chat with Luna"
+        android:textColor="@color/nova_white"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/chatStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:text="Local brain / Safe mode"
+        android:textColor="@color/nova_muted_text"
+        android:textSize="12sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/chatHeader" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/chatRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="12dp"
+        android:paddingHorizontal="16dp"
+        app:layout_constraintBottom_toTopOf="@+id/inputContainer"
+        app:layout_constraintTop_toBottomOf="@+id/chatStatus" />
+
+    <LinearLayout
+        android:id="@+id/inputContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/nova_card_dark"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <EditText
+            android:id="@+id/chatInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_card_rounded"
+            android:backgroundTint="@color/nova_card_dark_2"
+            android:hint="Type a message..."
+            android:padding="12dp"
+            android:textColor="@color/nova_white"
+            android:textColorHint="@color/nova_muted_text" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/sendButton"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            app:backgroundTint="@color/nova_purple"
+            app:icon="@drawable/ic_mic"
+            app:iconTint="@color/nova_white" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

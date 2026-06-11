@@ -3,6 +3,8 @@ package com.nova.luna.brain
 import com.nova.luna.model.BrainModelRole
 
 interface BrainRouterBridge {
+    fun isReady(role: BrainModelRole): Boolean = false
+
     fun selectLocalRoute(
         request: BrainRequest,
         allowOnlineHelper: Boolean = true

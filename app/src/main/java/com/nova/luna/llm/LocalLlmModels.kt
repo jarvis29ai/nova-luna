@@ -8,7 +8,8 @@ import com.nova.luna.model.CommandIntent
 
 enum class LocalLlmModelId {
     GEMMA_3N_CORE,
-    QWEN_3_SMALL_MULTILINGUAL,
+    QWEN_1_5B_FULL,
+    QWEN_0_5B_LITE,
     GEMMA_3_270M_FALLBACK,
     PHI_4_MINI_FALLBACK,
     UNKNOWN

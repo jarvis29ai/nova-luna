@@ -28,7 +28,10 @@ class BrainServicePhase6Test {
             backend = StaticGemmaBackend()
         )
 
-        val diagnostics = service.diagnose("why is the sky blue?")
+        val diagnostics = service.diagnose("please explain why is the sky blue?")
+
+        println("DEBUG: finalProvider=${diagnostics.finalProvider}")
+        println("DEBUG: reason=${diagnostics.runtimeStatus?.reason}")
 
         assertEquals(BrainModelRole.GEMMA_REASONING, diagnostics.selectedRole)
         assertTrue(diagnostics.fallbackUsed)
@@ -39,7 +42,7 @@ class BrainServicePhase6Test {
         assertFalse(diagnostics.runtimeStatus?.modelLoaded ?: true)
         assertTrue(diagnostics.runtimeStatus?.modelPathConfigured == true)
         assertTrue(diagnostics.runtimeStatus?.modelFileExists == true)
-        assertTrue(diagnostics.runtimeStatus?.reason?.contains("disabled", ignoreCase = true) == true)
+        assertTrue("Reason was: ${diagnostics.runtimeStatus?.reason}", diagnostics.runtimeStatus?.reason?.contains("disabled", ignoreCase = true) == true)
     }
 
     @Test
@@ -52,7 +55,7 @@ class BrainServicePhase6Test {
             backend = StaticGemmaBackend()
         )
 
-        val diagnostics = service.diagnose("what is a good way to learn Kotlin?")
+        val diagnostics = service.diagnose("please explain what is a good way to learn Kotlin?")
 
         assertEquals(BrainModelRole.GEMMA_REASONING, diagnostics.selectedRole)
         assertTrue(diagnostics.fallbackUsed)
@@ -100,7 +103,7 @@ class BrainServicePhase6Test {
             backend = StaticGemmaBackend(response = dangerousGemmaJson())
         )
 
-        val diagnostics = service.diagnose("why is the sky blue?")
+        val diagnostics = service.diagnose("please explain why is the sky blue?")
 
         assertEquals(BrainModelRole.GEMMA_REASONING, diagnostics.selectedRole)
         assertNotNull(diagnostics.parsedBrainAction)
@@ -127,7 +130,7 @@ class BrainServicePhase6Test {
             backend = StaticGemmaBackend(response = dangerousGemmaJson())
         )
 
-        val diagnostics = service.diagnose("why is the sky blue?")
+        val diagnostics = service.diagnose("please explain why is the sky blue?")
         val executor = FakeActionExecutor()
         val commandRouter = CommandRouter(executor)
 
@@ -165,7 +168,12 @@ class BrainServicePhase6Test {
     }
 
     private fun serviceFor(config: GemmaPhoneConfig, backend: PhoneGemmaRuntimeBackend): BrainService {
+        val bridge = object : BrainRouterBridge {
+            override fun isReady(role: BrainModelRole): Boolean = role == BrainModelRole.GEMMA_REASONING
+            override fun selectLocalRoute(request: BrainRequest, allowOnlineHelper: Boolean): BrainRouteDecision? = null
+        }
         return BrainService(
+            localBrainRouterBridge = bridge,
             gemmaRuntime = PhoneGemmaRuntime(
                 config = config,
                 backend = backend
@@ -204,7 +212,7 @@ class BrainServicePhase6Test {
               "requiresConfirmation": true,
               "finalActionAllowed": true,
               "params": {
-                "rawText": "why is the sky blue?",
+                "rawText": "please explain why is the sky blue?",
                 "dropLocation": "DB Mall"
               },
               "nextQuestion": "Confirm booking now?"

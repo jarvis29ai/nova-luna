@@ -22,7 +22,7 @@ class BrainServicePhase6LocalBrainTest {
         val service = serviceFor(
             bridge = bridgeFor(BrainModelRole.CORE_BRAIN),
             coreModel = staticModel(BrainModelRole.CORE_BRAIN, action, PhoneLocalLlmModelId.GEMMA_3N),
-            multilingualModel = staticModel(BrainModelRole.MULTILINGUAL_BACKUP, action, PhoneLocalLlmModelId.QWEN_3_SMALL),
+            multilingualModel = staticModel(BrainModelRole.MULTILINGUAL_BACKUP, action, PhoneLocalLlmModelId.QWEN_1_5B),
             liteModel = staticModel(BrainModelRole.LITE_FALLBACK, action, PhoneLocalLlmModelId.GEMMA_3_270M)
         )
 
@@ -51,7 +51,7 @@ class BrainServicePhase6LocalBrainTest {
         val service = serviceFor(
             bridge = bridgeFor(BrainModelRole.CORE_BRAIN),
             coreModel = staticModel(BrainModelRole.CORE_BRAIN, dangerous, PhoneLocalLlmModelId.GEMMA_3N),
-            multilingualModel = staticModel(BrainModelRole.MULTILINGUAL_BACKUP, safeAction("explain", "Safe multilingual answer.", "कृपया मुझे समझाओ"), PhoneLocalLlmModelId.QWEN_3_SMALL),
+            multilingualModel = staticModel(BrainModelRole.MULTILINGUAL_BACKUP, safeAction("explain", "Safe multilingual answer.", "कृपया मुझे समझाओ"), PhoneLocalLlmModelId.QWEN_1_5B),
             liteModel = staticModel(BrainModelRole.LITE_FALLBACK, safeAction("explain", "Safe lite answer.", "simple fallback help"), PhoneLocalLlmModelId.GEMMA_3_270M)
         )
 
@@ -76,7 +76,7 @@ class BrainServicePhase6LocalBrainTest {
         val service = serviceFor(
             bridge = bridgeFor(BrainModelRole.MULTILINGUAL_BACKUP),
             coreModel = staticModel(BrainModelRole.CORE_BRAIN, multilingualAction, PhoneLocalLlmModelId.GEMMA_3N),
-            multilingualModel = staticModel(BrainModelRole.MULTILINGUAL_BACKUP, multilingualAction, PhoneLocalLlmModelId.QWEN_3_SMALL),
+            multilingualModel = staticModel(BrainModelRole.MULTILINGUAL_BACKUP, multilingualAction, PhoneLocalLlmModelId.QWEN_1_5B),
             liteModel = staticModel(BrainModelRole.LITE_FALLBACK, multilingualAction, PhoneLocalLlmModelId.GEMMA_3_270M)
         )
 
@@ -85,7 +85,7 @@ class BrainServicePhase6LocalBrainTest {
         assertEquals(BrainModelRole.MULTILINGUAL_BACKUP, diagnostics.selectedRole)
         assertEquals(multilingualAction, diagnostics.finalBrainAction)
         assertTrue(diagnostics.validatorResult)
-        assertEquals(PhoneLocalLlmModelId.QWEN_3_SMALL.wireValue, diagnostics.runtimeStatus?.selectedLocalModelId)
+        assertEquals(PhoneLocalLlmModelId.QWEN_1_5B.wireValue, diagnostics.runtimeStatus?.selectedLocalModelId)
         assertEquals("ready", diagnostics.runtimeStatus?.selectedLocalModelStatus)
     }
 

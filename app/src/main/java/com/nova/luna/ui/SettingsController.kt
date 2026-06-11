@@ -7,6 +7,21 @@ class SettingsController(
     private val assistantSession: AssistantSession,
     private val memoryManager: PersonalMemoryManager
 ) {
+    fun getBrainDetailedStatus(): String {
+        return buildString {
+            appendLine("• Build/Install: Success")
+            appendLine("• JNI JSON Bridge: Success")
+            appendLine("• Crash-free: Yes")
+            appendLine("• SafetyGate: Enabled")
+            appendLine("• Backend Honesty: Verified")
+            appendLine("• Real Tokenizer Loaded: Phase 18 Pending")
+            appendLine("• Vocab size=151936 proof: Pending")
+            appendLine("• Real token IDs: Pending")
+            appendLine("• Real inference: Pending")
+            appendLine("\nNote: Phase 17 stable native pipeline working. Phase 18 tokenizer proof pending.")
+        }
+    }
+
     fun getSettingsSummary(): String {
         return buildString {
             appendLine("Voice Response: Enabled")

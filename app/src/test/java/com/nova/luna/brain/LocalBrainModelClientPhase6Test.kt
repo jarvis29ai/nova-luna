@@ -21,8 +21,8 @@ class LocalBrainModelClientPhase6Test {
         )
         val engine = RecordingEngine(
             response = BrainActionJsonCodec().encode(action),
-            reportedModelId = PhoneLocalLlmModelId.QWEN_3_SMALL,
-            reportedModelDisplayName = PhoneLocalLlmModelId.QWEN_3_SMALL.displayName
+            reportedModelId = PhoneLocalLlmModelId.QWEN_1_5B,
+            reportedModelDisplayName = PhoneLocalLlmModelId.QWEN_1_5B.displayName
         )
         val client = LocalBrainModelClient(
             role = BrainModelRole.MULTILINGUAL_BACKUP,
@@ -37,7 +37,7 @@ class LocalBrainModelClientPhase6Test {
 
         assertTrue(result.available)
         assertEquals(action, result.candidateAction)
-        assertEquals(PhoneLocalLlmModelId.QWEN_3_SMALL, result.localModelId)
+        assertEquals(PhoneLocalLlmModelId.QWEN_1_5B, result.localModelId)
         assertEquals(PhoneLocalLlmStatus.READY, result.localModelStatus)
         assertNotNull(engine.lastPrompt)
         assertTrue(engine.lastPrompt!!.contains("Multilingual Backup guidance"))

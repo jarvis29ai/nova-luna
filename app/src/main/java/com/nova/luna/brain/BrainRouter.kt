@@ -21,6 +21,10 @@ class BrainRouter(
     private val groceryIntentParser = GroceryIntentParser()
     private val contentCreationIntentParser = ContentCreationIntentParser()
 
+    private fun gemmaReady(): Boolean {
+        return localBrainRouterBridge.isReady(BrainModelRole.GEMMA_REASONING)
+    }
+
     fun route(request: BrainRequest, allowOnlineHelper: Boolean = true): BrainRouteDecision {
         val normalized = normalize(request.rawText)
         if (normalized.isBlank() && !containsNonLatinScript(request.rawText)) {
@@ -47,6 +51,14 @@ class BrainRouter(
         }
 
         routeForActiveSession(request, allowOnlineHelper)?.let { return it }
+
+        if (normalized == "compare") {
+            return decision(
+                role = BrainModelRole.MOCK_FALLBACK,
+                reason = "Bare 'compare' request stays on fallback path.",
+                safetyNotes = listOf("LocalMockBrainProvider handles ambiguous bare commands.")
+            )
+        }
 
         if (isMessagePlanning(normalized)) {
             return decision(
@@ -92,13 +104,29 @@ class BrainRouter(
             )
         }
 
-        if (isFlexibleReasoningRequest(request.rawText, normalized)) {
+        val reasoningRequest = isFlexibleReasoningRequest(request.rawText, normalized) || isConversation(normalized)
+        if (reasoningRequest) {
             val internetDecision = internetPermissionPolicy.classify(request.rawText)
             selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
-            return brainSetupRequiredDecision(
-                requiresInternet = internetDecision.category == InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO ||
-                    internetDecision.category == InternetPermissionCategory.INTERNET_OPTIONAL
-            )
+            
+            if (gemmaReady()) {
+                return decision(
+                    role = BrainModelRole.GEMMA_REASONING,
+                    reason = "Reasoning/conversational request selected for phone-local processing.",
+                    requiresInternet = internetDecision.category == InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO ||
+                        internetDecision.category == InternetPermissionCategory.INTERNET_OPTIONAL,
+                    fallbackAllowed = true,
+                    safetyNotes = listOf(
+                        "Gemma reasoning model handles open-ended questions.",
+                        "No final actions allowed."
+                    )
+                )
+            } else {
+                return brainSetupRequiredDecision(
+                    requiresInternet = internetDecision.category == InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO ||
+                        internetDecision.category == InternetPermissionCategory.INTERNET_OPTIONAL
+                )
+            }
         }
 
         if (isContentPlanning(request.rawText)) {
@@ -138,15 +166,6 @@ class BrainRouter(
                     "ActionJsonModel may only produce safe BrainAction JSON.",
                     "Final payment, OTP, login, send-money, and delete steps must remain manual."
                 )
-            )
-        }
-
-        if (isConversation(normalized)) {
-            val internetDecision = internetPermissionPolicy.classify(request.rawText)
-            selectLocalBrainRoute(request, allowOnlineHelper)?.let { return it }
-            return brainSetupRequiredDecision(
-                requiresInternet = internetDecision.category == InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO ||
-                    internetDecision.category == InternetPermissionCategory.INTERNET_OPTIONAL
             )
         }
 
@@ -196,6 +215,7 @@ class BrainRouter(
         reason: String,
         requiresInternet: Boolean = false,
         requiresScreenContext: Boolean = false,
+        fallbackAllowed: Boolean = true,
         safetyNotes: List<String>
     ): BrainRouteDecision {
         return BrainRouteDecision(
@@ -203,7 +223,7 @@ class BrainRouter(
             reason = reason,
             requiresInternet = requiresInternet,
             requiresScreenContext = requiresScreenContext,
-            fallbackAllowed = true,
+            fallbackAllowed = fallbackAllowed,
             safetyNotes = safetyNotes
         )
     }
@@ -622,26 +642,25 @@ class BrainRouter(
         if (phraseSignals.any { containsPhrase(normalized, it) }) {
             return true
         }
-
-        if (wordCount == 1) {
-            return normalized in setOf(
-                "help",
-                "explain",
-                "translate",
-                "rewrite",
-                "summarize",
-                "draft",
-                "recommend",
-                "suggest",
-                "analyze",
-                "samjhao",
-                "batao",
-                "kya",
-                "kaise",
-                "kyu",
-                "please"
-            )
-        }
+if (wordCount == 1) {
+    return normalized in setOf(
+        "help",
+        "explain",
+        "translate",
+        "rewrite",
+        "summarize",
+        "draft",
+        "recommend",
+        "suggest",
+        "analyze",
+        "samjhao",
+        "batao",
+        "kya",
+        "kaise",
+        "kyu",
+        "please"
+    )
+}
 
         return normalized.contains("please") ||
             normalized.contains("help") ||

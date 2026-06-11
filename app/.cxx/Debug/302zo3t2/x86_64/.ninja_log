@@ -1,0 +1,12 @@
+# ninja log v5
+51	605	8028694475512086	CMakeFiles/nova-luna-native.dir/third_party/llama.cpp/ggml-quants.c.o	120568d22d7b9a0d
+32	711	8028694476801356	CMakeFiles/nova-luna-native.dir/third_party/llama.cpp/ggml-alloc.c.o	de4c003328b89fc5
+43	744	8028694477081196	CMakeFiles/nova-luna-native.dir/third_party/llama.cpp/ggml-backend.c.o	a3794da0af78a755
+24	850	8028694478186671	CMakeFiles/nova-luna-native.dir/third_party/llama.cpp/ggml.c.o	39aec7a106f83114
+606	1464	8028694483775235	CMakeFiles/nova-luna-native.dir/third_party/llama.cpp/ggml-cpu.c.o	a051e03e42c8eadc
+712	5336	8028694523967332	CMakeFiles/nova-luna-native.dir/third_party/llama.cpp/unicode.cpp.o	3f503b3b5af2ae00
+1	6235	8028694533493822	CMakeFiles/nova-luna-native.dir/third_party/llama.cpp/llama.cpp.o	8b7529f064540972
+15	6383	8028694534741699	CMakeFiles/nova-luna-native.dir/llama-jni.cpp.o	2784472a9d3cb585
+6384	6847	8028694539757457	C:/Users/cricv/Desktop/nova-luna/app/build/intermediates/cxx/Debug/302zo3t2/obj/x86_64/libllama-jni.so	53e81ce865f8d7a5
+11	2812	8028720705201212	CMakeFiles/nova-luna-native.dir/third_party/llama.cpp/llama.cpp.o	8b7529f064540972
+2813	2975	8028720707111650	C:/Users/cricv/Desktop/nova-luna/app/build/intermediates/cxx/Debug/302zo3t2/obj/x86_64/libllama-jni.so	53e81ce865f8d7a5
