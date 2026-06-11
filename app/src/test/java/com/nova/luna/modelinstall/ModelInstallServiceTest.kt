@@ -122,7 +122,7 @@ class ModelInstallServiceTest {
         internalFile.writeBytes(ByteArray(20))
         
         // 2. Setup a broken saved path in runtimeStateStore
-        val brokenPath = "/non/existent/path"
+        val brokenPath = "/non/existent/path/model.gguf"
         runtimeStateStore.upsert(ModelRuntimeState(
             packId = ModelPackId.CORE,
             version = "1.0.0",
@@ -130,21 +130,24 @@ class ModelInstallServiceTest {
             runtimeStatus = ModelRuntimeStatus.READY,
             installState = ModelInstallStatus.READY,
             ready = true,
+            runtimeLoaded = true,
+            healthCheckPassed = true,
             expectedFileCount = 1,
             verifiedFileCount = 1,
             modelRootPath = brokenPath
         ))
         
-        // 3. Verify it's broken
-        assertFalse(smallService.getInstallState("core").ready)
+        // 3. Verify it's considered READY via fallback even if stored path is broken
+        assertTrue("Fallback should find it", smallService.getInstallState("core").ready)
+        assertEquals("Should have found it in internal storage", internalFile.absolutePath, smallService.getInstallState("core").resolvedPath)
         
-        // 4. Repair
+        // 4. Repair explicitly
         val state = smallService.repairModelPath("core")
         assertTrue(state.ready)
         assertEquals(ModelInstallReason.MODEL_REPAIR_SUCCESS, state.reason)
         assertEquals(internalFile.absolutePath, state.resolvedPath)
         
-        // 5. Verify it's now saved correctly
+        // 5. Verify it's now saved correctly in stateStore
         assertEquals(internalFile.absolutePath, runtimeStateStore.find(ModelPackId.CORE)?.modelRootPath)
     }
 

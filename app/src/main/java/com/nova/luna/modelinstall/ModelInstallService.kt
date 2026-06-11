@@ -100,7 +100,7 @@ class ModelInstallService(
         
         val targetDir = storage.modelsDir(packId)
         targetDir.mkdirs()
-        val tempFile = File(targetDir, spec.expectedFileName + ".tmp")
+        val tempFile = File(targetDir, "importing_${spec.expectedFileName}")
         val targetFile = File(targetDir, spec.expectedFileName)
         
         try {
@@ -158,7 +158,9 @@ class ModelInstallService(
     }
 }
 
-class ModelInstallSpecRegistry {
+class ModelInstallSpecRegistry(
+    customSpecs: List<ModelInstallSpec>? = null
+) {
     val PRIMARY_BRAIN = ModelInstallSpec(
         modelId = "core",
         displayName = "Qwen 2.5 0.5B Instruct",
@@ -192,11 +194,15 @@ class ModelInstallSpecRegistry {
         allowedExtensions = listOf(".gguf", ".bin")
     )
 
-    private val specs = mapOf(
-        PRIMARY_BRAIN.modelId to PRIMARY_BRAIN,
-        LITE_FALLBACK.modelId to LITE_FALLBACK,
-        FULL_MULTILINGUAL.modelId to FULL_MULTILINGUAL
-    )
+    private val specs = if (customSpecs != null) {
+        customSpecs.associateBy { it.modelId }
+    } else {
+        mapOf(
+            PRIMARY_BRAIN.modelId to PRIMARY_BRAIN,
+            LITE_FALLBACK.modelId to LITE_FALLBACK,
+            FULL_MULTILINGUAL.modelId to FULL_MULTILINGUAL
+        )
+    }
 
     fun getSpec(modelId: String): ModelInstallSpec? = specs[modelId]
     

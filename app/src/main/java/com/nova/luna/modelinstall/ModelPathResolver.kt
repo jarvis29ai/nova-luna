@@ -23,12 +23,13 @@ class ModelPathResolver(
         val storedPath = runtimeStateStore.find(ModelPackId.fromWireValue(spec.modelId) ?: ModelPackId.CORE)?.modelRootPath
         if (storedPath != null) {
             val file = File(storedPath)
-            if (file.exists() && file.isFile && file.canRead()) {
-                // If it's a directory, we expect the file inside
+            if (file.exists()) {
                 if (file.isDirectory) {
                     val modelFile = File(file, spec.expectedFileName)
-                    if (modelFile.exists()) return modelFile.absolutePath
-                } else {
+                    if (modelFile.exists() && modelFile.isFile && modelFile.canRead()) {
+                        return modelFile.absolutePath
+                    }
+                } else if (file.isFile && file.canRead()) {
                     return file.absolutePath
                 }
             }

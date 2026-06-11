@@ -76,8 +76,9 @@ internal inline fun <T> withLocalRuntimeEnvironment(
         coordinator = coordinator,
         runtimeReadinessChecker = readinessChecker
     )
+    val testSpecs = catalog.map { packToInstallSpec(it) }
     val modelInstallService = ModelInstallService(
-        specRegistry = ModelInstallSpecRegistry(),
+        specRegistry = ModelInstallSpecRegistry(testSpecs),
         pathResolver = ModelPathResolver(
             context = org.mockito.Mockito.mock(android.content.Context::class.java),
             storage = storage,
@@ -105,6 +106,21 @@ internal inline fun <T> withLocalRuntimeEnvironment(
     } finally {
         baseDir.deleteRecursively()
     }
+}
+
+internal fun packToInstallSpec(pack: ModelPackSpec): ModelInstallSpec {
+    // For simplicity in Phase 21 bridge, we assume single file or primary file
+    val primaryFile = pack.files.first()
+    return ModelInstallSpec(
+        modelId = pack.id.wireValue,
+        displayName = pack.displayName,
+        role = pack.id.name,
+        expectedFileName = primaryFile.fileName,
+        expectedSha256 = primaryFile.sha256,
+        minimumBytes = 1, // Test mode: allow small files
+        preferredInstallDirName = pack.id.wireValue,
+        allowedExtensions = listOf(".gguf", ".bin", ".litertlm", ".task")
+    )
 }
 
 internal fun singleFilePack(

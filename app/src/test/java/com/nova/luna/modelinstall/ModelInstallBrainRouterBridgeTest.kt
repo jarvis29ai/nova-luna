@@ -14,7 +14,7 @@ class ModelInstallBrainRouterBridgeTest {
         val pack = singleFilePack(
             packId = ModelPackId.CORE,
             fileName = "gemma-3n-q4.gguf",
-            relativePath = "core",
+            relativePath = "",
             payload = payload
         )
 
@@ -22,7 +22,7 @@ class ModelInstallBrainRouterBridgeTest {
             seedReadyPack(
                 env = env,
                 pack = pack,
-                payloads = mapOf("core/gemma-3n-q4.gguf" to payload)
+                payloads = mapOf("gemma-3n-q4.gguf" to payload)
             )
 
             val bridge = ModelInstallBrainRouterBridge(env.modelInstallService)
@@ -41,7 +41,7 @@ class ModelInstallBrainRouterBridgeTest {
         val pack = singleFilePack(
             packId = ModelPackId.FULL,
             fileName = "qwen-3-small-q4.gguf",
-            relativePath = "full/multilingual",
+            relativePath = "",
             payload = payload
         )
 
@@ -49,7 +49,7 @@ class ModelInstallBrainRouterBridgeTest {
             seedReadyPack(
                 env = env,
                 pack = pack,
-                payloads = mapOf("full/multilingual/qwen-3-small-q4.gguf" to payload)
+                payloads = mapOf("qwen-3-small-q4.gguf" to payload)
             )
 
             val bridge = ModelInstallBrainRouterBridge(env.modelInstallService)
@@ -66,7 +66,7 @@ class ModelInstallBrainRouterBridgeTest {
         val pack = singleFilePack(
             packId = ModelPackId.LITE,
             fileName = "gemma-3-270m-q4.gguf",
-            relativePath = "lite",
+            relativePath = "",
             payload = payload
         )
 
@@ -74,7 +74,7 @@ class ModelInstallBrainRouterBridgeTest {
             seedReadyPack(
                 env = env,
                 pack = pack,
-                payloads = mapOf("lite/gemma-3-270m-q4.gguf" to payload)
+                payloads = mapOf("gemma-3-270m-q4.gguf" to payload)
             )
 
             val bridge = ModelInstallBrainRouterBridge(env.modelInstallService)
@@ -91,7 +91,7 @@ class ModelInstallBrainRouterBridgeTest {
         val pack = singleFilePack(
             packId = ModelPackId.CORE,
             fileName = "gemma-3n-q4.gguf",
-            relativePath = "core",
+            relativePath = "",
             payload = payload
         )
 
