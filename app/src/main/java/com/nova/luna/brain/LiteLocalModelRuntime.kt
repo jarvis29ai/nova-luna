@@ -390,6 +390,10 @@ class LiteLocalModelRuntime(
     }
 
     override fun cancel(): Boolean {
+        return true
+    }
+
+    override fun unload(): Boolean {
         if (nativeLoaded) {
             try {
                 nativeRuntime.unload()

@@ -39,6 +39,16 @@ class CommandBrain(
         runtimeStateStore = runtimeStateStore,
         storage = storage
     )
+    private val ramInfoProvider = AndroidRamInfoProvider(context)
+    private val ramGuard = ModelRamGuard(ramInfoProvider)
+    private val modelRuntimeManager = ModelRuntimeManager(
+        loader = ModelRuntimeLoader(
+            storage = storage,
+            modelInstallService = modelInstallService,
+            liteRealInferenceEnabled = runtimeConfig.liteRealInferenceEnabled
+        ),
+        ramGuard = ramGuard
+    )
     private val runtimeLoader = ModelRuntimeLoader(
         storage = storage,
         modelInstallService = modelInstallService,
@@ -49,17 +59,17 @@ class CommandBrain(
     private val coreModel = LocalBrainModelClient(
         role = com.nova.luna.model.BrainModelRole.CORE_BRAIN,
         roleReadinessProvider = bridge,
-        engine = DynamicModelRuntime(com.nova.luna.model.BrainModelRole.CORE_BRAIN, runtimeLoader)
+        manager = modelRuntimeManager
     )
     private val fullModel = LocalBrainModelClient(
         role = com.nova.luna.model.BrainModelRole.MULTILINGUAL_BACKUP,
         roleReadinessProvider = bridge,
-        engine = DynamicModelRuntime(com.nova.luna.model.BrainModelRole.MULTILINGUAL_BACKUP, runtimeLoader)
+        manager = modelRuntimeManager
     )
     private val liteModel = LocalBrainModelClient(
         role = com.nova.luna.model.BrainModelRole.LITE_FALLBACK,
         roleReadinessProvider = bridge,
-        engine = DynamicModelRuntime(com.nova.luna.model.BrainModelRole.LITE_FALLBACK, runtimeLoader)
+        manager = modelRuntimeManager
     )
 
     private val brainService: BrainService = brainService ?: BrainService(
@@ -68,7 +78,8 @@ class CommandBrain(
         coreBrainModelOverride = coreModel,
         multilingualBackupModelOverride = fullModel,
         liteFallbackModelOverride = liteModel,
-        modelInstallService = modelInstallService
+        modelInstallService = modelInstallService,
+        modelRuntimeManager = modelRuntimeManager
     )
 
     private val parser = RuleBasedCommandParser()

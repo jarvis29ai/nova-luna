@@ -10,13 +10,14 @@ class LocalBrainModelClient(
     override val role: BrainModelRole,
     private val roleReadinessProvider: BrainRoleReadinessProvider = NoOpBrainRoleReadinessProvider,
     private val engine: PhoneLocalLlmEngine = UnavailablePhoneLocalLlmEngine(),
+    private val manager: ModelRuntimeManager? = null,
     private val promptBuilder: LocalModelPromptBuilder = LocalModelPromptBuilder(),
     private val candidateParser: LocalCandidateJsonParser = LocalCandidateJsonParser(),
     private val candidateValidator: LocalCandidateValidator = LocalCandidateValidator(),
     private val catalog: BrainModelCatalog = BrainModelCatalog
 ) : PhoneBrainModel {
     override val available: Boolean
-        get() = roleReadinessProvider.isReady(role) && engine.available() && catalog.entryForRole(role) != null
+        get() = roleReadinessProvider.isReady(role) && (manager?.getEngineForRole(role)?.first?.available() ?: engine.available()) && catalog.entryForRole(role) != null
 
     fun buildPrompt(request: BrainRequest, routeDecision: BrainRouteDecision): String {
         val entry = catalog.entryForRole(role)
@@ -77,7 +78,13 @@ class LocalBrainModelClient(
             )
         }
 
-        if (!engine.available()) {
+        val (effectiveEngine, sessionTrace) = if (manager != null) {
+            manager.getEngineForRole(role)
+        } else {
+            engine to null
+        }
+
+        if (!effectiveEngine.available()) {
             return BrainModelResult.unavailable(
                 role = role,
                 reason = "Local candidate engine is unavailable for ${entry.displayName}.",
@@ -92,13 +99,14 @@ class LocalBrainModelClient(
                 realInference = false,
                 nativeGenerationAvailable = false,
                 jsonParseAttempted = false,
-                jsonParseSuccess = false
+                jsonParseSuccess = false,
+                sessionTrace = sessionTrace
             )
         }
 
         val prompt = buildPrompt(request, routeDecision)
         val generation = runCatching {
-            engine.generate(prompt, DEFAULT_TIMEOUT_MS)
+            effectiveEngine.generate(prompt, DEFAULT_TIMEOUT_MS)
         }.getOrElse { throwable ->
             return BrainModelResult.unavailable(
                 role = role,
@@ -115,7 +123,8 @@ class LocalBrainModelClient(
                 realInference = true,
                 nativeGenerationAvailable = true,
                 jsonParseAttempted = false,
-                jsonParseSuccess = false
+                jsonParseSuccess = false,
+                sessionTrace = sessionTrace
             )
         }
 
@@ -136,7 +145,8 @@ class LocalBrainModelClient(
                 nativeGenerationAvailable = true,
                 jsonParseAttempted = true,
                 jsonParseSuccess = false,
-                latencyMillis = generation.latencyMillis
+                latencyMillis = generation.latencyMillis,
+                sessionTrace = sessionTrace
             )
         }
 
@@ -158,7 +168,8 @@ class LocalBrainModelClient(
                 nativeGenerationAvailable = true,
                 jsonParseAttempted = true,
                 jsonParseSuccess = false,
-                latencyMillis = generation.latencyMillis
+                latencyMillis = generation.latencyMillis,
+                sessionTrace = sessionTrace
             )
         }
 
@@ -184,7 +195,8 @@ class LocalBrainModelClient(
                 nativeGenerationAvailable = true,
                 jsonParseAttempted = true,
                 jsonParseSuccess = false,
-                latencyMillis = generation.latencyMillis
+                latencyMillis = generation.latencyMillis,
+                sessionTrace = sessionTrace
             )
         }
 
@@ -206,7 +218,8 @@ class LocalBrainModelClient(
             nativeGenerationAvailable = true,
             jsonParseAttempted = true,
             jsonParseSuccess = true,
-            latencyMillis = generation.latencyMillis
+            latencyMillis = generation.latencyMillis,
+            sessionTrace = sessionTrace
         )
     }
 

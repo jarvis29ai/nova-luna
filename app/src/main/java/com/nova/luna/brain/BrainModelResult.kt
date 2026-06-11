@@ -20,7 +20,8 @@ data class BrainModelResult(
     val jsonParseAttempted: Boolean = false,
     val jsonParseSuccess: Boolean = false,
     val latencyMillis: Long? = null,
-    val onlineTrace: OnlineAiTrace? = null
+    val onlineTrace: OnlineAiTrace? = null,
+    val sessionTrace: ModelRuntimeSessionTrace? = null
 ) {
     val hasCandidate: Boolean
         get() = available && candidateAction != null
@@ -42,7 +43,8 @@ data class BrainModelResult(
             jsonParseSuccess: Boolean = false,
             latencyMillis: Long? = null,
             rawResponse: String? = null,
-            onlineTrace: OnlineAiTrace? = null
+            onlineTrace: OnlineAiTrace? = null,
+            sessionTrace: ModelRuntimeSessionTrace? = null
         ): BrainModelResult {
             return BrainModelResult(
                 role = role,
@@ -61,7 +63,8 @@ data class BrainModelResult(
                 jsonParseAttempted = jsonParseAttempted,
                 jsonParseSuccess = jsonParseSuccess,
                 latencyMillis = latencyMillis,
-                onlineTrace = onlineTrace
+                onlineTrace = onlineTrace,
+                sessionTrace = sessionTrace
             )
         }
 
@@ -81,7 +84,8 @@ data class BrainModelResult(
             jsonParseAttempted: Boolean = false,
             jsonParseSuccess: Boolean = false,
             latencyMillis: Long? = null,
-            onlineTrace: OnlineAiTrace? = null
+            onlineTrace: OnlineAiTrace? = null,
+            sessionTrace: ModelRuntimeSessionTrace? = null
         ): BrainModelResult {
             return BrainModelResult(
                 role = role,
@@ -100,7 +104,8 @@ data class BrainModelResult(
                 jsonParseAttempted = jsonParseAttempted,
                 jsonParseSuccess = jsonParseSuccess,
                 latencyMillis = latencyMillis,
-                onlineTrace = onlineTrace
+                onlineTrace = onlineTrace,
+                sessionTrace = sessionTrace
             )
         }
     }

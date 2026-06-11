@@ -32,6 +32,7 @@ class BrainService(
     private val validator: BrainActionValidator = BrainActionValidator(),
     private val safetyGate: SafetyGate = SafetyGate(),
     private val modelInstallService: ModelInstallService? = null,
+    private val modelRuntimeManager: ModelRuntimeManager? = null,
     private val runtimeConfig: BrainRuntimeConfig = BrainRuntimeConfig.fromBuildConfig(),
     private val internetPermissionPolicy: InternetPermissionPolicy = InternetPermissionPolicy(),
     private val internetAvailable: Boolean = false,
@@ -50,17 +51,20 @@ class BrainService(
     private val coreBrainModel: PhoneBrainModel = LocalBrainModelClient(
         role = BrainModelRole.CORE_BRAIN,
         roleReadinessProvider = (localBrainRouterBridge as? BrainRoleReadinessProvider)
-            ?: NoOpBrainRoleReadinessProvider
+            ?: NoOpBrainRoleReadinessProvider,
+        manager = modelRuntimeManager
     ),
     private val multilingualBackupModel: PhoneBrainModel = LocalBrainModelClient(
         role = BrainModelRole.MULTILINGUAL_BACKUP,
         roleReadinessProvider = (localBrainRouterBridge as? BrainRoleReadinessProvider)
-            ?: NoOpBrainRoleReadinessProvider
+            ?: NoOpBrainRoleReadinessProvider,
+        manager = modelRuntimeManager
     ),
     private val liteFallbackModel: PhoneBrainModel = LocalBrainModelClient(
         role = BrainModelRole.LITE_FALLBACK,
         roleReadinessProvider = (localBrainRouterBridge as? BrainRoleReadinessProvider)
-            ?: NoOpBrainRoleReadinessProvider
+            ?: NoOpBrainRoleReadinessProvider,
+        manager = modelRuntimeManager
     ),
     coreBrainModelOverride: PhoneBrainModel? = null,
     multilingualBackupModelOverride: PhoneBrainModel? = null,
@@ -776,7 +780,8 @@ class BrainService(
             memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
             preferences = memorySnapshot.preferences,
             agentLoopCandidate = taskPlan.loopCapable,
-            modelInstallDiagnostics = modelInstallDiagnostics
+            modelInstallDiagnostics = modelInstallDiagnostics,
+            sessionTrace = primaryAttempt.sessionTrace ?: localFallbackAttempt?.sessionTrace
             )
     }
 
@@ -1058,7 +1063,8 @@ class BrainService(
             jsonParseAttempted = result.jsonParseAttempted,
             jsonParseSuccess = result.jsonParseSuccess,
             latencyMillis = result.latencyMillis,
-            onlineTrace = result.onlineTrace
+            onlineTrace = result.onlineTrace,
+            sessionTrace = result.sessionTrace
         )
     }
 
@@ -1408,6 +1414,7 @@ class BrainService(
         val jsonParseAttempted: Boolean = false,
         val jsonParseSuccess: Boolean = false,
         val latencyMillis: Long? = null,
-        val onlineTrace: OnlineAiTrace? = null
+        val onlineTrace: OnlineAiTrace? = null,
+        val sessionTrace: ModelRuntimeSessionTrace? = null
     )
 }

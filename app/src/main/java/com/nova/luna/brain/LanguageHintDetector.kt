@@ -29,7 +29,8 @@ class LanguageHintDetector {
     private fun containsPhrase(normalizedText: String, phrase: String): Boolean {
         val target = AssistantTextNormalizer.normalize(phrase)
         if (target.isBlank()) return false
-        return normalizedText.contains(target)
+        val regex = Regex("\\b${Regex.escape(target)}\\b")
+        return regex.containsMatchIn(normalizedText)
     }
 
     companion object {
@@ -46,11 +47,26 @@ class LanguageHintDetector {
             "transliterate",
             "samjhao",
             "batao",
+            "karo",
+            "kholo",
+            "chalao",
+            "band",
+            "bhejo",
+            "mujhe",
+            "mera",
+            "kya",
+            "kyon",
+            "kaise",
+            "kab",
+            "nahi",
+            "nahin",
             "answer in hindi",
             "answer in hinglish",
             "help me understand",
             "explain this in hindi",
-            "explain this in hinglish"
+            "explain this in hinglish",
+            "camera kholo",
+            "setting dikhao"
         )
     }
 }

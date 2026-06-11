@@ -31,13 +31,13 @@ class ModelRuntimeLoader(
         val modelEnum = modelIdForRole(role) ?: return UnavailablePhoneLocalLlmEngine()
 
         return when (role) {
+            BrainModelRole.CORE_BRAIN,
+            BrainModelRole.MULTILINGUAL_BACKUP,
             BrainModelRole.LITE_FALLBACK -> LiteLocalModelRuntime(
                 modelFile = modelFile,
                 modelId = modelEnum,
-                realInferenceEnabled = liteRealInferenceEnabled
+                realInferenceEnabled = if (role == BrainModelRole.LITE_FALLBACK) liteRealInferenceEnabled else true
             )
-            // Phase 21: Native runtime should use verified model path.
-            // Future phases will add CORE and MULTILINGUAL runtimes here.
             else -> UnavailablePhoneLocalLlmEngine()
         }
     }

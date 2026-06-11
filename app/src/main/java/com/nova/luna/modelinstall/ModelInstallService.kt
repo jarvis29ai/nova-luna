@@ -41,6 +41,8 @@ class ModelInstallService(
                 ready = true,
                 runtimeLoaded = true,
                 healthCheckPassed = true,
+                registryConfirmed = true,
+                verificationPassed = true,
                 expectedFileCount = 1,
                 verifiedFileCount = 1,
                 modelRootPath = path
@@ -50,6 +52,8 @@ class ModelInstallService(
                 ready = true,
                 runtimeLoaded = true,
                 healthCheckPassed = true,
+                registryConfirmed = true,
+                verificationPassed = true,
                 modelRootPath = path,
                 message = ModelInstallReason.MODEL_READY
             )
@@ -163,18 +167,18 @@ class ModelInstallSpecRegistry(
 ) {
     val PRIMARY_BRAIN = ModelInstallSpec(
         modelId = "core",
-        displayName = "Qwen 2.5 0.5B Instruct",
+        displayName = "Core Brain",
         role = "BRAIN",
-        expectedFileName = "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+        expectedFileName = "gemma-3n-E2B-it-int4.litertlm",
         expectedSha256 = null,
         minimumBytes = 100_000_000,
         preferredInstallDirName = "core",
-        allowedExtensions = listOf(".gguf", ".bin")
+        allowedExtensions = listOf(".gguf", ".bin", ".litertlm")
     )
 
     val LITE_FALLBACK = ModelInstallSpec(
         modelId = "lite",
-        displayName = "Qwen 2.5 0.5B (Lite)",
+        displayName = "Lightweight Fallback",
         role = "LITE_FALLBACK",
         expectedFileName = "qwen2.5-0.5b-instruct-q4_k_m.gguf",
         expectedSha256 = null,
@@ -185,7 +189,7 @@ class ModelInstallSpecRegistry(
 
     val FULL_MULTILINGUAL = ModelInstallSpec(
         modelId = "full",
-        displayName = "Qwen 2.5 1.5B Instruct",
+        displayName = "Multilingual Backup",
         role = "MULTILINGUAL_BACKUP",
         expectedFileName = "qwen2.5-1.5b-instruct-q4_k_m.gguf",
         expectedSha256 = null,

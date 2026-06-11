@@ -51,6 +51,8 @@ interface PhoneLocalLlmEngine {
 
     fun cancel(): Boolean
 
+    fun unload(): Boolean
+
     fun diagnostics(): String
 }
 
@@ -75,6 +77,8 @@ class UnavailablePhoneLocalLlmEngine : PhoneLocalLlmEngine {
     }
 
     override fun cancel(): Boolean = false
+
+    override fun unload(): Boolean = true
 
     override fun diagnostics(): String = "engine=$engineName, status=${PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE.wireValue}"
 }

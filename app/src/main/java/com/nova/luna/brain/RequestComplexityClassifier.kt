@@ -223,6 +223,7 @@ class RequestComplexityClassifier {
     private fun containsPhrase(normalizedText: String, phrase: String): Boolean {
         val target = AssistantTextNormalizer.normalize(phrase)
         if (target.isBlank()) return false
-        return normalizedText.contains(target)
+        val regex = Regex("\\b${Regex.escape(target)}\\b")
+        return regex.containsMatchIn(normalizedText)
     }
 }

@@ -11,6 +11,16 @@
 - The Android native build now forces CMake try-compile onto the static-library path to work around an arm64 `cmTC_9ff68` configure stall during external native build setup
 - The Android native build also pre-seeds CMake compiler-work cache values on Windows so the bundled Ninja/CMake configure step can skip the stalled ABI probe after manual compiler verification
 
+## Phase 22 Update (Multi-model brain roles)
+
+- The brain is now capable of multi-model orchestration, supporting `CORE_BRAIN` (reasoning), `LITE_FALLBACK` (fast commands/low-RAM), and `MULTILINGUAL_BACKUP` (Hindi/Hinglish).
+- `ModelRuntimeManager` and `ModelRamGuard` now provide deterministic model switching and lifecycle management. The system unloads previous models when switching to maintain a low RAM footprint on Android.
+- Heuristic role selection logic is integrated into `BrainRouter`:
+    - Language detection handles Devanagari script and multilingual keywords.
+    - Command complexity classification separates simple control tasks from reasoning/planning.
+- Diagnostics now show real-time session traces, including RAM guard decisions, switching counts, and honest fallback reasons.
+- Successfully verified 187/187 unit tests, including new Phase 22 integration tests for role selection, fallback scenarios, and RAM management.
+
 ## Phase 21 Update (Model Install / Path System)
 
 - A production-style model install and path management system is now implemented, ensuring model file readiness and architectural honesty.

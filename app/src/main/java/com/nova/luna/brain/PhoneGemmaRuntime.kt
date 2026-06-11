@@ -117,6 +117,8 @@ class PhoneGemmaRuntime(
 
             override fun cancel(): Boolean = false
 
+            override fun unload(): Boolean = true
+
             override fun diagnostics(): String = "backend=${backend.backendName}, available=${backend.isRuntimeAvailable()}"
         },
         assetLocator = ModelAssetLocator(modelPathExists),

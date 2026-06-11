@@ -140,6 +140,8 @@ class LocalBrainModelClientPhase6Test {
 
         override fun cancel(): Boolean = false
 
+        override fun unload(): Boolean = true
+
         override fun diagnostics(): String = "recording"
     }
 }

@@ -67,7 +67,8 @@ data class BrainDiagnostics(
     val agentLoopRecoveryUsed: Boolean = false,
     val agentLoopAskedUser: Boolean = false,
     val agentLoopVerificationMessage: String? = null,
-    val modelInstallDiagnostics: ModelInstallDiagnostics? = null
+    val modelInstallDiagnostics: ModelInstallDiagnostics? = null,
+    val sessionTrace: ModelRuntimeSessionTrace? = null
 )
 
 interface BrainProviderDiagnostics {

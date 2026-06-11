@@ -22,6 +22,7 @@ class Phase8ModelRuntimeIntegrationTest {
     private lateinit var storage: PrivateAppModelStorage
     private lateinit var modelInstallService: ModelInstallService
     private lateinit var runtimeLoader: ModelRuntimeLoader
+    private lateinit var runtimeManager: ModelRuntimeManager
     private lateinit var bridge: ModelInstallBrainRouterBridge
     private lateinit var liteModelFile: File
 
@@ -31,7 +32,8 @@ class Phase8ModelRuntimeIntegrationTest {
         storage = PrivateAppModelStorage.from(rootDir)
         
         val stateStore = ModelRuntimeStateStore(storage)
-        val pathResolver = ModelPathResolver(mock(android.content.Context::class.java), storage, stateStore)
+        val context = mock(android.content.Context::class.java)
+        val pathResolver = ModelPathResolver(context, storage, stateStore)
         val verifier = ModelInstallVerifier()
         val specRegistry = ModelInstallSpecRegistry()
         
@@ -44,6 +46,8 @@ class Phase8ModelRuntimeIntegrationTest {
         )
         
         runtimeLoader = ModelRuntimeLoader(storage, modelInstallService)
+        val ramGuard = ModelRamGuard(FakeRamInfoProvider())
+        runtimeManager = ModelRuntimeManager(runtimeLoader, ramGuard)
         bridge = ModelInstallBrainRouterBridge(modelInstallService)
         
         // Mock a READY lite model file
@@ -72,13 +76,14 @@ class Phase8ModelRuntimeIntegrationTest {
         val liteModel = LocalBrainModelClient(
             role = BrainModelRole.LITE_FALLBACK,
             roleReadinessProvider = bridge,
-            engine = DynamicModelRuntime(BrainModelRole.LITE_FALLBACK, runtimeLoader)
+            manager = runtimeManager
         )
         
         val brainService = BrainService(
             localBrainRouterBridge = bridge,
             liteFallbackModelOverride = liteModel,
-            modelInstallService = modelInstallService
+            modelInstallService = modelInstallService,
+            modelRuntimeManager = runtimeManager
         )
 
         // Request that should trigger ACTION_JSON
@@ -107,13 +112,14 @@ class Phase8ModelRuntimeIntegrationTest {
         val liteModel = LocalBrainModelClient(
             role = BrainModelRole.LITE_FALLBACK,
             roleReadinessProvider = bridge,
-            engine = DynamicModelRuntime(BrainModelRole.LITE_FALLBACK, runtimeLoader)
+            manager = runtimeManager
         )
         
         val brainService = BrainService(
             localBrainRouterBridge = bridge,
             liteFallbackModelOverride = liteModel,
-            modelInstallService = modelInstallService
+            modelInstallService = modelInstallService,
+            modelRuntimeManager = runtimeManager
         )
 
         val request = "prepare a message to mom"
@@ -142,6 +148,7 @@ class Phase8ModelRuntimeIntegrationTest {
                 throw RuntimeException("Simulated crash")
             }
             override fun cancel(): Boolean = false
+            override fun unload(): Boolean = true
             override fun diagnostics(): String = "failing"
         }
 
@@ -153,7 +160,8 @@ class Phase8ModelRuntimeIntegrationTest {
 
         val brainService = BrainService(
             liteFallbackModelOverride = liteModel,
-            modelInstallService = modelInstallService
+            modelInstallService = modelInstallService,
+            modelRuntimeManager = runtimeManager
         )
 
         // This should not throw because BrainService uses runCatching
@@ -177,7 +185,8 @@ class Phase8ModelRuntimeIntegrationTest {
         val brainService = BrainService(
             localBrainRouterBridge = bridge,
             liteFallbackModelOverride = liteModel,
-            modelInstallService = modelInstallService
+            modelInstallService = modelInstallService,
+            modelRuntimeManager = runtimeManager
         )
 
         val diagnostics = brainService.diagnose("send money to John")

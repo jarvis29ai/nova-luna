@@ -38,6 +38,18 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Memory state is universal but still local-first: active sessions, pending confirmations, screen snapshots, recovery state, and preferences all stay on-device and must be redacted before storage
 - Optional smartwatch companion later for quick commands and watch-first conveniences
 
+## Phase 22 Update (Multi-model brain roles)
+
+- The brain is now multi-model capable, supporting three distinct active roles: `CORE_BRAIN`, `LITE_FALLBACK`, and `MULTILINGUAL_BACKUP`.
+- `ModelRuntimeManager` handles the lifecycle of loaded models, ensuring only one large model is active at a time to prevent OOM errors on RAM-constrained devices.
+- `ModelRamGuard` performs pre-load checks using `RamInfoProvider` (Android MemoryInfo) to decide if a requested model role is safe to load or if a smaller fallback is required.
+- `BrainRouter` uses refined heuristics for role selection:
+    - `MULTILINGUAL_BACKUP` preferred for Devanagari script or Hindi/Hinglish keywords.
+    - `LITE_FALLBACK` preferred for simple, short, or control-like commands.
+    - `CORE_BRAIN` preferred for complex reasoning and planning.
+- Diagnostics now include comprehensive `ModelRuntimeSessionTrace` information: switching counts, unload/load history, RAM guard decisions, and honest fallback reasons.
+- `LocalBrainModelClient` is now wired to the runtime manager, allowing it to capture and report real-time loading/unloading traces for every inference attempt.
+
 ## Phase 21 Update (Model Install / Path System)
 
 - A production-style model install and path management system is now implemented to ensure model file readiness before reasoning.
