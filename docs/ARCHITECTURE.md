@@ -38,6 +38,16 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Memory state is universal but still local-first: active sessions, pending confirmations, screen snapshots, recovery state, and preferences all stay on-device and must be redacted before storage
 - Optional smartwatch companion later for quick commands and watch-first conveniences
 
+## Phase 23 Update (Command Understanding Brain)
+
+- A robust command understanding brain layer is now implemented to convert raw user input into structured `BrainAction` JSON.
+- `CommandUnderstandingService` orchestrates between model-based parsing (`BrainActionParser`) and a deterministic fallback layer (`RuleBasedCommandUnderstandingParser`).
+- The system extracts intents, action types, parameters, and classifies risk levels (LOW, MEDIUM, HIGH, HUMAN_ONLY).
+- Strict honesty is maintained: the brain only "understands and describes" the requested action; it does not perform any phone control or claim fake success.
+- `AssistantTextNormalizer` was enhanced to preserve non-latin scripts (Devanagari) and vowel signs, ensuring full multilingual support for Hindi and Hinglish.
+- `BrainAction` schema (Version 1) is now stable, including fields for confidence, source, language, and detailed error tracking.
+- Diagnostics now include comprehensive Phase 23 fields to prove structured intent extraction and risk assessment.
+
 ## Phase 22 Update (Multi-model brain roles)
 
 - The brain is now multi-model capable, supporting three distinct active roles: `CORE_BRAIN`, `LITE_FALLBACK`, and `MULTILINGUAL_BACKUP`.

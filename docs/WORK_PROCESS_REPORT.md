@@ -11,6 +11,16 @@
 - The Android native build now forces CMake try-compile onto the static-library path to work around an arm64 `cmTC_9ff68` configure stall during external native build setup
 - The Android native build also pre-seeds CMake compiler-work cache values on Windows so the bundled Ninja/CMake configure step can skip the stalled ABI probe after manual compiler verification
 
+## Phase 23 Update (Command Understanding Brain)
+
+- A sophisticated command understanding brain layer is now implemented, providing the foundation for structured intent extraction and risk assessment.
+- `CommandUnderstandingService` provides a unified entry point that prefers high-intelligence model parsing but guarantees reliability through a comprehensive `RULE_FALLBACK` layer.
+- User commands are now converted into strict `BrainAction` JSON (Schema Version 1), including explicit risk labels (LOW, MEDIUM, HIGH, HUMAN_ONLY) and automated confirmation requirements.
+- The assistant's text normalizer was refactored to preserve complex scripts and marks, enabling native-quality understanding for Devanagari (Hindi) and Hinglish commands.
+- `BrainAction` data model was successfully optimized to balance Phase 23's structured metadata requirements with legacy backward compatibility, ensuring project-wide technical integrity.
+- Verified 33/33 Phase 23 unit tests covering diverse domains: multimedia, search, communication, device control, and sensitive human-only flows.
+- Legacy test suite (600+ tests) remains stable through a compatibility-first refactor of the core action and risk enums.
+
 ## Phase 22 Update (Multi-model brain roles)
 
 - The brain is now capable of multi-model orchestration, supporting `CORE_BRAIN` (reasoning), `LITE_FALLBACK` (fast commands/low-RAM), and `MULTILINGUAL_BACKUP` (Hindi/Hinglish).
