@@ -34,9 +34,8 @@ class ModelRuntimeLoader(
                 modelId = modelId,
                 realInferenceEnabled = liteRealInferenceEnabled
             )
-            // For Phase 8, we only implement Lite runtime. 
-            // CORE and FULL can use placeholders or Lite fallback if appropriate, 
-            // but the requirement says "Start with Lite fallback runtime path only".
+            // Lite is the only wired local runtime for this loader today.
+            // CORE and FULL remain unavailable until their local model paths are added.
             else -> UnavailablePhoneLocalLlmEngine()
         }
     }

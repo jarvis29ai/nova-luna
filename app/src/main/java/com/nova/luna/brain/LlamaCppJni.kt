@@ -1,5 +1,6 @@
 package com.nova.luna.brain
 
+import com.nova.luna.modelinstall.SimpleJson
 import java.io.File
 import android.util.Log
 
@@ -9,40 +10,72 @@ import android.util.Log
 class LlamaCppJni : NativeLlamaRuntime {
 
     private var modelLoaded = false
+    private var loadedModelPath: String? = null
+    private var modelLoadCount = 0L
+    private var generationCallCount = 0L
+    private var modelReused = false
+    private var lastLoadMs = 0L
     private var lastError: String? = null
     private var lastFailure: String? = null
     private var lastParsedResult: NativeLlamaResult? = null
 
     override fun loadModel(modelFile: File): Boolean {
         if (!libraryLoaded) {
-            lastError = "Native library 'llama-jni' not loaded."
-            lastFailure = lastError
+            lastError = "NATIVE_LIBRARY_NOT_LOADED"
+            lastFailure = "NATIVE_LIBRARY_NOT_LOADED: Native library 'llama-jni' not loaded."
+            lastParsedResult = null
+            return false
+        }
+
+        if (modelFile.path.isBlank()) {
+            lastError = "MODEL_PATH_MISSING"
+            lastFailure = "MODEL_PATH_MISSING: Model path is blank."
             lastParsedResult = null
             return false
         }
 
         if (!modelFile.exists()) {
-            lastError = "Model file not found: ${modelFile.path}"
-            lastFailure = lastError
+            lastError = "MODEL_FILE_NOT_FOUND"
+            lastFailure = "MODEL_FILE_NOT_FOUND: Model file not found: ${modelFile.path}"
             lastParsedResult = null
             return false
         }
 
+        if (isLoaded() && loadedModelPath == modelFile.absolutePath) {
+            modelReused = true
+            lastError = null
+            lastFailure = null
+            return true
+        }
+
+        if (isLoaded() && loadedModelPath != null) {
+            runCatching { nativeReleaseModel() }
+        }
+
         return try {
+            val startTime = System.currentTimeMillis()
             val result = nativeLoadModel(modelFile.absolutePath)
+            lastLoadMs = (System.currentTimeMillis() - startTime).coerceAtLeast(0L)
             modelLoaded = result
+            loadedModelPath = if (result) modelFile.absolutePath else null
+            if (result) {
+                modelLoadCount += 1
+                modelReused = modelLoadCount > 1
+            } else {
+                modelReused = false
+            }
             lastParsedResult = null
             if (result) {
                 lastError = null
                 lastFailure = null
             } else {
-                lastError = "Native model load failed."
-                lastFailure = lastError
+                lastError = "MODEL_LOAD_FAILED"
+                lastFailure = "MODEL_LOAD_FAILED: Native model load failed."
             }
             result
         } catch (e: Throwable) {
-            lastError = "Native error: ${e.message}"
-            lastFailure = lastError
+            lastError = "NATIVE_JNI_ERROR"
+            lastFailure = "NATIVE_JNI_ERROR: Native error: ${e.message}"
             lastParsedResult = null
             logE(TAG, "Error loading model", e)
             false
@@ -50,15 +83,78 @@ class LlamaCppJni : NativeLlamaRuntime {
     }
 
     override fun generate(prompt: String, timeoutMs: Long): NativeLlamaResult {
-        if (!modelLoaded) {
+        generationCallCount += 1
+        modelReused = modelLoadCount > 0 && generationCallCount > 1 && modelLoaded
+
+        if (!libraryLoaded) {
+            val result = NativeLlamaResult(
+                text = null,
+                success = false,
+                errorMessage = "Native library 'llama-jni' not loaded.",
+                backendType = "failed_native",
+                backend = "failed_native",
+                errorCode = "NATIVE_LIBRARY_NOT_LOADED",
+                message = "Native library 'llama-jni' not loaded.",
+                modelLoaded = false,
+                modelLoadCount = modelLoadCount.toInt(),
+                generationCallCount = generationCallCount.toInt(),
+                loadMs = lastLoadMs,
+                modelLoadMs = lastLoadMs,
+                finishReason = "error"
+            )
+            lastParsedResult = result
+            lastError = result.lastError
+            lastFailure = result.lastFailure
+            return result
+        }
+
+        if (!isLoaded()) {
             val result = NativeLlamaResult(
                 text = null,
                 success = false,
                 errorMessage = "Model not loaded.",
-                backendType = "failed_native",
-                backend = "failed_native",
-                lastError = "Model not loaded.",
-                lastFailure = "Model not loaded."
+                backendType = "native",
+                backend = "native",
+                errorCode = "MODEL_NOT_LOADED",
+                message = "Model not loaded.",
+                modelLoaded = false,
+                modelLoadCount = modelLoadCount.toInt(),
+                generationCallCount = generationCallCount.toInt(),
+                loadMs = lastLoadMs,
+                modelLoadMs = lastLoadMs,
+                finishReason = "error"
+            )
+            lastParsedResult = result
+            lastError = result.lastError
+            lastFailure = result.lastFailure
+            return result
+        }
+
+        val trimmedPrompt = prompt.trim()
+        if (trimmedPrompt.isBlank()) {
+            val result = NativeLlamaResult(
+                text = null,
+                success = false,
+                errorMessage = "Prompt was empty.",
+                backendType = "native",
+                backend = "native",
+                modelDetected = true,
+                tokenizerLoaded = true,
+                realTokenIds = false,
+                realInference = false,
+                nativeGenerationAvailable = false,
+                tokensGenerated = 0,
+                promptTokens = 0,
+                decodedText = null,
+                errorCode = "EMPTY_PROMPT",
+                message = "Prompt was empty.",
+                modelLoaded = true,
+                modelReused = modelReused,
+                modelLoadCount = modelLoadCount.toInt(),
+                generationCallCount = generationCallCount.toInt(),
+                loadMs = lastLoadMs,
+                modelLoadMs = lastLoadMs,
+                finishReason = "error"
             )
             lastParsedResult = result
             lastError = result.lastError
@@ -67,7 +163,14 @@ class LlamaCppJni : NativeLlamaRuntime {
         }
 
         val rawJson = try {
-            nativeGenerate(prompt, timeoutMs.toInt())
+            nativeGenerate(
+                trimmedPrompt,
+                DEFAULT_MAX_TOKENS,
+                DEFAULT_TEMPERATURE,
+                DEFAULT_TOP_K,
+                DEFAULT_TOP_P,
+                timeoutMs.coerceAtLeast(0).toInt()
+            )
         } catch (e: Throwable) {
             logE(TAG, "Critical JNI abort/crash during generate", e)
             null
@@ -80,8 +183,15 @@ class LlamaCppJni : NativeLlamaRuntime {
                 errorMessage = "Native JNI call returned null or aborted.",
                 backendType = "failed_native",
                 backend = "failed_native",
-                lastError = "Native JNI call returned null or aborted.",
-                lastFailure = "Native JNI call returned null or aborted."
+                errorCode = "NATIVE_JNI_CALL_FAILED",
+                message = "Native JNI call returned null or aborted.",
+                modelLoaded = true,
+                modelReused = modelReused,
+                modelLoadCount = modelLoadCount.toInt(),
+                generationCallCount = generationCallCount.toInt(),
+                loadMs = lastLoadMs,
+                modelLoadMs = lastLoadMs,
+                finishReason = "error"
             )
             lastParsedResult = result
             lastError = result.lastError
@@ -103,8 +213,15 @@ class LlamaCppJni : NativeLlamaRuntime {
                 errorMessage = "Malformed native JSON: ${e.message}",
                 backendType = "failed_native",
                 backend = "failed_native",
-                lastError = "Malformed native JSON: ${e.message}",
-                lastFailure = "Malformed native JSON: ${e.message}"
+                errorCode = "NATIVE_JSON_PARSE_FAILED",
+                message = "Malformed native JSON: ${e.message}",
+                modelLoaded = true,
+                modelReused = modelReused,
+                modelLoadCount = modelLoadCount.toInt(),
+                generationCallCount = generationCallCount.toInt(),
+                loadMs = lastLoadMs,
+                modelLoadMs = lastLoadMs,
+                finishReason = "error"
             )
             lastParsedResult = result
             lastError = result.lastError
@@ -114,115 +231,135 @@ class LlamaCppJni : NativeLlamaRuntime {
     }
 
     internal fun parseNativeJson(json: String): NativeLlamaResult {
+        val root = runCatching { SimpleJson.parseObject(json) }
+            .getOrElse { throwable ->
+                throw IllegalArgumentException("Malformed native JSON: ${throwable.message}", throwable)
+            }
+
         fun normalize(value: String?): String? {
             val trimmed = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
             return if (trimmed.equals("none", ignoreCase = true)) null else trimmed
         }
 
-        fun decodeJsonString(value: String): String {
-            val builder = StringBuilder(value.length)
-            var index = 0
-            while (index < value.length) {
-                val char = value[index]
-                if (char != '\\') {
-                    builder.append(char)
-                    index += 1
-                    continue
-                }
-
-                if (index + 1 >= value.length) {
-                    builder.append('\\')
-                    break
-                }
-
-                when (val next = value[index + 1]) {
-                    '\\' -> builder.append('\\')
-                    '"' -> builder.append('"')
-                    '/' -> builder.append('/')
-                    'b' -> builder.append('\b')
-                    'f' -> builder.append('\u000C')
-                    'n' -> builder.append('\n')
-                    'r' -> builder.append('\r')
-                    't' -> builder.append('\t')
-                    'u' -> {
-                        if (index + 5 >= value.length) {
-                            builder.append("\\u")
-                            index += 2
-                            continue
-                        }
-                        val hex = value.substring(index + 2, index + 6)
-                        if (hex.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) {
-                            builder.append(hex.toInt(16).toChar())
-                            index += 6
-                            continue
-                        }
-                        builder.append("\\u")
-                    }
-
-                    else -> builder.append(next)
-                }
-                index += 2
-            }
-            return builder.toString()
-        }
-
-        fun getStringAny(vararg keys: String): String? {
+        fun stringAny(vararg keys: String): String? {
             for (key in keys) {
-                val pattern = Regex("\"${Regex.escape(key)}\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"")
-                val match = pattern.find(json) ?: continue
-                return decodeJsonString(match.groupValues[1])
+                when (val value = root[key]) {
+                    null -> continue
+                    is String -> return value
+                    else -> error("Expected string value for '$key'")
+                }
             }
             return null
         }
 
-        fun getBoolAny(vararg keys: String): Boolean {
+        fun boolAny(vararg keys: String): Boolean {
             for (key in keys) {
-                val pattern = Regex("\"${Regex.escape(key)}\"\\s*:\\s*(true|false)", RegexOption.IGNORE_CASE)
-                val match = pattern.find(json) ?: continue
-                return match.groupValues[1].equals("true", ignoreCase = true)
+                when (val value = root[key]) {
+                    null -> continue
+                    is Boolean -> return value
+                    is String -> return value.toBooleanStrictOrNull()
+                        ?: error("Expected boolean value for '$key'")
+                    else -> error("Expected boolean value for '$key'")
+                }
             }
             return false
         }
 
-        fun getIntAny(vararg keys: String): Int {
+        fun intAny(vararg keys: String): Int {
             for (key in keys) {
-                val pattern = Regex("\"${Regex.escape(key)}\"\\s*:\\s*(-?\\d+)")
-                val match = pattern.find(json) ?: continue
-                return match.groupValues[1].toIntOrNull() ?: 0
+                when (val value = root[key]) {
+                    null -> continue
+                    is Number -> return value.toInt()
+                    is String -> return value.toIntOrNull()
+                        ?: error("Expected numeric value for '$key'")
+                    else -> error("Expected numeric value for '$key'")
+                }
             }
             return 0
         }
 
-        fun getLongAny(vararg keys: String): Long {
+        fun longAny(vararg keys: String): Long {
             for (key in keys) {
-                val pattern = Regex("\"${Regex.escape(key)}\"\\s*:\\s*(-?\\d+)")
-                val match = pattern.find(json) ?: continue
-                return match.groupValues[1].toLongOrNull() ?: 0L
+                when (val value = root[key]) {
+                    null -> continue
+                    is Number -> return value.toLong()
+                    is String -> return value.toLongOrNull()
+                        ?: error("Expected numeric value for '$key'")
+                    else -> error("Expected numeric value for '$key'")
+                }
             }
             return 0L
         }
 
-        fun getDoubleAny(vararg keys: String): Double {
+        fun doubleAny(vararg keys: String): Double {
             for (key in keys) {
-                val pattern = Regex("\"${Regex.escape(key)}\"\\s*:\\s*(-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)")
-                val match = pattern.find(json) ?: continue
-                return match.groupValues[1].toDoubleOrNull() ?: 0.0
+                when (val value = root[key]) {
+                    null -> continue
+                    is Number -> return value.toDouble()
+                    is String -> return value.toDoubleOrNull()
+                        ?: error("Expected numeric value for '$key'")
+                    else -> error("Expected numeric value for '$key'")
+                }
             }
             return 0.0
         }
 
-        val success = getBoolAny("success", "ok")
-        val backend = getStringAny("backend", "backendType") ?: "native"
-        val decodedText = getStringAny("decoded_text", "decodedText")
-        val text = getStringAny("text") ?: decodedText
-        val errorCodeField = normalize(getStringAny("error", "errorCode"))
-        val messageField = normalize(getStringAny("message"))
-        val lastErrorField = normalize(getStringAny("last_error", "lastError"))
-        val lastFailureField = normalize(getStringAny("last_failure", "lastFailure"))
-        val modelDetected = getBoolAny("model_detected", "modelDetected")
-        val realTokenIds = getBoolAny("real_token_ids", "realTokenIds")
-        val nativeGenerationAvailable = getBoolAny("native_generation_available", "nativeGenerationAvailable")
-        val simulation = getBoolAny("simulation", "simulationActive")
+        fun intListAny(vararg keys: String): List<Int> {
+            for (key in keys) {
+                when (val value = root[key]) {
+                    null -> continue
+                    is List<*> -> return value.map { item ->
+                        when (item) {
+                            null -> error("Expected numeric value inside array '$key'")
+                            is Number -> item.toInt()
+                            is String -> item.toIntOrNull()
+                                ?: error("Expected numeric value inside array '$key'")
+                            else -> error("Expected numeric value inside array '$key'")
+                        }
+                    }
+                    is String -> {
+                        val parsed = runCatching { SimpleJson.parseArray(value) }
+                            .getOrElse { error("Expected array value for '$key'") }
+                        return parsed.map { item ->
+                            when (item) {
+                                null -> error("Expected numeric value inside array '$key'")
+                                is Number -> item.toInt()
+                                is String -> item.toIntOrNull()
+                                    ?: error("Expected numeric value inside array '$key'")
+                                else -> error("Expected numeric value inside array '$key'")
+                            }
+                        }
+                    }
+                    else -> error("Expected array value for '$key'")
+                }
+            }
+            return emptyList()
+        }
+
+        val success = boolAny("success", "ok")
+        val backend = stringAny("backend", "backendType")?.takeIf { it.isNotBlank() } ?: "native"
+        val decodedText = normalize(stringAny("decoded_text", "decodedText"))
+        val text = normalize(stringAny("text")) ?: decodedText
+        val errorCodeField = normalize(stringAny("error", "errorCode"))
+        val messageField = normalize(stringAny("message"))
+        val lastErrorField = normalize(stringAny("last_error", "lastError"))
+        val lastFailureField = normalize(stringAny("last_failure", "lastFailure"))
+        val modelDetected = boolAny("model_detected", "modelDetected")
+        val realTokenIds = boolAny("real_token_ids", "realTokenIds")
+        val realInference = boolAny("real_inference", "realInference")
+        val nativeGenerationAvailable = boolAny("native_generation_available", "nativeGenerationAvailable")
+        val simulation = boolAny("simulation", "simulationActive")
+        val jsonParseAttempted = boolAny("json_parse_attempted", "jsonParseAttempted")
+        val jsonParseSuccess = boolAny("json_parse_success", "jsonParseSuccess")
+        val promptTokenIdsSample = intListAny("prompt_token_ids_sample", "promptTokenIdsSample")
+        val generatedTokenIdsSample = intListAny("generated_token_ids_sample", "generatedTokenIdsSample")
+        val promptText = normalize(stringAny("prompt_text", "promptText"))
+        val parsedIntent = normalize(stringAny("parsed_intent", "parsedIntent"))
+        val parsedRiskLevel = normalize(stringAny("parsed_risk_level", "parsedRiskLevel"))
+        val finishReason = normalize(stringAny("finish_reason", "finishReason"))
+        val loadMs = longAny("load_ms", "loadMs", "modelLoadMs", "model_load_ms")
+        val modelLoadMs = longAny("modelLoadMs", "model_load_ms", "load_ms", "loadMs")
+        val generationMs = longAny("generation_ms", "generationMs")
         val errorMessage = messageField
             ?: lastFailureField
             ?: errorCodeField
@@ -232,75 +369,100 @@ class LlamaCppJni : NativeLlamaRuntime {
             ?: lastFailureField
             ?: errorCodeField
             ?: errorMessage
+        val tokenIdsPreview = normalize(stringAny("token_ids_preview", "tokenIdsPreview"))
+            ?: promptTokenIdsSample.takeIf { it.isNotEmpty() }?.joinToString(prefix = "[", postfix = "]")
 
         return NativeLlamaResult(
             text = text,
             success = success,
             errorMessage = errorMessage,
-            latencyMillis = getLongAny("latencyMillis"),
-            tokensGenerated = getIntAny("tokensGenerated"),
-            promptTokens = getIntAny("prompt_tokens", "promptTokens"),
-            modelLoadMs = getLongAny("modelLoadMs"),
-            promptEvalMs = getLongAny("promptEvalMs"),
-            contextSize = getIntAny("contextSize"),
-            threadsUsed = getIntAny("threadsUsed"),
+            latencyMillis = longAny("latencyMillis"),
+            tokensGenerated = intAny("tokens_generated", "tokensGenerated"),
+            promptTokens = intAny("prompt_tokens_count", "prompt_tokens", "promptTokens"),
+            modelLoadMs = modelLoadMs,
+            loadMs = loadMs,
+            promptEvalMs = longAny("promptEvalMs", "prompt_eval_ms"),
+            generationMs = generationMs,
+            contextSize = intAny("contextSize", "context_size"),
+            threadsUsed = intAny("threadsUsed", "threads_used"),
             backendType = backend,
             backend = backend,
-            modelArch = getStringAny("modelArch"),
-            vocabSize = getIntAny("vocab_size", "vocabSize"),
-            tensorsLoaded = getIntAny("tensorsLoaded"),
+            modelArch = normalize(stringAny("modelArch")),
+            vocabSize = intAny("vocab_size", "vocabSize"),
+            tensorsLoaded = intAny("tensorsLoaded", "tensors_loaded"),
             modelDetected = modelDetected,
             realTokenIds = realTokenIds,
-            realInference = getBoolAny("real_inference", "realInference"),
+            realInference = realInference,
             nativeGenerationAvailable = nativeGenerationAvailable,
-            metadataParsed = getBoolAny("metadataParsed"),
-            tokenizerLoaded = getBoolAny("tokenizer_loaded", "tokenizerLoaded"),
-            tensorsWeightLoaded = getBoolAny("tensorsWeightLoaded"),
-            ggmlGraphCompute = getBoolAny("ggmlGraphCompute"),
-            logitsGenerated = getBoolAny("logitsGenerated"),
-            samplingActive = getBoolAny("samplingActive"),
-            deterministicResponse = getBoolAny("deterministicResponse"),
-            memoryEstimateBytes = getLongAny("memoryEstimateBytes"),
-            tokensPerSecond = getDoubleAny("tokensPerSecond"),
-            nativeBridgeStable = getBoolAny("nativeBridgeStable"),
-            jsonReturnBridge = getBoolAny("jsonReturnBridge"),
-            crashFree = getBoolAny("crashFree"),
-            tokenizerType = getStringAny("tokenizer_type", "tokenizerType"),
-            bosTokenId = getIntAny("bosTokenId"),
-            eosTokenId = getIntAny("eosTokenId"),
-            specialTokensCount = getIntAny("specialTokensCount"),
-            tokenizationSuccess = getBoolAny("tokenization_ok", "tokenizationSuccess"),
-            tokenizerLoadMs = getLongAny("tokenizerLoadMs"),
-            ggmlGraphBuilt = getBoolAny("ggmlGraphBuilt"),
-            graphNodesCount = getIntAny("graphNodesCount"),
-            memoryMappedMb = getIntAny("memoryMappedMb"),
-            logitsFromModelWeights = getBoolAny("logitsFromModelWeights"),
-            decodedTokens = getBoolAny("decodedTokens"),
-            sampledTokenIdsCount = getIntAny("sampledTokenIdsCount"),
+            metadataParsed = boolAny("metadataParsed"),
+            tokenizerLoaded = boolAny("tokenizer_loaded", "tokenizerLoaded"),
+            tensorsWeightLoaded = boolAny("tensorsWeightLoaded"),
+            ggmlGraphCompute = boolAny("ggmlGraphCompute"),
+            logitsGenerated = boolAny("logitsGenerated"),
+            samplingActive = boolAny("samplingActive"),
+            deterministicResponse = boolAny("deterministicResponse"),
+            memoryEstimateBytes = longAny("memoryEstimateBytes", "memory_estimate_bytes"),
+            tokensPerSecond = doubleAny("tokensPerSecond", "tokens_per_second"),
+            nativeBridgeStable = boolAny("nativeBridgeStable"),
+            jsonReturnBridge = boolAny("jsonReturnBridge"),
+            crashFree = boolAny("crashFree"),
+            tokenizerType = normalize(stringAny("tokenizer_type", "tokenizerType")),
+            bosTokenId = intAny("bosTokenId"),
+            eosTokenId = intAny("eosTokenId"),
+            specialTokensCount = intAny("specialTokensCount"),
+            tokenizationSuccess = boolAny("tokenization_ok", "tokenizationSuccess"),
+            tokenizerLoadMs = longAny("tokenizerLoadMs", "tokenizer_load_ms"),
+            ggmlGraphBuilt = boolAny("ggmlGraphBuilt"),
+            graphNodesCount = intAny("graphNodesCount"),
+            memoryMappedMb = intAny("memoryMappedMb", "memory_mapped_mb"),
+            logitsFromModelWeights = boolAny("logitsFromModelWeights"),
+            decodedTokens = boolAny("decodedTokens"),
+            sampledTokenIdsCount = intAny("sampledTokenIdsCount", "sampled_token_ids_count"),
             simulation = simulation,
             decodedText = decodedText,
             errorCode = errorCodeField,
             message = parsedMessage,
             simulationActive = simulation,
-            upstreamSamplerLinked = getBoolAny("upstreamSamplerLinked"),
-            tokenIdsPreview = normalize(getStringAny("token_ids_preview", "tokenIdsPreview")),
-            tokenizationOk = getBoolAny("tokenization_ok", "tokenizationSuccess"),
+            upstreamSamplerLinked = boolAny("upstreamSamplerLinked"),
+            tokenIdsPreview = tokenIdsPreview,
+            tokenizationOk = boolAny("tokenization_ok", "tokenizationSuccess"),
             lastError = errorCodeField ?: lastErrorField ?: errorMessage,
-            lastFailure = parsedMessage ?: lastErrorField ?: errorCodeField ?: errorMessage
+            lastFailure = parsedMessage ?: lastErrorField ?: errorCodeField ?: errorMessage,
+            modelLoaded = boolAny("model_loaded", "modelLoaded"),
+            modelReused = boolAny("model_reused", "modelReused"),
+            modelLoadCount = intAny("model_load_count", "modelLoadCount"),
+            generationCallCount = intAny("generation_call_count", "generationCallCount"),
+            promptText = promptText,
+            promptTokenIdsSample = promptTokenIdsSample,
+            generatedTokenIdsSample = generatedTokenIdsSample,
+            jsonParseAttempted = jsonParseAttempted,
+            jsonParseSuccess = jsonParseSuccess,
+            parsedIntent = parsedIntent,
+            parsedRiskLevel = parsedRiskLevel,
+            finishReason = finishReason
         )
     }
 
-    override fun isLoaded(): Boolean = modelLoaded
+    override fun isLoaded(): Boolean {
+        if (!modelLoaded) return false
+        return if (libraryLoaded) {
+            runCatching { nativeIsModelLoaded() }.getOrDefault(false)
+        } else {
+            true
+        }
+    }
 
     override fun unload() {
         if (modelLoaded && libraryLoaded) {
             try {
-                nativeUnloadModel()
+                nativeReleaseModel()
             } catch (e: Throwable) {
                 logE(TAG, "Error unloading model", e)
             }
         }
         modelLoaded = false
+        loadedModelPath = null
+        modelReused = false
         lastParsedResult = null
     }
 
@@ -309,6 +471,12 @@ class LlamaCppJni : NativeLlamaRuntime {
         return buildString {
             append("library_loaded=$libraryLoaded, ")
             append("model_loaded=$modelLoaded, ")
+            append("native_model_loaded=${if (libraryLoaded) runCatching { nativeIsModelLoaded() }.getOrDefault(false) else modelLoaded}, ")
+            append("loaded_model_path=${loadedModelPath ?: "none"}, ")
+            append("model_load_count=$modelLoadCount, ")
+            append("generation_call_count=$generationCallCount, ")
+            append("model_reused=$modelReused, ")
+            append("load_ms=$lastLoadMs, ")
             append("last_error=${lastError ?: "none"}, ")
             append("last_failure=${lastFailure ?: lastError ?: "none"}")
             if (result != null) {
@@ -325,7 +493,21 @@ class LlamaCppJni : NativeLlamaRuntime {
                 append("error=${result.errorCode ?: result.lastError ?: "none"}, ")
                 append("message=${result.message ?: result.lastFailure ?: "none"}, ")
                 append("token_ids_preview=${result.tokenIdsPreview ?: "none"}, ")
-                append("real_inference=${result.realInference}")
+                append("prompt_token_ids_sample=${if (result.promptTokenIdsSample.isNotEmpty()) result.promptTokenIdsSample.joinToString(prefix = "[", postfix = "]") else "[]"}, ")
+                append("generated_token_ids_sample=${if (result.generatedTokenIdsSample.isNotEmpty()) result.generatedTokenIdsSample.joinToString(prefix = "[", postfix = "]") else "[]"}, ")
+                append("json_parse_attempted=${result.jsonParseAttempted}, ")
+                append("json_parse_success=${result.jsonParseSuccess}, ")
+                append("real_inference=${result.realInference}, ")
+                append("tokens_generated=${result.tokensGenerated}, ")
+                append("load_ms=${result.loadMs}, ")
+                append("generation_ms=${result.generationMs}, ")
+                append("model_loaded=${result.modelLoaded}, ")
+                append("model_reused=${result.modelReused}, ")
+                append("model_load_count=${result.modelLoadCount}, ")
+                append("generation_call_count=${result.generationCallCount}, ")
+                append("finish_reason=${result.finishReason ?: "none"}, ")
+                append("parsed_intent=${result.parsedIntent ?: "none"}, ")
+                append("parsed_risk_level=${result.parsedRiskLevel ?: "none"}")
             }
         }
     }
@@ -348,6 +530,10 @@ class LlamaCppJni : NativeLlamaRuntime {
 
     companion object {
         private const val TAG = "LlamaCppJni"
+        private const val DEFAULT_MAX_TOKENS = 16
+        private const val DEFAULT_TEMPERATURE = 0.0f
+        private const val DEFAULT_TOP_K = 1
+        private const val DEFAULT_TOP_P = 1.0f
         private var libraryLoaded = false
 
         init {
@@ -365,9 +551,22 @@ class LlamaCppJni : NativeLlamaRuntime {
         private external fun nativeLoadModel(modelPath: String): Boolean
 
         @JvmStatic
-        private external fun nativeGenerate(prompt: String, timeoutMs: Int): String?
+        private external fun nativeGenerate(
+            prompt: String,
+            maxTokens: Int,
+            temperature: Float,
+            topK: Int,
+            topP: Float,
+            timeoutMs: Int
+        ): String?
+
+        @JvmStatic
+        private external fun nativeReleaseModel()
 
         @JvmStatic
         private external fun nativeUnloadModel()
+
+        @JvmStatic
+        private external fun nativeIsModelLoaded(): Boolean
     }
 }

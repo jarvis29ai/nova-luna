@@ -1,9 +1,18 @@
 local.properties
 .gradle/
+.test-home/
+.test-tmp/
+.tmp/
+.gradle-user/
+app/.cxx/
 build/
 app/build/
 wear/build/
 shared/build/
+**/build/
+*.apk
+*.aab
+*.tmp
 *.gguf
 *.litertlm
 *.bin
@@ -18,7 +27,6 @@ flutter_app/build/
 flutter_app/android/.gradle/
 flutter_app/android/local.properties
 .android-home/
-.gradle-user/
 backup-*.patch
 green-state-*.patch
 backup-before-communication-pull-untracked-files.txt

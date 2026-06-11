@@ -24,6 +24,9 @@ android {
         targetSdk 34
         versionCode 1
         versionName "0.1.0"
+        ndk {
+            abiFilters "arm64-v8a"
+        }
 
         // Signed model source config is read from local.properties or -P overrides
         // so the APK can stay source-free until a real pack URL is supplied locally.
@@ -132,7 +135,6 @@ android {
                 arguments "-DCMAKE_C_COMPILER_FORCED=ON"
                 arguments "-DCMAKE_CXX_COMPILER_FORCED=ON"
                 cppFlags "-std=c++17 -fexceptions -frtti"
-                abiFilters "arm64-v8a", "x86_64"
             }
         }
     }

@@ -21,7 +21,9 @@ data class NativeLlamaResult(
     val tokensGenerated: Int = 0,
     val promptTokens: Int = 0,
     val modelLoadMs: Long = 0,
+    val loadMs: Long = 0,
     val promptEvalMs: Long = 0,
+    val generationMs: Long = 0,
     val contextSize: Int = 0,
     val threadsUsed: Int = 0,
     val backendType: String = "native",
@@ -66,5 +68,31 @@ data class NativeLlamaResult(
     val tokenIdsPreview: String? = null,
     val tokenizationOk: Boolean = tokenizationSuccess,
     val lastError: String? = errorCode ?: errorMessage,
-    val lastFailure: String? = message ?: errorCode ?: errorMessage
-)
+    val lastFailure: String? = message ?: errorCode ?: errorMessage,
+    val modelLoaded: Boolean = false,
+    val modelReused: Boolean = false,
+    val modelLoadCount: Int = 0,
+    val generationCallCount: Int = 0,
+    val promptText: String? = null,
+    val promptTokenIdsSample: List<Int> = emptyList(),
+    val generatedTokenIdsSample: List<Int> = emptyList(),
+    val jsonParseAttempted: Boolean = false,
+    val jsonParseSuccess: Boolean = false,
+    val parsedIntent: String? = null,
+    val parsedRiskLevel: String? = null,
+    val finishReason: String? = null
+) {
+    val decodedTextLength: Int
+        get() = decodedText?.length ?: 0
+
+    val hasUsableGeneratedText: Boolean
+        get() = backend.equals("native", ignoreCase = true) &&
+            modelDetected &&
+            tokenizerLoaded &&
+            realTokenIds &&
+            realInference &&
+            !simulation &&
+            nativeGenerationAvailable &&
+            tokensGenerated > 0 &&
+            !(decodedText ?: text).isNullOrBlank()
+}

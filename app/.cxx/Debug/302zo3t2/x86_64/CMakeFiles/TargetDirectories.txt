@@ -1,3 +1,0 @@
-C:/Users/cricv/Desktop/nova-luna/app/.cxx/Debug/302zo3t2/x86_64/CMakeFiles/nova-luna-native.dir
-C:/Users/cricv/Desktop/nova-luna/app/.cxx/Debug/302zo3t2/x86_64/CMakeFiles/edit_cache.dir
-C:/Users/cricv/Desktop/nova-luna/app/.cxx/Debug/302zo3t2/x86_64/CMakeFiles/rebuild_cache.dir

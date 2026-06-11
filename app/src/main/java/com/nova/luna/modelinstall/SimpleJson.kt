@@ -339,6 +339,16 @@ internal fun Map<String, Any?>.jsonIntOrNull(key: String): Int? {
     return jsonLongOrNull(key)?.toInt()
 }
 
+internal fun Map<String, Any?>.jsonDoubleOrNull(key: String): Double? {
+    return when (val value = this[key]) {
+        null -> null
+        is Number -> value.toDouble()
+        is String -> value.toDoubleOrNull()
+            ?: error("Expected numeric value for '$key'")
+        else -> error("Expected numeric value for '$key'")
+    }
+}
+
 internal fun Map<String, Any?>.jsonBooleanOrNull(key: String): Boolean? {
     return when (val value = this[key]) {
         null -> null
@@ -368,6 +378,34 @@ internal fun Map<String, Any?>.jsonArray(key: String): List<Any?> {
     return when (val value = this[key]) {
         null -> emptyList()
         is List<*> -> value.map { it }
+        else -> error("Expected array value for '$key'")
+    }
+}
+
+internal fun Map<String, Any?>.jsonIntListOrNull(key: String): List<Int>? {
+    return when (val value = this[key]) {
+        null -> null
+        is List<*> -> value.map { item ->
+            when (item) {
+                null -> error("Expected numeric value inside array '$key'")
+                is Number -> item.toInt()
+                is String -> item.toIntOrNull()
+                    ?: error("Expected numeric value inside array '$key'")
+                else -> error("Expected numeric value inside array '$key'")
+            }
+        }
+        is String -> {
+            val parsed = runCatching { SimpleJson.parseArray(value) }.getOrNull()
+                ?: error("Expected array value for '$key'")
+            parsed.map { item ->
+                when (item) {
+                    is Number -> item.toInt()
+                    is String -> item.toIntOrNull()
+                        ?: error("Expected numeric value inside array '$key'")
+                    else -> error("Expected numeric value inside array '$key'")
+                }
+            }
+        }
         else -> error("Expected array value for '$key'")
     }
 }

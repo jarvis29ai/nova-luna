@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.nova.luna.model.BrainModelRole
+import com.nova.luna.model.BrainRouteDecision
 import com.nova.luna.modelinstall.PrivateAppModelStorage
 import com.nova.luna.safety.SafetyGate
 
@@ -63,6 +64,45 @@ class DiagnosticBroadcastReceiver : BroadcastReceiver() {
         }
         val duration = System.currentTimeMillis() - startTime
 
+        val jsonAttempt = if (result != null && preflight.shouldRunNativeProbe) {
+            val structuredRuntime = PhoneLocalLlmRuntime(
+                config = PhoneLocalLlmConfig(
+                    enabled = true,
+                    maxInputTokens = 2048,
+                    maxPromptChars = 4096,
+                    timeoutMs = 5000,
+                    models = listOf(
+                        PhoneLocalLlmModelConfig(
+                            id = PhoneLocalLlmModelId.QWEN_0_5B,
+                            enabled = true,
+                            assetPath = preflight.modelFile.absolutePath,
+                            quantizedFileName = preflight.modelFile.name,
+                            minimumRamMb = PhoneLocalLlmModelId.QWEN_0_5B.minimumRamMbHint,
+                            maxInputTokens = 2048,
+                            maxPromptChars = 4096,
+                            timeoutMs = 5000,
+                            priority = PhoneLocalLlmModelId.QWEN_0_5B.priority
+                        )
+                    )
+                ),
+                engine = engine
+            )
+            val routeDecision = BrainRouteDecision(
+                selectedRole = BrainModelRole.ACTION_JSON,
+                reason = "Phase 19 JSON/action attempt for open camera.",
+                requiresInternet = false,
+                requiresScreenContext = false,
+                fallbackAllowed = true,
+                safetyNotes = listOf(
+                    "Phase 19 diagnostic JSON attempt only.",
+                    "Do not execute phone actions directly."
+                )
+            )
+            structuredRuntime.generateBrainAction(BrainRequest(rawText = requestText), routeDecision)
+        } else {
+            null
+        }
+
         val action = result?.text?.let { BrainActionJsonCodec().decode(it) }
         val safetyGate = SafetyGate()
         val safetyDecision = action?.let { safetyGate.evaluate(it) }
@@ -93,6 +133,15 @@ class DiagnosticBroadcastReceiver : BroadcastReceiver() {
         Log.i(TAG, "Latency (Engine): ${result?.latencyMillis ?: 0L}ms")
         Log.i(TAG, "Engine Diagnostics: ${engine.diagnostics()}")
         Log.i(TAG, "Native Diagnostics: ${nativeRuntime.diagnostics()}")
+
+        if (jsonAttempt != null) {
+            Log.i(TAG, "JSON Attempt Raw Response: ${jsonAttempt.rawResponse}")
+            Log.i(TAG, "JSON Parse Attempted: true")
+            Log.i(TAG, "JSON Parse Success: ${jsonAttempt.jsonParsed && jsonAttempt.candidateAction != null && jsonAttempt.available}")
+            Log.i(TAG, "Parsed Intent: ${jsonAttempt.candidateAction?.intent ?: "none"}")
+            Log.i(TAG, "Parsed Risk Level: ${jsonAttempt.candidateAction?.riskLevel?.wireValue ?: "none"}")
+            Log.i(TAG, "JSON Attempt Reason: ${jsonAttempt.reason}")
+        }
         
         if (action != null) {
             Log.i(TAG, "Parsed Intent: ${action.intent}")
