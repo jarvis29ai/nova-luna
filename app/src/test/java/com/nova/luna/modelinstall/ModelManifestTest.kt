@@ -10,7 +10,7 @@ class ModelManifestTest {
             packId = ModelPackId.CORE,
             version = "1.0.0",
             displayName = "Core",
-            state = ModelInstallState.READY,
+            state = ModelInstallStatus.READY,
             installedAtEpochMs = 123456789L,
             files = listOf(
                 ModelFileSpec(

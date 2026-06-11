@@ -38,6 +38,18 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Memory state is universal but still local-first: active sessions, pending confirmations, screen snapshots, recovery state, and preferences all stay on-device and must be redacted before storage
 - Optional smartwatch companion later for quick commands and watch-first conveniences
 
+## Phase 21 Update (Model Install / Path System)
+
+- A production-style model install and path management system is now implemented to ensure model file readiness before reasoning.
+- `ModelInstallService` acts as the central coordinator for detecting, verifying, and repairing local model installations.
+- `ModelPathResolver` implements a prioritized path resolution strategy: (A) Verified stored path, (B) Debug override path, (C) Default internal app storage, (D) External files directory.
+- `ModelInstallVerifier` performs physical verification of model files, including existence, readability, extension checks (.gguf, .bin), minimum size requirements, and streaming SHA-256 hash validation.
+- The system maintains strict honesty: a model is only marked as `READY` if it physically passes all verification steps. Missing or corrupted files trigger a `NOT_READY` state with clear diagnostic reasons.
+- `ModelInstallDiagnostics` provides full transparency into the model's status, including exact path, physical existence, size in bytes, and SHA verification results.
+- `ModelRuntimeLoader` now depends on verified paths from the install service, ensuring that native reasoning runtimes never attempt to load missing or invalid assets.
+- Support for "repair" flows is included, allowing the system to automatically re-verify and update saved paths if a valid model is found in default storage locations.
+- Model downloading remains marked as `NOT_IMPLEMENTED` to preserve architectural honesty until a full HTTP download + persistence layer is added.
+
 ## Phase 20 Update (BrainRouter Real Model Flow)
 
 - When a real local model is ready, `BrainRouter` now selects that real model role for command handling instead of silently dropping to the mock fallback path.

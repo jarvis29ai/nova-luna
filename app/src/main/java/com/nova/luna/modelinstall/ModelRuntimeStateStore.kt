@@ -272,7 +272,7 @@ class ModelRuntimeStateStore(
             version = pack.versionTag(),
             displayName = pack.displayName,
             runtimeStatus = runtimeStatus,
-            installState = runtimeStatus.toInstallState(),
+            installState = runtimeStatus.toInstallStatus(),
             registryConfirmed = registryConfirmed,
             verificationPassed = verificationPassed,
             ready = ready,

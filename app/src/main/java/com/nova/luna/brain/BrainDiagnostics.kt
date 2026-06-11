@@ -11,6 +11,7 @@ import com.nova.luna.memory.BrainSessionType
 import com.nova.luna.memory.LocalUserPreferences
 import com.nova.luna.memory.PendingConfirmationType
 import com.nova.luna.memory.RecoveryState
+import com.nova.luna.modelinstall.ModelInstallDiagnostics
 
 data class BrainProviderTrace(
     val providerName: String,
@@ -65,7 +66,8 @@ data class BrainDiagnostics(
     val agentLoopStopReason: AgentLoopStopReason? = null,
     val agentLoopRecoveryUsed: Boolean = false,
     val agentLoopAskedUser: Boolean = false,
-    val agentLoopVerificationMessage: String? = null
+    val agentLoopVerificationMessage: String? = null,
+    val modelInstallDiagnostics: ModelInstallDiagnostics? = null
 )
 
 interface BrainProviderDiagnostics {

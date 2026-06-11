@@ -31,13 +31,20 @@ class CommandBrain(
 ) {
     private val runtimeConfig = BrainRuntimeConfig.fromBuildConfig()
     private val storage = com.nova.luna.modelinstall.PrivateAppModelStorage.from(context)
-    private val readinessChecker = com.nova.luna.modelinstall.LocalRuntimeReadinessChecker(storage)
+    private val runtimeStateStore = com.nova.luna.modelinstall.ModelRuntimeStateStore(storage)
+    private val modelInstallService = com.nova.luna.modelinstall.ModelInstallService(
+        specRegistry = com.nova.luna.modelinstall.ModelInstallSpecRegistry(),
+        pathResolver = com.nova.luna.modelinstall.ModelPathResolver(context, storage, runtimeStateStore),
+        verifier = com.nova.luna.modelinstall.ModelInstallVerifier(),
+        runtimeStateStore = runtimeStateStore,
+        storage = storage
+    )
     private val runtimeLoader = ModelRuntimeLoader(
         storage = storage,
-        readinessChecker = readinessChecker,
+        modelInstallService = modelInstallService,
         liteRealInferenceEnabled = runtimeConfig.liteRealInferenceEnabled
     )
-    private val bridge = com.nova.luna.modelinstall.ModelInstallBrainRouterBridge(readinessChecker)
+    private val bridge = com.nova.luna.modelinstall.ModelInstallBrainRouterBridge(modelInstallService)
 
     private val coreModel = LocalBrainModelClient(
         role = com.nova.luna.model.BrainModelRole.CORE_BRAIN,
@@ -60,7 +67,8 @@ class CommandBrain(
         localBrainRouterBridge = bridge,
         coreBrainModelOverride = coreModel,
         multilingualBackupModelOverride = fullModel,
-        liteFallbackModelOverride = liteModel
+        liteFallbackModelOverride = liteModel,
+        modelInstallService = modelInstallService
     )
 
     private val parser = RuleBasedCommandParser()

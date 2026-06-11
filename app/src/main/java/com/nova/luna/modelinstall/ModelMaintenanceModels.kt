@@ -20,7 +20,7 @@ data class ModelRuntimeState(
     val version: String,
     val displayName: String = packId.displayName,
     val runtimeStatus: ModelRuntimeStatus = ModelRuntimeStatus.IDLE,
-    val installState: ModelInstallState = ModelInstallState.NOT_INSTALLED,
+    val installState: ModelInstallStatus = ModelInstallStatus.NOT_INSTALLED,
     val registryConfirmed: Boolean = false,
     val verificationPassed: Boolean = false,
     val runtimeLoaded: Boolean = false,
@@ -49,7 +49,7 @@ data class ModelRuntimeState(
         val normalizedHealthCheckPassed = healthCheckPassed || ready
         val normalizedReady = ready &&
             normalizedStatus == ModelRuntimeStatus.READY &&
-            normalizedInstallState == ModelInstallState.READY &&
+            normalizedInstallState == ModelInstallStatus.READY &&
             normalizedRuntimeLoaded &&
             normalizedHealthCheckPassed
 
@@ -83,7 +83,7 @@ data class ModelRuntimeState(
 
     fun isRuntimeReady(): Boolean {
         return runtimeStatus == ModelRuntimeStatus.READY &&
-            installState == ModelInstallState.READY &&
+            installState == ModelInstallStatus.READY &&
             ready &&
             registryConfirmed &&
             verificationPassed &&
@@ -138,8 +138,8 @@ data class ModelRuntimeState(
                     ModelRuntimeStatus.valueOf(json.jsonString("runtimeStatus", ModelRuntimeStatus.IDLE.name))
                 }.getOrDefault(ModelRuntimeStatus.IDLE),
                 installState = runCatching {
-                    ModelInstallState.valueOf(json.jsonString("installState", ModelInstallState.NOT_INSTALLED.name))
-                }.getOrDefault(ModelInstallState.NOT_INSTALLED),
+                    ModelInstallStatus.valueOf(json.jsonString("installState", ModelInstallStatus.NOT_INSTALLED.name))
+                }.getOrDefault(ModelInstallStatus.NOT_INSTALLED),
                 registryConfirmed = json.jsonBoolean("registryConfirmed", false),
                 verificationPassed = json.jsonBoolean("verificationPassed", false),
                 runtimeLoaded = json.jsonBoolean("runtimeLoaded", json.jsonBoolean("ready", false)),
@@ -178,7 +178,7 @@ data class ModelInstallStatusSnapshot(
     val runtimeStatus: ModelRuntimeStatus
         get() = runtimeState.runtimeStatus
 
-    val installState: ModelInstallState
+    val installState: ModelInstallStatus
         get() = runtimeState.installState
 
     val registryConfirmed: Boolean
@@ -197,17 +197,17 @@ data class ModelInstallStatusSnapshot(
         get() = corruptFileKeys.isNotEmpty()
 }
 
-internal fun ModelRuntimeStatus.toInstallState(): ModelInstallState {
+internal fun ModelRuntimeStatus.toInstallStatus(): ModelInstallStatus {
     return when (this) {
-        ModelRuntimeStatus.IDLE -> ModelInstallState.NOT_INSTALLED
-        ModelRuntimeStatus.DOWNLOADING -> ModelInstallState.DOWNLOADING
-        ModelRuntimeStatus.VERIFYING -> ModelInstallState.VERIFYING
-        ModelRuntimeStatus.READY -> ModelInstallState.READY
-        ModelRuntimeStatus.FAILED -> ModelInstallState.FAILED
-        ModelRuntimeStatus.UNAVAILABLE -> ModelInstallState.FAILED
-        ModelRuntimeStatus.CORRUPT -> ModelInstallState.REPAIR_NEEDED
-        ModelRuntimeStatus.MISSING -> ModelInstallState.REPAIR_NEEDED
-        ModelRuntimeStatus.CANCELLED -> ModelInstallState.FAILED
+        ModelRuntimeStatus.IDLE -> ModelInstallStatus.NOT_INSTALLED
+        ModelRuntimeStatus.DOWNLOADING -> ModelInstallStatus.DOWNLOADING
+        ModelRuntimeStatus.VERIFYING -> ModelInstallStatus.VERIFYING
+        ModelRuntimeStatus.READY -> ModelInstallStatus.READY
+        ModelRuntimeStatus.FAILED -> ModelInstallStatus.FAILED
+        ModelRuntimeStatus.UNAVAILABLE -> ModelInstallStatus.FAILED
+        ModelRuntimeStatus.CORRUPT -> ModelInstallStatus.REPAIR_NEEDED
+        ModelRuntimeStatus.MISSING -> ModelInstallStatus.REPAIR_NEEDED
+        ModelRuntimeStatus.CANCELLED -> ModelInstallStatus.FAILED
     }
 }
 
@@ -268,7 +268,7 @@ internal fun ModelPackSpec.toReadyManifest(
         packId = id,
         version = versionTag(),
         displayName = displayName,
-        state = ModelInstallState.READY,
+        state = ModelInstallStatus.READY,
         installedAtEpochMs = installedAtEpochMs,
         files = normalizedFiles,
         notes = notes,
@@ -345,7 +345,7 @@ data class ModelUserFacingStatus(
             packId: ModelPackId,
             displayName: String,
             runtimeStatus: ModelRuntimeStatus,
-            installState: ModelInstallState,
+            installState: ModelInstallStatus,
             ready: Boolean,
             message: String?,
             canUpdate: Boolean = false
@@ -378,11 +378,11 @@ data class ModelUserFacingStatus(
 
         private fun mapState(
             runtimeStatus: ModelRuntimeStatus,
-            installState: ModelInstallState,
+            installState: ModelInstallStatus,
             ready: Boolean,
             message: String?
         ): ModelUserFacingState {
-            if (ready && runtimeStatus == ModelRuntimeStatus.READY && installState == ModelInstallState.READY) {
+            if (ready && runtimeStatus == ModelRuntimeStatus.READY && installState == ModelInstallStatus.READY) {
                 return ModelUserFacingState.READY
             }
 
@@ -403,10 +403,10 @@ data class ModelUserFacingStatus(
                     when {
                         storageHints.any { normalizedMessage.contains(it) } -> ModelUserFacingState.STORAGE_NEEDED
                         repairHints.any { normalizedMessage.contains(it) } -> ModelUserFacingState.REPAIRING
-                        installState == ModelInstallState.REPAIR_NEEDED -> ModelUserFacingState.REPAIRING
-                        installState == ModelInstallState.DOWNLOADING -> ModelUserFacingState.INSTALLING_AI_BRAIN
-                        installState == ModelInstallState.VERIFYING -> ModelUserFacingState.VERIFYING_AI_BRAIN
-                        installState == ModelInstallState.NOT_INSTALLED -> ModelUserFacingState.CHECKING_PHONE
+                        installState == ModelInstallStatus.REPAIR_NEEDED -> ModelUserFacingState.REPAIRING
+                        installState == ModelInstallStatus.DOWNLOADING -> ModelUserFacingState.INSTALLING_AI_BRAIN
+                        installState == ModelInstallStatus.VERIFYING -> ModelUserFacingState.VERIFYING_AI_BRAIN
+                        installState == ModelInstallStatus.NOT_INSTALLED -> ModelUserFacingState.CHECKING_PHONE
                         else -> ModelUserFacingState.UNAVAILABLE
                     }
                 }
@@ -433,7 +433,7 @@ data class ModelHealthScanResult(
     val packId: ModelPackId,
     val displayName: String,
     val runtimeStatus: ModelRuntimeStatus,
-    val installState: ModelInstallState,
+    val installState: ModelInstallStatus,
     val ready: Boolean,
     val registryConfirmed: Boolean,
     val verificationPassed: Boolean,

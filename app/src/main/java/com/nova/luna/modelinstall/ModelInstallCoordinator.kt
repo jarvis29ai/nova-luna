@@ -406,7 +406,7 @@ class ModelInstallCoordinator(
 
         val registryConfirmed = registryManifest?.let { manifest ->
             manifest.packId == pack.id &&
-                manifest.state == ModelInstallState.READY &&
+                manifest.state == ModelInstallStatus.READY &&
                 manifest.files.size == expectedFiles.size &&
                 manifest.files.zip(expectedFiles).all { (actual, expected) ->
                     actual.fileName == expected.fileName &&
@@ -488,7 +488,7 @@ class ModelInstallCoordinator(
             version = pack.versionTag(),
             displayName = pack.displayName,
             runtimeStatus = ModelRuntimeStatus.IDLE,
-            installState = ModelInstallState.NOT_INSTALLED,
+            installState = ModelInstallStatus.NOT_INSTALLED,
             registryConfirmed = false,
             verificationPassed = false,
             ready = false,
@@ -505,7 +505,7 @@ class ModelInstallCoordinator(
 
         val effectiveRuntimeState = baseRuntimeState.copy(
             runtimeStatus = derivedStatus,
-            installState = derivedStatus.toInstallState(),
+            installState = derivedStatus.toInstallStatus(),
             registryConfirmed = registryConfirmed,
             verificationPassed = verificationPassed,
             ready = derivedStatus == ModelRuntimeStatus.READY &&

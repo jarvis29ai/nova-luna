@@ -21,6 +21,8 @@ import com.nova.luna.memory.PendingConfirmation
 import com.nova.luna.screen.ScreenState
 import com.nova.luna.screen.ScreenStateReader
 import com.nova.luna.safety.SafetyGate
+import com.nova.luna.modelinstall.ModelInstallService
+import com.nova.luna.modelinstall.ModelInstallDiagnostics
 import java.util.Locale
 
 class BrainService(
@@ -29,6 +31,7 @@ class BrainService(
     private val codec: BrainActionJsonCodec = BrainActionJsonCodec(),
     private val validator: BrainActionValidator = BrainActionValidator(),
     private val safetyGate: SafetyGate = SafetyGate(),
+    private val modelInstallService: ModelInstallService? = null,
     private val runtimeConfig: BrainRuntimeConfig = BrainRuntimeConfig.fromBuildConfig(),
     private val internetPermissionPolicy: InternetPermissionPolicy = InternetPermissionPolicy(),
     private val internetAvailable: Boolean = false,
@@ -288,6 +291,10 @@ class BrainService(
             pendingConfirmation = effectivePendingConfirmation,
             screenState = screenState
         )
+        val modelInstallDiagnostics = modelInstallService?.getInstallState("core")?.let {
+            ModelInstallDiagnostics.fromState(it)
+        } ?: ModelInstallDiagnostics.notImplemented()
+
         val runtimeState = runtimeBaseStatus(policyDecision).copy(
             activeSessionType = effectiveActiveSessionType,
             pendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
@@ -343,7 +350,8 @@ class BrainService(
                     memorySessionCount = memorySnapshot.activeSessionCount,
                     memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
                     preferences = memorySnapshot.preferences,
-                    agentLoopCandidate = taskPlan.loopCapable
+                    agentLoopCandidate = taskPlan.loopCapable,
+                    modelInstallDiagnostics = modelInstallDiagnostics
                 )
             }
 
@@ -395,8 +403,9 @@ class BrainService(
                         memorySessionCount = memorySnapshot.activeSessionCount,
                         memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
                         preferences = memorySnapshot.preferences,
-                        agentLoopCandidate = taskPlan.loopCapable
-                    )
+                        agentLoopCandidate = taskPlan.loopCapable,
+                        modelInstallDiagnostics = modelInstallDiagnostics
+                        )
                 }
             }
 
@@ -460,8 +469,9 @@ class BrainService(
                 memorySessionCount = memorySnapshot.activeSessionCount,
                 memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
                 preferences = memorySnapshot.preferences,
-                agentLoopCandidate = taskPlan.loopCapable
-            )
+                agentLoopCandidate = taskPlan.loopCapable,
+                modelInstallDiagnostics = modelInstallDiagnostics
+                )
         }
 
         val routeDecision = brainRouter.route(request)
@@ -519,8 +529,9 @@ class BrainService(
                 memorySessionCount = memorySnapshot.activeSessionCount,
                 memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
                 preferences = memorySnapshot.preferences,
-                agentLoopCandidate = taskPlan.loopCapable
-            )
+                agentLoopCandidate = taskPlan.loopCapable,
+                modelInstallDiagnostics = modelInstallDiagnostics
+                )
         }
         val primaryAttempt = evaluateRouteDecision(routeDecision, routedRequest)
         val primaryAccepted = isAccepted(primaryAttempt.parsedAction)
@@ -589,8 +600,9 @@ class BrainService(
                 memorySessionCount = memorySnapshot.activeSessionCount,
                 memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
                 preferences = memorySnapshot.preferences,
-                agentLoopCandidate = taskPlan.loopCapable
-            )
+                agentLoopCandidate = taskPlan.loopCapable,
+                modelInstallDiagnostics = modelInstallDiagnostics
+                )
         }
         val localFallbackAttempt = localFallbackDecision?.let { fallbackDecision ->
             val fallbackRequest = request.withScreenStateIfNeeded(fallbackDecision)
@@ -763,8 +775,9 @@ class BrainService(
             memorySessionCount = memorySnapshot.activeSessionCount,
             memoryPendingConfirmationCount = memorySnapshot.activePendingConfirmationCount,
             preferences = memorySnapshot.preferences,
-            agentLoopCandidate = taskPlan.loopCapable
-        )
+            agentLoopCandidate = taskPlan.loopCapable,
+            modelInstallDiagnostics = modelInstallDiagnostics
+            )
     }
 
     fun buildTaskPlan(

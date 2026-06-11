@@ -32,7 +32,7 @@ enum class ModelPackId(
     }
 }
 
-enum class ModelInstallState {
+enum class ModelInstallStatus {
     NOT_INSTALLED,
     DOWNLOADING,
     VERIFYING,

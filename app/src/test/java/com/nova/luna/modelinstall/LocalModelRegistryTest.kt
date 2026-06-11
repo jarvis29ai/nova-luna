@@ -16,7 +16,7 @@ class LocalModelRegistryTest {
         val manifest = ModelManifest(
             packId = ModelPackId.CORE,
             version = "1.0.0",
-            state = ModelInstallState.READY,
+            state = ModelInstallStatus.READY,
             installedAtEpochMs = 1234L,
             files = listOf(
                 ModelFileSpec(

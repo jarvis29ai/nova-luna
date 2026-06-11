@@ -192,7 +192,7 @@ class ModelUpdateManager(
             packId = ModelPackId.CORE,
             displayName = role.name,
             runtimeStatus = ModelRuntimeStatus.UNAVAILABLE,
-            installState = ModelInstallState.FAILED,
+            installState = ModelInstallStatus.FAILED,
             ready = false,
             registryConfirmed = false,
             verificationPassed = false,
@@ -209,7 +209,7 @@ class ModelUpdateManager(
                 packId = ModelPackId.CORE,
                 displayName = role.name,
                 runtimeStatus = ModelRuntimeStatus.UNAVAILABLE,
-                installState = ModelInstallState.FAILED,
+                installState = ModelInstallStatus.FAILED,
                 ready = false,
                 message = "Unsupported role."
             )

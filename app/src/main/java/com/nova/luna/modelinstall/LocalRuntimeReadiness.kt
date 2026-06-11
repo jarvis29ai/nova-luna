@@ -132,7 +132,7 @@ open class LocalRuntimeReadinessChecker(
             LocalRuntimeLoadStatus.READY -> {
                 current.copy(
                     runtimeStatus = ModelRuntimeStatus.READY,
-                    installState = ModelInstallState.READY,
+                    installState = ModelInstallStatus.READY,
                     registryConfirmed = installStatus.registryConfirmed,
                     verificationPassed = installStatus.verificationPassed,
                     runtimeLoaded = true,
@@ -160,7 +160,7 @@ open class LocalRuntimeReadinessChecker(
             LocalRuntimeLoadStatus.FAILED -> {
                 current.copy(
                     runtimeStatus = ModelRuntimeStatus.UNAVAILABLE,
-                    installState = ModelInstallState.FAILED,
+                    installState = ModelInstallStatus.FAILED,
                     registryConfirmed = installStatus.registryConfirmed,
                     verificationPassed = installStatus.verificationPassed,
                     runtimeLoaded = runtimeLoadResult.loadedModel != null,

@@ -11,6 +11,16 @@
 - The Android native build now forces CMake try-compile onto the static-library path to work around an arm64 `cmTC_9ff68` configure stall during external native build setup
 - The Android native build also pre-seeds CMake compiler-work cache values on Windows so the bundled Ninja/CMake configure step can skip the stalled ABI probe after manual compiler verification
 
+## Phase 21 Update (Model Install / Path System)
+
+- A production-style model install and path management system is now implemented, ensuring model file readiness and architectural honesty.
+- `ModelInstallService` now manages model metadata via a new `ModelInstallSpecRegistry`, supporting "core", "lite", and "full" model roles with specific size and extension requirements.
+- `ModelPathResolver` handles prioritized path discovery, while `ModelInstallVerifier` performs physical file checks (existence, readability, size, extension) and streaming SHA-256 verification.
+- `BrainService` and `ModelRuntimeLoader` are now wired to the new install service. Native runtimes only load from verified paths, and diagnostics now include Phase 21 honesty fields (exact path, physical status, size, SHA verification reason).
+- The system correctly handles "repair" scenarios, automatically updating broken stored paths if a valid model exists in default internal storage.
+- All 187 project unit tests (including Phase 7-20 regressions and new Phase 21 cases) passed successfully.
+- Model download remains marked as `NOT_IMPLEMENTED_PHASE_21` to maintain honesty until a full download layer is added.
+
 ## Phase 20 Update (BrainRouter Real Model Flow)
 
 - `BrainRouter` now selects a real local model role for ready commands instead of silently falling back to the mock path when a native model is available.

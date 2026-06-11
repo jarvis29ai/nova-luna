@@ -182,7 +182,7 @@ class ModelInstallCoordinatorTest {
                 version = "v1.2.3",
                 displayName = "Lite",
                 runtimeStatus = ModelRuntimeStatus.READY,
-                installState = ModelInstallState.READY,
+                installState = ModelInstallStatus.READY,
                 registryConfirmed = true,
                 verificationPassed = true,
                 ready = true,

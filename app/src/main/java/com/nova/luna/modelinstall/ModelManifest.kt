@@ -4,7 +4,7 @@ data class ModelManifest(
     val packId: ModelPackId,
     val version: String,
     val displayName: String = packId.displayName,
-    val state: ModelInstallState = ModelInstallState.NOT_INSTALLED,
+    val state: ModelInstallStatus = ModelInstallStatus.NOT_INSTALLED,
     val installedAtEpochMs: Long = 0L,
     val files: List<ModelFileSpec> = emptyList(),
     val notes: List<String> = emptyList(),
@@ -22,7 +22,7 @@ data class ModelManifest(
 
     fun toReady(files: List<ModelFileSpec>, installedAtEpochMs: Long = System.currentTimeMillis()): ModelManifest {
         return copy(
-            state = ModelInstallState.READY,
+            state = ModelInstallStatus.READY,
             installedAtEpochMs = installedAtEpochMs,
             files = files.map { it.normalized() }
         ).normalized()
@@ -71,8 +71,8 @@ data class ModelManifest(
                 packId = packId,
                 version = json.jsonString("version"),
                 displayName = json.jsonString("displayName", packId.displayName),
-                state = runCatching { ModelInstallState.valueOf(json.jsonString("state", ModelInstallState.NOT_INSTALLED.name)) }
-                    .getOrDefault(ModelInstallState.NOT_INSTALLED),
+                state = runCatching { ModelInstallStatus.valueOf(json.jsonString("state", ModelInstallStatus.NOT_INSTALLED.name)) }
+                    .getOrDefault(ModelInstallStatus.NOT_INSTALLED),
                 installedAtEpochMs = json.jsonLongOrNull("installedAtEpochMs") ?: 0L,
                 files = files,
                 notes = notes,

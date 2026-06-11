@@ -13,7 +13,8 @@ internal data class LocalRuntimeTestEnvironment(
     val runtimeBackend: BrainModelRuntime,
     val runtimeLoader: LocalRuntimeLoader,
     val readinessChecker: LocalRuntimeReadinessChecker,
-    val manager: DefaultModelManager
+    val manager: DefaultModelManager,
+    val modelInstallService: ModelInstallService
 )
 
 internal class RecordingLocalRuntimeBackend(
@@ -75,6 +76,17 @@ internal inline fun <T> withLocalRuntimeEnvironment(
         coordinator = coordinator,
         runtimeReadinessChecker = readinessChecker
     )
+    val modelInstallService = ModelInstallService(
+        specRegistry = ModelInstallSpecRegistry(),
+        pathResolver = ModelPathResolver(
+            context = org.mockito.Mockito.mock(android.content.Context::class.java),
+            storage = storage,
+            runtimeStateStore = stateStore
+        ),
+        verifier = ModelInstallVerifier(),
+        runtimeStateStore = stateStore,
+        storage = storage
+    )
     val env = LocalRuntimeTestEnvironment(
         baseDir = baseDir,
         storage = storage,
@@ -84,7 +96,8 @@ internal inline fun <T> withLocalRuntimeEnvironment(
         runtimeBackend = runtimeBackend,
         runtimeLoader = runtimeLoader,
         readinessChecker = readinessChecker,
-        manager = manager
+        manager = manager,
+        modelInstallService = modelInstallService
     )
 
     return try {

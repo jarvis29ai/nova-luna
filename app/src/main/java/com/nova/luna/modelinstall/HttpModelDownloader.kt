@@ -178,7 +178,7 @@ class HttpModelDownloader(
                     packId = normalized.packId,
                     version = normalized.sourceId,
                     displayName = normalized.packDisplayName,
-                    state = ModelInstallState.READY,
+                    state = ModelInstallStatus.READY,
                     installedAtEpochMs = completedState.updatedAtEpochMs,
                     files = listOf(
                         ModelFileSpec(

@@ -25,7 +25,7 @@ class ModelInstallBrainRouterBridgeTest {
                 payloads = mapOf("core/gemma-3n-q4.gguf" to payload)
             )
 
-            val bridge = ModelInstallBrainRouterBridge(env.readinessChecker)
+            val bridge = ModelInstallBrainRouterBridge(env.modelInstallService)
             val decision = bridge.selectLocalRoute(
                 BrainRequest("please explain how offline model verification works")
             )
@@ -52,7 +52,7 @@ class ModelInstallBrainRouterBridgeTest {
                 payloads = mapOf("full/multilingual/qwen-3-small-q4.gguf" to payload)
             )
 
-            val bridge = ModelInstallBrainRouterBridge(env.readinessChecker)
+            val bridge = ModelInstallBrainRouterBridge(env.modelInstallService)
             val decision = bridge.selectLocalRoute(BrainRequest("कृपया मुझे समझाओ"))
 
             assertEquals(BrainModelRole.MULTILINGUAL_BACKUP, decision?.selectedRole)
@@ -77,7 +77,7 @@ class ModelInstallBrainRouterBridgeTest {
                 payloads = mapOf("lite/gemma-3-270m-q4.gguf" to payload)
             )
 
-            val bridge = ModelInstallBrainRouterBridge(env.readinessChecker)
+            val bridge = ModelInstallBrainRouterBridge(env.modelInstallService)
             val decision = bridge.selectLocalRoute(BrainRequest("simple fallback help"))
 
             assertEquals(BrainModelRole.LITE_FALLBACK, decision?.selectedRole)
@@ -96,7 +96,7 @@ class ModelInstallBrainRouterBridgeTest {
         )
 
         withLocalRuntimeEnvironment(catalog = listOf(pack)) { env ->
-            val bridge = ModelInstallBrainRouterBridge(env.readinessChecker)
+            val bridge = ModelInstallBrainRouterBridge(env.modelInstallService)
             val decision = bridge.selectLocalRoute(BrainRequest("please explain how offline verification works"))
 
             assertNull(decision)

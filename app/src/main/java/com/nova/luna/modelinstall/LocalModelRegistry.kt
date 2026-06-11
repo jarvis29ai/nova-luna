@@ -43,22 +43,22 @@ class LocalModelRegistry(
     }
 
     fun hasInstalledPack(packId: ModelPackId): Boolean {
-        return find(packId)?.state in setOf(ModelInstallState.INSTALLED, ModelInstallState.READY)
+        return find(packId)?.state in setOf(ModelInstallStatus.INSTALLED, ModelInstallStatus.READY)
     }
 
     fun hasReadyPack(packId: ModelPackId): Boolean {
-        return find(packId)?.state == ModelInstallState.READY
+        return find(packId)?.state == ModelInstallStatus.READY
     }
 
     fun installedPacks(): List<ModelPackId> {
         return snapshot()
-            .filter { it.state in setOf(ModelInstallState.INSTALLED, ModelInstallState.READY) }
+            .filter { it.state in setOf(ModelInstallStatus.INSTALLED, ModelInstallStatus.READY) }
             .map { it.packId }
     }
 
     fun readyPacks(): List<ModelPackId> {
         return snapshot()
-            .filter { it.state == ModelInstallState.READY }
+            .filter { it.state == ModelInstallStatus.READY }
             .map { it.packId }
     }
 

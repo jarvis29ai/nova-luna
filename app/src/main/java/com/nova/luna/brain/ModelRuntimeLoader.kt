@@ -3,14 +3,14 @@ package com.nova.luna.brain
 import com.nova.luna.model.BrainModelRole
 import com.nova.luna.modelinstall.ModelPackId
 import com.nova.luna.modelinstall.PrivateAppModelStorage
-import com.nova.luna.modelinstall.LocalRuntimeReadinessChecker
+import com.nova.luna.modelinstall.ModelInstallService
 
 /**
  * Resolves READY model files from ModelInstallStorage and provides the appropriate PhoneLocalLlmEngine.
  */
 class ModelRuntimeLoader(
     private val storage: PrivateAppModelStorage,
-    private val readinessChecker: LocalRuntimeReadinessChecker,
+    private val modelInstallService: ModelInstallService,
     private val liteRealInferenceEnabled: Boolean = false
 ) {
     /**
@@ -18,24 +18,26 @@ class ModelRuntimeLoader(
      * If the model is not ready, it returns an UnavailablePhoneLocalLlmEngine.
      */
     fun loadForRole(role: BrainModelRole): PhoneLocalLlmEngine {
-        val packId = packIdForRole(role) ?: return UnavailablePhoneLocalLlmEngine()
+        val installModelId = when (role) {
+            BrainModelRole.CORE_BRAIN -> "core"
+            BrainModelRole.MULTILINGUAL_BACKUP -> "full"
+            BrainModelRole.LITE_FALLBACK -> "lite"
+            else -> null
+        } ?: return UnavailablePhoneLocalLlmEngine()
 
-        // Check if the pack is installed and ready in private storage
-        if (!readinessChecker.installReady(packId)) {
-            return UnavailablePhoneLocalLlmEngine()
-        }
+        val verifiedPath = modelInstallService.getReadyModelPath(installModelId) ?: return UnavailablePhoneLocalLlmEngine()
 
-        val modelId = modelIdForRole(role) ?: return UnavailablePhoneLocalLlmEngine()
-        val modelFile = storage.packFile(packId, modelId.defaultQuantizedFileName)
+        val modelFile = java.io.File(verifiedPath)
+        val modelEnum = modelIdForRole(role) ?: return UnavailablePhoneLocalLlmEngine()
 
-        return when (packId) {
-            ModelPackId.LITE -> LiteLocalModelRuntime(
+        return when (role) {
+            BrainModelRole.LITE_FALLBACK -> LiteLocalModelRuntime(
                 modelFile = modelFile,
-                modelId = modelId,
+                modelId = modelEnum,
                 realInferenceEnabled = liteRealInferenceEnabled
             )
-            // Lite is the only wired local runtime for this loader today.
-            // CORE and FULL remain unavailable until their local model paths are added.
+            // Phase 21: Native runtime should use verified model path.
+            // Future phases will add CORE and MULTILINGUAL runtimes here.
             else -> UnavailablePhoneLocalLlmEngine()
         }
     }

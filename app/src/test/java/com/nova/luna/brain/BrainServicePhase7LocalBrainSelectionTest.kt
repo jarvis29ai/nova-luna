@@ -17,17 +17,17 @@ import org.junit.Test
 class BrainServicePhase7LocalBrainSelectionTest {
     @Test
     fun `failed core model is suppressed and the next request falls back to lite`() {
-        val corePayload = "core runtime payload".toByteArray()
-        val litePayload = "lite runtime payload".toByteArray()
+        val corePayload = ByteArray(100_000_001)
+        val litePayload = ByteArray(100_000_001)
         val corePack = singleFilePack(
             packId = ModelPackId.CORE,
-            fileName = "gemma-3n-q4.gguf",
+            fileName = "qwen2.5-0.5b-instruct-q4_k_m.gguf",
             relativePath = "core",
             payload = corePayload
         )
         val litePack = singleFilePack(
             packId = ModelPackId.LITE,
-            fileName = "gemma-3-270m-q4.gguf",
+            fileName = "qwen2.5-0.5b-instruct-q4_k_m.gguf",
             relativePath = "lite",
             payload = litePayload
         )
@@ -36,15 +36,15 @@ class BrainServicePhase7LocalBrainSelectionTest {
             seedReadyPack(
                 env = env,
                 pack = corePack,
-                payloads = mapOf("core/gemma-3n-q4.gguf" to corePayload)
+                payloads = mapOf("core/qwen2.5-0.5b-instruct-q4_k_m.gguf" to corePayload)
             )
             seedReadyPack(
                 env = env,
                 pack = litePack,
-                payloads = mapOf("lite/gemma-3-270m-q4.gguf" to litePayload)
+                payloads = mapOf("lite/qwen2.5-0.5b-instruct-q4_k_m.gguf" to litePayload)
             )
 
-            val bridge = ModelInstallBrainRouterBridge(env.readinessChecker)
+            val bridge = ModelInstallBrainRouterBridge(env.modelInstallService)
             val service = BrainService(
                 localBrainRouterBridge = bridge,
                 coreBrainModel = failingModel(BrainModelRole.CORE_BRAIN),
@@ -57,7 +57,8 @@ class BrainServicePhase7LocalBrainSelectionTest {
                     role = BrainModelRole.LITE_FALLBACK,
                     reply = "Lite fallback is ready.",
                     modelId = PhoneLocalLlmModelId.GEMMA_3_270M
-                )
+                ),
+                modelInstallService = env.modelInstallService
             )
 
             val initialSelection = bridge.selectLocalRoute(

@@ -10,7 +10,7 @@ import com.nova.luna.model.BrainModelRole
 import com.nova.luna.model.BrainRouteDecision
 
 class ModelInstallBrainRouterBridge(
-    private val runtimeReadinessChecker: LocalRuntimeReadinessChecker,
+    private val modelInstallService: ModelInstallService,
     private val catalog: BrainModelCatalog = BrainModelCatalog,
     private val failureTracker: ModelRuntimeFailureTracker = ModelRuntimeFailureTracker()
 ) : BrainRouterBridge, BrainRoleReadinessProvider {
@@ -20,13 +20,12 @@ class ModelInstallBrainRouterBridge(
     )
 
     override fun isReady(role: BrainModelRole): Boolean {
-        val packId = packIdForRole(role) ?: return false
+        val modelId = modelIdForRole(role) ?: return false
         if (failureTracker.isSuppressed(role)) {
             return false
         }
 
-        return runCatching { runtimeReadinessChecker.installReady(packId) }
-            .getOrDefault(false)
+        return modelInstallService.getReadyModelPath(modelId) != null
     }
 
     override fun selectLocalRoute(
@@ -61,11 +60,11 @@ class ModelInstallBrainRouterBridge(
         roleSelector.recordOutcome(role, available, reason)
     }
 
-    private fun packIdForRole(role: BrainModelRole): ModelPackId? {
+    private fun modelIdForRole(role: BrainModelRole): String? {
         return when (role) {
-            BrainModelRole.CORE_BRAIN -> ModelPackId.CORE
-            BrainModelRole.MULTILINGUAL_BACKUP -> ModelPackId.FULL
-            BrainModelRole.LITE_FALLBACK -> ModelPackId.LITE
+            BrainModelRole.CORE_BRAIN -> "core"
+            BrainModelRole.MULTILINGUAL_BACKUP -> "full"
+            BrainModelRole.LITE_FALLBACK -> "lite"
             else -> null
         }
     }
