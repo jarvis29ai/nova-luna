@@ -2,6 +2,7 @@ package com.nova.luna.brain
 
 import com.nova.luna.agent.TaskPlan
 import com.nova.luna.model.BrainAction
+import com.nova.luna.model.BrainActionSource
 import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainModelRole
 import com.nova.luna.model.BrainRiskLevel
@@ -23,6 +24,7 @@ import com.nova.luna.screen.ScreenStateReader
 import com.nova.luna.safety.SafetyGate
 import com.nova.luna.modelinstall.ModelInstallService
 import com.nova.luna.modelinstall.ModelInstallDiagnostics
+import com.nova.luna.util.AssistantTextNormalizer
 import java.util.Locale
 
 class BrainService(
@@ -33,6 +35,7 @@ class BrainService(
     private val safetyGate: SafetyGate = SafetyGate(),
     private val modelInstallService: ModelInstallService? = null,
     private val modelRuntimeManager: ModelRuntimeManager? = null,
+    private val commandUnderstandingService: CommandUnderstandingService = CommandUnderstandingService(),
     private val runtimeConfig: BrainRuntimeConfig = BrainRuntimeConfig.fromBuildConfig(),
     private val internetPermissionPolicy: InternetPermissionPolicy = InternetPermissionPolicy(),
     private val internetAvailable: Boolean = false,
@@ -1271,6 +1274,13 @@ class BrainService(
             reason.contains("backend", ignoreCase = true) ||
             reason.contains("engine", ignoreCase = true) ||
             reason.contains("wired", ignoreCase = true)
+        
+        // Phase 23: If model is not ready, try rule-based understanding as high-quality fallback
+        val understanding = commandUnderstandingService.understand(rawText)
+        if (understanding.actionType != BrainActionType.ASK_CLARIFICATION && understanding.actionType != BrainActionType.UNKNOWN) {
+            return understanding
+        }
+
         val localModelStatus = if (runtimeUnavailable) {
             PhoneLocalLlmStatus.MODEL_RUNTIME_NOT_AVAILABLE
         } else {
@@ -1279,22 +1289,22 @@ class BrainService(
         return BrainAction(
             intent = "local_model_unavailable",
             reply = "$roleDisplayName is not ready yet, but I can still handle basic commands.",
-            actionType = BrainActionType.NONE,
-            riskLevel = BrainRiskLevel.SAFE,
+            actionType = BrainActionType.UNKNOWN,
+            riskLevel = BrainRiskLevel.LOW,
             requiresConfirmation = false,
-            finalActionAllowed = false,
             params = buildMap {
-                put("rawText", rawText)
                 put("routeRole", routeDecision.selectedRole.wireValue)
-                put("routeRoleDisplayName", roleDisplayName)
-                put("routeReason", routeDecision.reason)
                 put("localModelStatus", localModelStatus.wireValue)
-                put("localModelAvailable", "false")
-                put("runtimeAvailable", runtimeUnavailable.toString())
-                put("assetMissing", "false")
                 put("reason", reason)
-            },
-            nextQuestion = "Try a simple command like open app, home, or stop listening."
+            }
+        ).withPhase23Metadata(
+            schemaVersion = 1,
+            source = BrainActionSource.ERROR,
+            rawCommand = rawText,
+            normalizedCommand = AssistantTextNormalizer.normalize(rawText),
+            confidence = 0.0,
+            assistantReply = "$roleDisplayName is not ready yet, but I can still handle basic commands.",
+            reason = reason
         )
     }
 
@@ -1303,18 +1313,55 @@ class BrainService(
         reason: String
     ): BrainAction {
         return BrainAction(
+            schemaVersion = 1,
+            source = BrainActionSource.ERROR,
+            rawCommand = rawText,
+            normalizedCommand = AssistantTextNormalizer.normalize(rawText),
             intent = "local_model_unavailable",
-            reply = "AI brain is not installed yet. Open model setup to download Nova/Luna AI Brain.",
-            actionType = BrainActionType.NONE,
-            riskLevel = BrainRiskLevel.SAFE,
+            actionType = BrainActionType.UNKNOWN,
+            riskLevel = BrainRiskLevel.LOW,
             requiresConfirmation = false,
-            finalActionAllowed = false,
             params = mapOf(
-                "rawText" to rawText,
                 "reason" to reason,
                 "routeRole" to BrainModelRole.MOCK_FALLBACK.wireValue
             ),
-            nextQuestion = "Open model setup to download or import a model pack."
+            confidence = 0.0,
+            assistantReply = "AI brain is not installed yet. Open model setup to download Nova/Luna AI Brain.",
+            reason = reason
+        )
+    }
+
+    private fun blockedHumanOnlyAction(rawText: String, reason: String): BrainAction {
+        return BrainAction(
+            schemaVersion = 1,
+            source = BrainActionSource.RULE_FALLBACK,
+            rawCommand = rawText,
+            normalizedCommand = AssistantTextNormalizer.normalize(rawText),
+            intent = "human_only",
+            actionType = BrainActionType.HUMAN_ONLY,
+            riskLevel = BrainRiskLevel.HUMAN_ONLY,
+            requiresConfirmation = true,
+            params = mapOf("reason" to reason),
+            confidence = 1.0,
+            assistantReply = reason,
+            reason = "Security policy: $reason"
+        )
+    }
+
+    private fun offlineInfoAction(rawText: String, reason: String): BrainAction {
+        return BrainAction(
+            schemaVersion = 1,
+            source = BrainActionSource.RULE_FALLBACK,
+            rawCommand = rawText,
+            normalizedCommand = AssistantTextNormalizer.normalize(rawText),
+            intent = "internet_unavailable",
+            actionType = BrainActionType.ASK_CLARIFICATION,
+            riskLevel = BrainRiskLevel.LOW,
+            requiresConfirmation = false,
+            params = mapOf("reason" to reason),
+            confidence = 1.0,
+            assistantReply = "I need internet for live information. I can still help with offline-only actions.",
+            reason = "Offline limitation: $reason"
         )
     }
 
@@ -1330,38 +1377,6 @@ class BrainService(
             BrainModelRole.ONLINE_AI_HELPER -> "Online AI Helper"
             BrainModelRole.MOCK_FALLBACK -> "AI brain"
         }
-    }
-
-    private fun blockedHumanOnlyAction(rawText: String, reason: String): BrainAction {
-        return BrainAction(
-            intent = "human_only",
-            reply = reason,
-            actionType = BrainActionType.HUMAN_ONLY,
-            riskLevel = BrainRiskLevel.BLOCKED,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
-            params = mapOf(
-                "rawText" to rawText,
-                "reason" to reason
-            ),
-            nextQuestion = "Please handle that manually."
-        )
-    }
-
-    private fun offlineInfoAction(rawText: String, reason: String): BrainAction {
-        return BrainAction(
-            intent = "internet_unavailable",
-            reply = "I need internet for live information. I can still help with offline-only actions.",
-            actionType = BrainActionType.NONE,
-            riskLevel = BrainRiskLevel.SAFE,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
-            params = mapOf(
-                "rawText" to rawText,
-                "reason" to reason
-            ),
-            nextQuestion = "Would you like an offline-only alternative?"
-        )
     }
 
     private fun rememberBrainAction(
@@ -1385,14 +1400,18 @@ class BrainService(
 
     private fun fallback(rawText: String): BrainAction {
         return BrainAction(
+            schemaVersion = 1,
+            source = BrainActionSource.ERROR,
+            rawCommand = rawText,
+            normalizedCommand = AssistantTextNormalizer.normalize(rawText),
             intent = "local_model_unavailable",
-            reply = "I'm sorry, my local brain is not ready yet. I can try to help you if you connect to the internet, or you can try a simpler command.",
-            actionType = BrainActionType.NONE,
-            riskLevel = BrainRiskLevel.SAFE,
+            actionType = BrainActionType.UNKNOWN,
+            riskLevel = BrainRiskLevel.LOW,
             requiresConfirmation = false,
-            finalActionAllowed = false,
-            params = mapOf("rawText" to rawText),
-            nextQuestion = "Try a simple command like open app, home, or stop listening."
+            params = emptyMap(),
+            confidence = 0.0,
+            assistantReply = "I'm sorry, my local brain is not ready yet. I can try to help you if you connect to the internet, or you can try a simpler command.",
+            reason = "Generic brain service fallback."
         )
     }
 

@@ -26,8 +26,8 @@ object AssistantTextNormalizer {
     fun normalize(rawText: String): String {
         return stripWakeWords(rawText)
             .lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9\\s]+"), " ")
-            .replace(Regex("\\s+"), " ")
+            .replace(Regex("""[^\p{L}\p{N}\p{M}\s]+"""), " ")
+            .replace(Regex("""\s+"""), " ")
             .trim()
     }
 }

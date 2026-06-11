@@ -68,7 +68,17 @@ data class BrainDiagnostics(
     val agentLoopAskedUser: Boolean = false,
     val agentLoopVerificationMessage: String? = null,
     val modelInstallDiagnostics: ModelInstallDiagnostics? = null,
-    val sessionTrace: ModelRuntimeSessionTrace? = null
+    val sessionTrace: ModelRuntimeSessionTrace? = null,
+    val phase23_command_understanding: Boolean = true,
+    val brain_action_created: Boolean = false,
+    val action_intent: String? = null,
+    val action_type: String? = null,
+    val risk_level: String? = null,
+    val requires_confirmation: Boolean? = null,
+    val action_confidence: Double? = null,
+    val action_source: String? = null,
+    val action_params: Map<String, String>? = null,
+    val action_assistant_reply: String? = null
 )
 
 interface BrainProviderDiagnostics {

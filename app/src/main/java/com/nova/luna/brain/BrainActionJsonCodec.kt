@@ -1,6 +1,7 @@
 package com.nova.luna.brain
 
 import com.nova.luna.model.BrainAction
+import com.nova.luna.model.BrainActionSource
 import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainRiskLevel
 
@@ -10,18 +11,24 @@ class BrainActionJsonCodec {
             "\"${escape(key)}\":\"${escape(value)}\""
         }
 
+        val errorsJson = action.errors.joinToString(separator = ",") { "\"${escape(it)}\"" }
+
         return buildString {
             append('{')
+            append("\"schemaVersion\":").append(action.schemaVersion).append(",")
+            append("\"source\":\"").append(action.source.name).append("\",")
+            append("\"rawCommand\":\"").append(escape(action.rawCommand)).append("\",")
+            append("\"normalizedCommand\":\"").append(escape(action.normalizedCommand)).append("\",")
             append("\"intent\":\"").append(escape(action.intent)).append("\",")
-            append("\"reply\":\"").append(escape(action.reply)).append("\",")
-            append("\"actionType\":\"").append(action.actionType.wireValue).append("\",")
-            append("\"riskLevel\":\"").append(action.riskLevel.wireValue).append("\",")
-            append("\"requiresConfirmation\":").append(action.requiresConfirmation).append(',')
-            append("\"finalActionAllowed\":").append(action.finalActionAllowed).append(',')
-            append("\"params\":{").append(paramsJson).append('}')
-            action.nextQuestion?.takeIf { it.isNotBlank() }?.let { nextQuestion ->
-                append(",\"nextQuestion\":\"").append(escape(nextQuestion)).append("\"")
-            }
+            append("\"actionType\":\"").append(action.actionType.name).append("\",")
+            append("\"riskLevel\":\"").append(action.riskLevel.name).append("\",")
+            append("\"requiresConfirmation\":").append(action.requiresConfirmation).append(",")
+            append("\"params\":{").append(paramsJson).append("},")
+            append("\"confidence\":").append(action.confidence).append(",")
+            append("\"language\":\"").append(escape(action.language)).append("\",")
+            append("\"assistantReply\":\"").append(escape(action.assistantReply)).append("\",")
+            append("\"reason\":\"").append(escape(action.reason)).append("\",")
+            append("\"errors\":[").append(errorsJson).append("]")
             append('}')
         }
     }
@@ -30,47 +37,53 @@ class BrainActionJsonCodec {
         val parser = JsonParser(json)
         val root = parser.parseObject() ?: return null
 
-        if (!root.containsKey("intent") ||
-            !root.containsKey("reply") ||
-            !root.containsKey("actionType") ||
-            !root.containsKey("riskLevel") ||
-            !root.containsKey("requiresConfirmation") ||
-            !root.containsKey("finalActionAllowed") ||
-            !root.containsKey("params")
-        ) {
-            return null
+        val intent = root.jsonString("intent") ?: return null
+        val actionType = BrainActionType.entries.find { it.name == root.jsonString("actionType") } ?: BrainActionType.UNKNOWN
+        val riskLevel = BrainRiskLevel.entries.find { it.name == root.jsonString("riskLevel") } ?: BrainRiskLevel.UNKNOWN
+        val requiresConfirmation = root.jsonBoolean("requiresConfirmation", false)
+        
+        val params = linkedMapOf<String, String>()
+        val paramsObj = root["params"] as? Map<*, *>
+        paramsObj?.forEach { (k, v) ->
+            if (k is String && v is String) params[k] = v
         }
 
-        val intent = (root["intent"] as? String)?.trim().takeUnless { it.isNullOrBlank() } ?: return null
-        val reply = (root["reply"] as? String)?.trim().takeUnless { it.isNullOrBlank() } ?: return null
-        val actionType = BrainActionType.fromWireValue(root["actionType"] as? String) ?: return null
-        val riskLevel = BrainRiskLevel.fromWireValue(root["riskLevel"] as? String) ?: return null
-        val requiresConfirmation = root["requiresConfirmation"] as? Boolean ?: return null
-        val finalActionAllowed = root["finalActionAllowed"] as? Boolean ?: return null
-        val paramsObject = root["params"] as? Map<*, *> ?: return null
-        val params = linkedMapOf<String, String>()
-        for ((key, value) in paramsObject) {
-            val paramKey = key?.toString()?.trim().takeUnless { it.isNullOrBlank() } ?: return null
-            val paramValue = value as? String ?: return null
-            params[paramKey] = paramValue
-        }
-        val nextQuestion = when (val value = root["nextQuestion"]) {
-            null -> null
-            is String -> value.takeIf { it.isNotBlank() }
-            else -> return null
-        }
+        val confidence = root.jsonDouble("confidence", 0.0)
+        val assistantReply = root.jsonString("assistantReply") ?: root.jsonString("reply") ?: ""
+        val reason = root.jsonString("reason") ?: ""
+        val language = root.jsonString("language") ?: "unknown"
+        val source = runCatching { BrainActionSource.valueOf(root.jsonString("source") ?: "MODEL") }.getOrDefault(BrainActionSource.MODEL)
+        val rawCommand = root.jsonString("rawCommand") ?: ""
+        val normalizedCommand = root.jsonString("normalizedCommand") ?: ""
+        val schemaVersion = root.jsonInt("schemaVersion", 1)
+        
+        val errors = mutableListOf<String>()
+        val errorsList = root["errors"] as? List<*>
+        errorsList?.forEach { if (it is String) errors.add(it) }
 
         return BrainAction(
+            schemaVersion = schemaVersion,
+            source = source,
+            rawCommand = rawCommand,
+            normalizedCommand = normalizedCommand,
             intent = intent,
-            reply = reply,
             actionType = actionType,
             riskLevel = riskLevel,
             requiresConfirmation = requiresConfirmation,
-            finalActionAllowed = finalActionAllowed,
             params = params,
-            nextQuestion = nextQuestion
+            confidence = confidence,
+            language = language,
+            assistantReply = assistantReply,
+            reason = reason,
+            errors = errors
         )
     }
+
+    private fun Map<String, Any?>.jsonString(key: String): String? = this[key] as? String
+    private fun Map<String, Any?>.jsonString(key: String, default: String): String = (this[key] as? String) ?: default
+    private fun Map<String, Any?>.jsonBoolean(key: String, default: Boolean): Boolean = (this[key] as? Boolean) ?: default
+    private fun Map<String, Any?>.jsonInt(key: String, default: Int): Int = (this[key] as? Int) ?: (this[key] as? Double)?.toInt() ?: default
+    private fun Map<String, Any?>.jsonDouble(key: String, default: Double): Double = (this[key] as? Double) ?: (this[key] as? Int)?.toDouble() ?: default
 
     private fun escape(value: String): String {
         return value
@@ -81,46 +94,6 @@ class BrainActionJsonCodec {
             .replace("\n", "\\n")
             .replace("\r", "\\r")
             .replace("\t", "\\t")
-    }
-
-    private fun unescape(value: String): String {
-        val builder = StringBuilder()
-        var index = 0
-        while (index < value.length) {
-            val char = value[index]
-            if (char != '\\') {
-                builder.append(char)
-                index += 1
-                continue
-            }
-
-            if (index == value.lastIndex) {
-                builder.append('\\')
-                break
-            }
-
-            val next = value[index + 1]
-            when (next) {
-                '\\' -> builder.append('\\')
-                '"' -> builder.append('"')
-                '/' -> builder.append('/')
-                'b' -> builder.append('\b')
-                'f' -> builder.append('\u000C')
-                'n' -> builder.append('\n')
-                'r' -> builder.append('\r')
-                't' -> builder.append('\t')
-                'u' -> {
-                    val hex = value.substring(index + 2, (index + 6).coerceAtMost(value.length))
-                    if (hex.length == 4 && hex.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) {
-                        builder.append(hex.toInt(16).toChar())
-                        index += 4
-                    }
-                }
-                else -> builder.append(next)
-            }
-            index += 2
-        }
-        return builder.toString()
     }
 
     private class JsonParser(private val input: String) {
@@ -170,10 +143,41 @@ class BrainActionJsonCodec {
             return when (peek()) {
                 '"' -> parseString()
                 '{' -> parseObject()
+                '[' -> parseArray()
                 't', 'f' -> parseBoolean()
                 'n' -> parseNull()
+                '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-' -> parseNumber()
                 else -> null
             }
+        }
+
+        private fun parseArray(): List<Any?>? {
+            if (!consume('[')) return null
+            val result = mutableListOf<Any?>()
+            skipWhitespace()
+            if (peek() == ']') {
+                index += 1
+                return result
+            }
+
+            while (index < input.length) {
+                val value = parseValue()
+                result.add(value)
+                skipWhitespace()
+                when (peek()) {
+                    ',' -> {
+                        index += 1
+                        skipWhitespace()
+                        continue
+                    }
+                    ']' -> {
+                        index += 1
+                        return result
+                    }
+                    else -> return null
+                }
+            }
+            return null
         }
 
         private fun parseString(): String? {
@@ -245,6 +249,20 @@ class BrainActionJsonCodec {
             } else {
                 null
             }
+        }
+
+        private fun parseNumber(): Number? {
+            val start = index
+            if (peek() == '-') index++
+            while (peek()?.isDigit() == true) index++
+            if (peek() == '.') {
+                index++
+                while (peek()?.isDigit() == true) index++
+                val s = input.substring(start, index)
+                return s.toDoubleOrNull()
+            }
+            val s = input.substring(start, index)
+            return s.toIntOrNull()
         }
 
         private fun skipWhitespace() {

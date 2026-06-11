@@ -5,6 +5,7 @@ import com.nova.luna.model.BrainModelCatalog
 import com.nova.luna.model.BrainModelCatalogEntry
 import com.nova.luna.model.BrainModelRole
 import com.nova.luna.model.BrainRouteDecision
+import com.nova.luna.util.AssistantTextNormalizer
 
 class LocalBrainModelClient(
     override val role: BrainModelRole,
@@ -12,8 +13,7 @@ class LocalBrainModelClient(
     private val engine: PhoneLocalLlmEngine = UnavailablePhoneLocalLlmEngine(),
     private val manager: ModelRuntimeManager? = null,
     private val promptBuilder: LocalModelPromptBuilder = LocalModelPromptBuilder(),
-    private val candidateParser: LocalCandidateJsonParser = LocalCandidateJsonParser(),
-    private val candidateValidator: LocalCandidateValidator = LocalCandidateValidator(),
+    private val actionParser: BrainActionParser = BrainActionParser(),
     private val catalog: BrainModelCatalog = BrainModelCatalog
 ) : PhoneBrainModel {
     override val available: Boolean
@@ -150,18 +150,23 @@ class LocalBrainModelClient(
             )
         }
 
-        val parseResult = candidateParser.parse(generation.text.orEmpty())
-        if (!parseResult.accepted || parseResult.candidateAction == null) {
+        val parsedAction = actionParser.parse(
+            rawCommand = request.rawText,
+            normalizedCommand = AssistantTextNormalizer.normalize(request.rawText),
+            modelOutput = generation.text.orEmpty()
+        )
+
+        if (parsedAction.source == com.nova.luna.model.BrainActionSource.ERROR) {
             return BrainModelResult.unavailable(
                 role = role,
-                reason = parseResult.reason,
+                reason = parsedAction.reason,
                 rawResponse = generation.text,
                 safetyNotes = routeDecision.safetyNotes + listOf(
-                    "Downloaded local model output was rejected by the strict candidate parser."
+                    "Downloaded local model output was rejected by the Phase 23 parser."
                 ),
                 localModelId = generation.modelId ?: localModelId(),
                 localModelDisplayName = generation.modelDisplayName ?: entry.displayName,
-                localModelStatus = parseResult.status.toPhoneLocalLlmStatus(),
+                localModelStatus = PhoneLocalLlmStatus.OUTPUT_PARSE_FAILED,
                 promptBuilt = true,
                 jsonParsed = false,
                 realInference = true,
@@ -173,40 +178,13 @@ class LocalBrainModelClient(
             )
         }
 
-        val validationResult = candidateValidator.validate(
-            candidateAction = parseResult.candidateAction,
-            rawJson = parseResult.extractedJson
-        )
-        if (!validationResult.accepted) {
-            return BrainModelResult.unavailable(
-                role = role,
-                reason = validationResult.reason,
-                rawResponse = generation.text,
-                candidateAction = validationResult.candidateAction,
-                safetyNotes = routeDecision.safetyNotes + listOf(
-                    "Downloaded local model output was rejected by the candidate validator."
-                ),
-                localModelId = generation.modelId ?: localModelId(),
-                localModelDisplayName = generation.modelDisplayName ?: entry.displayName,
-                localModelStatus = PhoneLocalLlmStatus.VALIDATION_REJECTED,
-                promptBuilt = true,
-                jsonParsed = true,
-                realInference = true,
-                nativeGenerationAvailable = true,
-                jsonParseAttempted = true,
-                jsonParseSuccess = false,
-                latencyMillis = generation.latencyMillis,
-                sessionTrace = sessionTrace
-            )
-        }
-
         return BrainModelResult.available(
             role = role,
-            candidateAction = validationResult.candidateAction,
+            candidateAction = parsedAction,
             rawResponse = generation.text,
             reason = "Downloaded local model produced a structured candidate.",
             safetyNotes = routeDecision.safetyNotes + listOf(
-                "Downloaded local model output passed strict candidate parsing and validation.",
+                "Downloaded local model output passed Phase 23 structured parsing.",
                 "SafetyGate still decides whether the candidate may execute."
             ),
             localModelId = generation.modelId ?: localModelId(),

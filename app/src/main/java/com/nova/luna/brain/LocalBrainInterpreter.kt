@@ -10,6 +10,7 @@ import com.nova.luna.grocery.GroceryIntentParser
 import com.nova.luna.food.toEntities
 import com.nova.luna.model.ActionType
 import com.nova.luna.model.BrainAction
+import com.nova.luna.model.BrainActionSource
 import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainRiskLevel
 import com.nova.luna.model.CommandIntent
@@ -34,38 +35,37 @@ class LocalBrainInterpreter {
 
         // 2. Active session continuations
         if (request.activeCabSession) {
-            return BrainAction(
+            return brainAction(
+                request.rawText,
                 intent = "cab_session",
                 reply = "Continuing the cab flow.",
-                actionType = BrainActionType.READ_ONLY,
-                riskLevel = BrainRiskLevel.SAFE,
-                requiresConfirmation = false,
-                finalActionAllowed = false,
-                params = mapOf("rawText" to rawText)
+                type = BrainActionType.CAB_SEARCH,
+                risk = BrainRiskLevel.MEDIUM,
+                confirm = true
             )
         }
 
         if (request.activeGrocerySession) {
-            return BrainAction(
+            return brainAction(
+                request.rawText,
                 intent = "grocery_session",
                 reply = "Continuing the grocery flow.",
-                actionType = BrainActionType.EXTERNAL_ACTION,
-                riskLevel = BrainRiskLevel.SAFE,
-                requiresConfirmation = false,
-                finalActionAllowed = false,
-                params = mapOf("rawText" to rawText, "activeGrocerySession" to "true")
+                type = BrainActionType.GROCERY_SEARCH,
+                risk = BrainRiskLevel.MEDIUM,
+                confirm = true,
+                params = mapOf("activeGrocerySession" to "true")
             )
         }
 
         if (request.activeFoodSession) {
-            return BrainAction(
+            return brainAction(
+                request.rawText,
                 intent = "food_session",
                 reply = "Continuing the food flow.",
-                actionType = BrainActionType.EXTERNAL_ACTION,
-                riskLevel = BrainRiskLevel.SAFE,
-                requiresConfirmation = false,
-                finalActionAllowed = false,
-                params = mapOf("rawText" to rawText, "activeFoodSession" to "true")
+                type = BrainActionType.FOOD_SEARCH,
+                risk = BrainRiskLevel.MEDIUM,
+                confirm = true,
+                params = mapOf("activeFoodSession" to "true")
             )
         }
 
@@ -106,10 +106,9 @@ class LocalBrainInterpreter {
                         parseCabBooking(rawText)?.let { return it }
                     }
                     "grocery" -> parseGroceryBooking(rawText)?.let { return it }
-                    }
-                    }
-                    }
-
+                }
+            }
+        }
 
         // 4. Fallbacks
         parsePreparedMessage(rawText)?.let { return it }
@@ -170,81 +169,35 @@ class LocalBrainInterpreter {
             else -> "I can help you order ${parsed.foodItem ?: "food"} from ${parsed.restaurantName ?: "a restaurant"}."
         }
 
-        val nextQuestion = when {
-            parsed.foodItem.isNullOrBlank() && parsed.restaurantName.isNullOrBlank() ->
-                "What would you like to order?"
-            parsed.requestedProviders.isEmpty() -> "Which app should I use, Swiggy or Zomato?"
-            else -> "Say yes and I will prepare the food flow."
-        }
-
-        return BrainAction(
+        return brainAction(
+            rawText = rawText,
             intent = "food_order",
             reply = reply,
-            actionType = BrainActionType.EXTERNAL_ACTION,
-            riskLevel = BrainRiskLevel.SAFE,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
-            params = params,
-            nextQuestion = nextQuestion
+            type = BrainActionType.FOOD_SEARCH,
+            risk = BrainRiskLevel.MEDIUM,
+            confirm = true,
+            params = params
         )
     }
 
     private fun parseBlockedAction(rawText: String): BrainAction? {
         val normalized = normalize(rawText)
-        if (Regex("""\bpay\b\s+\d+""").containsMatchIn(normalized)) {
-            return BrainAction(
-                intent = "human_only",
-                reply = "That needs to stay manual for your safety. Please handle it yourself in the app.",
-                actionType = BrainActionType.HUMAN_ONLY,
-                riskLevel = BrainRiskLevel.BLOCKED,
-                requiresConfirmation = false,
-                finalActionAllowed = false,
-                params = mapOf(
-                    "rawText" to rawText,
-                    "reason" to "sensitive_action"
-                ),
-                nextQuestion = "Please do that manually."
-            )
-        }
-
         val blockedPatterns = listOf(
-            "send money",
-            "payment",
-            "pay now",
-            "pay with",
-            "complete payment",
-            "banking",
-            "bank transfer",
-            "upi",
-            "password",
-            "otp",
-            "one time password",
-            "enter otp",
-            "captcha",
-            "solve captcha",
-            "login",
-            "sign in",
-            "bypass login",
-            "place final order",
-            "place order without",
-            "delete",
-            "erase",
-            "remove account"
+            "send money", "payment", "pay now", "pay with", "complete payment",
+            "banking", "bank transfer", "upi", "password", "otp", "one time password",
+            "enter otp", "captcha", "solve captcha", "login", "sign in", "bypass login",
+            "place final order", "place order without", "delete", "erase", "remove account"
         )
 
-        if (blockedPatterns.any { containsPhrase(normalized, it) }) {
-            return BrainAction(
+        if (Regex("""\bpay\b\s+\d+""").containsMatchIn(normalized) || blockedPatterns.any { containsPhrase(normalized, it) }) {
+            return brainAction(
+                rawText = rawText,
                 intent = "human_only",
                 reply = "That needs to stay manual for your safety. Please handle it yourself in the app.",
-                actionType = BrainActionType.HUMAN_ONLY,
-                riskLevel = BrainRiskLevel.BLOCKED,
-                requiresConfirmation = false,
-                finalActionAllowed = false,
-                params = mapOf(
-                    "rawText" to rawText,
-                    "reason" to "sensitive_action"
-                ),
-                nextQuestion = "Please do that manually."
+                type = BrainActionType.HUMAN_ONLY,
+                risk = BrainRiskLevel.HUMAN_ONLY,
+                confirm = true,
+                params = mapOf("reason" to "sensitive_action")
             )
         }
 
@@ -263,9 +216,7 @@ class LocalBrainInterpreter {
         if (providers.isEmpty() && destination.isNullOrBlank()) return null
 
         val providerNames = providers.joinToString(separator = " and ") { provider ->
-            provider.name.lowercase(Locale.US).replaceFirstChar { char ->
-                if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
-            }
+            provider.name.lowercase(Locale.US).replaceFirstChar { it.titlecase(Locale.US) }
         }
 
         val reply = when {
@@ -279,25 +230,17 @@ class LocalBrainInterpreter {
                 "I can compare cab options across available providers."
         }
 
-        val nextQuestion = when {
-            providers.isNotEmpty() || destination != null ->
-                "Which cab option would you like me to prepare?"
-            else -> null
-        }
-
-        return BrainAction(
+        return brainAction(
+            rawText = rawText,
             intent = "cab_compare",
             reply = reply,
-            actionType = BrainActionType.EXTERNAL_ACTION,
-            riskLevel = BrainRiskLevel.SAFE,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
+            type = BrainActionType.CAB_SEARCH,
+            risk = BrainRiskLevel.MEDIUM,
+            confirm = true,
             params = mapOf(
-                "rawText" to rawText,
                 "destination" to (destination ?: ""),
                 "providers" to providers.joinToString(separator = ",") { it.name }
-            ),
-            nextQuestion = nextQuestion
+            )
         )
     }
 
@@ -315,31 +258,19 @@ class LocalBrainInterpreter {
             "I can help you book a ${rideTypeToDisplay(rideType)} cab."
         }
 
-        val nextQuestion = when {
-            parsed.dropText == null -> "Where do you want to go?"
-            parsed.pickupMode == PickupMode.UNKNOWN -> "Where should I pick you up from?"
-            else -> "Should I check available cabs for you?"
-        }
-
-        return BrainAction(
+        return brainAction(
+            rawText = rawText,
             intent = "cab_booking",
             reply = reply,
-            actionType = BrainActionType.EXTERNAL_ACTION,
-            riskLevel = BrainRiskLevel.SAFE,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
+            type = BrainActionType.CAB_SEARCH,
+            risk = BrainRiskLevel.MEDIUM,
+            confirm = true,
             params = mapOf(
-                "rawText" to rawText,
                 "destination" to (parsed.dropText ?: ""),
-                "dropLocation" to (parsed.dropText ?: ""),
                 "rideType" to rideType.name,
                 "pickupMode" to parsed.pickupMode.name,
-                "wantsCheapest" to parsed.wantsCheapest.toString(),
-                "wantsFirstOne" to parsed.wantsFirstOne.toString(),
-                "compareOnly" to parsed.compareOnly.toString(),
-                "manualPickupRequested" to parsed.manualPickupRequested.toString()
-            ),
-            nextQuestion = nextQuestion
+                "wantsCheapest" to parsed.wantsCheapest.toString()
+            )
         )
     }
 
@@ -353,36 +284,22 @@ class LocalBrainInterpreter {
             "I can help you with your grocery order."
         }
 
-        val nextQuestion = if (items.isBlank()) {
-            "What items would you like to add to your cart?"
-        } else {
-            "Should I start searching for these items?"
-        }
-
-        return BrainAction(
+        return brainAction(
+            rawText = rawText,
             intent = "grocery_booking",
             reply = reply,
-            actionType = BrainActionType.EXTERNAL_ACTION,
-            riskLevel = BrainRiskLevel.SAFE,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
-            params = mapOf(
-                "rawText" to rawText,
-                "items" to items
-            ),
-            nextQuestion = nextQuestion
+            type = BrainActionType.GROCERY_SEARCH,
+            risk = BrainRiskLevel.MEDIUM,
+            confirm = true,
+            params = mapOf("items" to items)
         )
     }
 
     private fun parsePreparedMessage(rawText: String): BrainAction? {
         val normalized = normalize(rawText)
         val hasMessagePlanningCue = listOf(
-            "prepare message",
-            "compose message",
-            "draft message",
-            "message to",
-            "reply to",
-            "send message"
+            "prepare message", "compose message", "draft message",
+            "message to", "reply to", "send message"
         ).any { containsPhrase(normalized, it) }
 
         val directSpeakCue = (normalized.startsWith("tell ") || normalized.startsWith("say ")) &&
@@ -394,9 +311,7 @@ class LocalBrainInterpreter {
 
         val appName = extractMessagingAppName(normalized)
         val contact = extractMessageContact(rawText)
-        val displayContact = contact?.replaceFirstChar { char ->
-            if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
-        }
+        val displayContact = contact?.replaceFirstChar { it.titlecase(Locale.US) }
 
         val reply = when {
             appName != null && displayContact != null ->
@@ -409,21 +324,17 @@ class LocalBrainInterpreter {
                 "I can prepare the message."
         }
 
-        val nextQuestion = displayContact?.let { "What should I say to $it?" } ?: "What should I say?"
-
-        return BrainAction(
+        return brainAction(
+            rawText = rawText,
             intent = "prepare_message",
             reply = reply,
-            actionType = BrainActionType.PREPARE,
-            riskLevel = BrainRiskLevel.CONFIRMATION_REQUIRED,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
+            type = BrainActionType.SEND_MESSAGE_DRAFT,
+            risk = BrainRiskLevel.MEDIUM,
+            confirm = true,
             params = buildMap {
-                put("rawText", rawText)
                 appName?.let { put("appName", it.lowercase(Locale.US)) }
                 contact?.let { put("contact", it.lowercase(Locale.US)) }
-            },
-            nextQuestion = nextQuestion
+            }
         )
     }
 
@@ -447,30 +358,56 @@ class LocalBrainInterpreter {
             else -> "I'll handle that for you."
         }
 
-        return BrainAction(
+        val risk = if (intent.actionType == ActionType.BLOCKED) BrainRiskLevel.HUMAN_ONLY else BrainRiskLevel.LOW
+
+        return brainAction(
+            rawText = rawText,
             intent = intent.intentType.name.lowercase(Locale.US),
             reply = reply,
-            actionType = when (intent.actionType) {
+            type = when (intent.actionType) {
                 ActionType.BLOCKED -> BrainActionType.HUMAN_ONLY
-                ActionType.UNKNOWN -> BrainActionType.NONE
-                else -> BrainActionType.EXTERNAL_ACTION
+                ActionType.LAUNCH_APP -> BrainActionType.OPEN_APP
+                ActionType.CALL_CONTACT -> BrainActionType.MAKE_CALL_DRAFT
+                else -> BrainActionType.UNKNOWN
             },
-            riskLevel = if (intent.actionType == ActionType.BLOCKED) BrainRiskLevel.BLOCKED else BrainRiskLevel.SAFE,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
-            params = intent.entities + mapOf("rawText" to rawText)
+            risk = risk,
+            confirm = risk != BrainRiskLevel.LOW,
+            params = intent.entities
         )
     }
 
     private fun buildUnknownAction(rawText: String): BrainAction {
-        return BrainAction(
+        return brainAction(
+            rawText = rawText,
             intent = "unknown",
             reply = "I'm not sure how to help with that yet.",
-            actionType = BrainActionType.NONE,
-            riskLevel = BrainRiskLevel.SAFE,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
-            params = mapOf("rawText" to rawText)
+            type = BrainActionType.UNKNOWN,
+            risk = BrainRiskLevel.UNKNOWN,
+            confirm = false
+        )
+    }
+
+    private fun brainAction(
+        rawText: String,
+        intent: String,
+        reply: String,
+        type: BrainActionType,
+        risk: BrainRiskLevel,
+        confirm: Boolean,
+        params: Map<String, String> = emptyMap()
+    ): BrainAction {
+        return BrainAction(
+            source = BrainActionSource.RULE_FALLBACK,
+            rawCommand = rawText,
+            normalizedCommand = normalize(rawText),
+            intent = intent,
+            actionType = type,
+            riskLevel = risk,
+            requiresConfirmation = confirm,
+            params = params,
+            confidence = 0.9,
+            assistantReply = reply,
+            reason = "Local interpreter rule match."
         )
     }
 
@@ -528,13 +465,6 @@ class LocalBrainInterpreter {
     }
 
     private fun rideTypeToDisplay(rideType: RideType): String {
-        return when (rideType) {
-            RideType.AUTO -> "Auto"
-            RideType.BIKE -> "Bike"
-            RideType.MINI -> "Mini"
-            RideType.SEDAN -> "Sedan"
-            RideType.SUV -> "SUV"
-            RideType.ANY -> "Any"
-        }
+        return rideType.name.lowercase(Locale.US).replaceFirstChar { it.titlecase(Locale.US) }
     }
 }

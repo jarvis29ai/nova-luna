@@ -130,6 +130,15 @@ class BrainActionRuntime(
                 memorySessionType = sessionType,
                 memoryMetadata = memoryMetadata
             )
+
+            else -> CommandResult.success(
+                message = brainAction.reply,
+                intentType = resultIntentType,
+                actionType = resultActionType,
+                entities = brainAction.params,
+                memorySessionType = sessionType,
+                memoryMetadata = memoryMetadata
+            )
         }
     }
 

@@ -1,6 +1,7 @@
 package com.nova.luna.brain
 
 import com.nova.luna.model.BrainAction
+import com.nova.luna.model.BrainActionSource
 import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainModelRole
 import com.nova.luna.model.BrainRiskLevel
@@ -162,18 +163,22 @@ class ActionJsonModel(
         }
 
         return BrainAction(
+            schemaVersion = 1,
+            source = BrainActionSource.RULE_FALLBACK,
+            rawCommand = request.rawText,
+            normalizedCommand = normalize(request.rawText),
             intent = intent,
-            reply = if (activeSession) {
+            actionType = BrainActionType.EXTERNAL_ACTION,
+            riskLevel = BrainRiskLevel.LOW,
+            requiresConfirmation = false,
+            params = params,
+            confidence = 0.9,
+            assistantReply = if (activeSession) {
                 "Continuing the grocery flow."
             } else {
                 "I can prepare the grocery flow and keep the final step manual."
             },
-            actionType = BrainActionType.EXTERNAL_ACTION,
-            riskLevel = BrainRiskLevel.SAFE,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
-            params = params,
-            nextQuestion = nextQuestion
+            reason = nextQuestion ?: "Grocery planning action."
         )
     }
 
@@ -194,14 +199,17 @@ class ActionJsonModel(
         }
 
         return BrainAction(
+            source = BrainActionSource.RULE_FALLBACK,
+            rawCommand = request.rawText,
+            normalizedCommand = normalize(request.rawText),
             intent = "food_order",
-            reply = "I can prepare the food order and keep the final step manual.",
-            actionType = BrainActionType.EXTERNAL_ACTION,
-            riskLevel = BrainRiskLevel.SAFE,
-            requiresConfirmation = false,
-            finalActionAllowed = false,
+            actionType = BrainActionType.FOOD_SEARCH,
+            riskLevel = BrainRiskLevel.MEDIUM,
+            requiresConfirmation = true,
             params = params,
-            nextQuestion = nextQuestion
+            confidence = 0.9,
+            assistantReply = "I can prepare the food order and keep the final step manual.",
+            reason = nextQuestion ?: "Food ordering action."
         )
     }
 
@@ -221,14 +229,17 @@ class ActionJsonModel(
         }
 
         return BrainAction(
+            source = BrainActionSource.RULE_FALLBACK,
+            rawCommand = request.rawText,
+            normalizedCommand = normalized,
             intent = "food_planning",
-            reply = "I can help plan the food request and keep the final step manual.",
-            actionType = BrainActionType.PREPARE,
-            riskLevel = BrainRiskLevel.CONFIRMATION_REQUIRED,
+            actionType = BrainActionType.FOOD_SEARCH,
+            riskLevel = BrainRiskLevel.MEDIUM,
             requiresConfirmation = true,
-            finalActionAllowed = false,
             params = params,
-            nextQuestion = "What food or restaurant details should I capture?"
+            confidence = 0.8,
+            assistantReply = "I can help plan the food request and keep the final step manual.",
+            reason = "What food or restaurant details should I capture?"
         )
     }
 
@@ -313,52 +324,49 @@ class ActionJsonModel(
         }
 
         return BrainAction(
+            source = BrainActionSource.RULE_FALLBACK,
+            rawCommand = request.rawText,
+            normalizedCommand = normalize(request.rawText),
             intent = intent,
-            reply = reply,
-            actionType = if (requiresConfirmation) {
-                BrainActionType.PREPARE
-            } else {
-                BrainActionType.EXTERNAL_ACTION
-            },
-            riskLevel = if (requiresConfirmation) {
-                BrainRiskLevel.CONFIRMATION_REQUIRED
-            } else {
-                BrainRiskLevel.SAFE
-            },
+            actionType = BrainActionType.CREATE_CONTENT,
+            riskLevel = if (requiresConfirmation) BrainRiskLevel.MEDIUM else BrainRiskLevel.LOW,
             requiresConfirmation = requiresConfirmation,
-            finalActionAllowed = false,
             params = params,
-            nextQuestion = nextQuestion
+            confidence = 0.9,
+            assistantReply = reply,
+            reason = nextQuestion
         )
     }
 
     private fun taskPlanningAction(request: BrainRequest): BrainAction {
-        val params = mapOf(
-            "rawText" to request.rawText
-        )
-
         return BrainAction(
+            source = BrainActionSource.RULE_FALLBACK,
+            rawCommand = request.rawText,
+            normalizedCommand = normalize(request.rawText),
             intent = "task_planning",
-            reply = "I can organize that task into a safe local plan.",
-            actionType = BrainActionType.READ_ONLY,
-            riskLevel = BrainRiskLevel.SAFE,
+            actionType = BrainActionType.ASK_QUESTION,
+            riskLevel = BrainRiskLevel.LOW,
             requiresConfirmation = false,
-            finalActionAllowed = false,
-            params = params,
-            nextQuestion = "What details should I capture?"
+            params = mapOf("rawText" to request.rawText),
+            confidence = 0.7,
+            assistantReply = "I can organize that task into a safe local plan.",
+            reason = "Task planning action."
         )
     }
 
     private fun generalPlanningAction(request: BrainRequest): BrainAction {
         return BrainAction(
+            source = BrainActionSource.RULE_FALLBACK,
+            rawCommand = request.rawText,
+            normalizedCommand = normalize(request.rawText),
             intent = "plan_request",
-            reply = "I can structure that request into a safe local plan.",
-            actionType = BrainActionType.READ_ONLY,
-            riskLevel = BrainRiskLevel.SAFE,
+            actionType = BrainActionType.ASK_QUESTION,
+            riskLevel = BrainRiskLevel.LOW,
             requiresConfirmation = false,
-            finalActionAllowed = false,
             params = mapOf("rawText" to request.rawText),
-            nextQuestion = "What details should I capture?"
+            confidence = 0.5,
+            assistantReply = "I can structure that request into a safe local plan.",
+            reason = "General planning action."
         )
     }
 
