@@ -12,6 +12,7 @@ data class CommandResult(
     val intentType: IntentType = IntentType.UNKNOWN,
     val actionType: ActionType = ActionType.UNKNOWN,
     val safetyDecision: SafetyDecision = SafetyDecision.allow(),
+    val phoneActionResult: com.nova.luna.phone.PhoneActionResult? = null,
     val shouldStopListening: Boolean = false,
     val awaitingConfirmation: Boolean = false,
     val entities: Map<String, String> = emptyMap(),
@@ -41,7 +42,8 @@ data class CommandResult(
             pendingConfirmationType: PendingConfirmationType? = null,
             screenMemorySnapshotId: String? = null,
             recoveryState: RecoveryState? = null,
-            memoryMetadata: Map<String, String> = emptyMap()
+            memoryMetadata: Map<String, String> = emptyMap(),
+            safetyDecision: SafetyDecision? = null
         ): CommandResult {
             return CommandResult(
                 success = true,
@@ -51,7 +53,7 @@ data class CommandResult(
                 domain = domain,
                 intentType = intentType,
                 actionType = actionType,
-                safetyDecision = SafetyDecision.allow(),
+                safetyDecision = safetyDecision ?: SafetyDecision.allow(),
                 shouldStopListening = shouldStopListening,
                 entities = entities,
                 memorySessionType = memorySessionType,
@@ -77,7 +79,8 @@ data class CommandResult(
             pendingConfirmationType: PendingConfirmationType? = null,
             screenMemorySnapshotId: String? = null,
             recoveryState: RecoveryState? = null,
-            memoryMetadata: Map<String, String> = emptyMap()
+            memoryMetadata: Map<String, String> = emptyMap(),
+            safetyDecision: SafetyDecision? = null
         ): CommandResult {
             return CommandResult(
                 success = false,
@@ -88,7 +91,7 @@ data class CommandResult(
                 domain = domain,
                 intentType = intentType,
                 actionType = actionType,
-                safetyDecision = SafetyDecision.allow(),
+                safetyDecision = safetyDecision ?: SafetyDecision.allow(),
                 entities = entities,
                 memorySessionType = memorySessionType,
                 memorySessionId = memorySessionId,

@@ -2,19 +2,15 @@ package com.nova.luna.brain
 
 import com.nova.luna.memory.BrainSessionType
 import com.nova.luna.memory.PendingConfirmation
-import com.nova.luna.model.ActionType
-import com.nova.luna.model.BrainAction
-import com.nova.luna.model.BrainActionType
-import com.nova.luna.model.CommandIntent
-import com.nova.luna.model.CommandResult
-import com.nova.luna.model.IntentType
-import com.nova.luna.model.SafetyDecision
-import com.nova.luna.model.SafetyStatus
+import com.nova.luna.model.*
+import com.nova.luna.phone.PhoneActionExecutor
 import com.nova.luna.safety.SafetyGate
+import java.util.Locale
 
 class BrainActionRuntime(
     private val commandRouter: CommandRouter,
     private val safetyGate: SafetyGate,
+    private val phoneActionExecutor: PhoneActionExecutor? = null,
     private val validator: BrainActionValidator = BrainActionValidator()
 ) {
     fun isAcceptable(brainAction: BrainAction): Boolean {
@@ -109,44 +105,104 @@ class BrainActionRuntime(
             }
 
             BrainActionType.READ_ONLY,
-            BrainActionType.NONE -> CommandResult.success(
-                message = brainAction.reply,
-                intentType = resultIntentType,
-                actionType = resultActionType,
-                entities = brainAction.params,
-                memorySessionType = sessionType,
-                memoryMetadata = memoryMetadata
-            )
+            BrainActionType.NONE -> {
+                // Check if it's a known phone action even if actionType is NONE (legacy/fallback)
+                if (phoneActionExecutor != null && isPhoneActionIntent(brainAction.intent)) {
+                    executePhoneAction(brainAction, safetyDecision, sessionType, memoryMetadata)
+                } else {
+                    CommandResult.success(
+                        message = brainAction.reply,
+                        intentType = resultIntentType(brainAction),
+                        actionType = resultActionType(brainAction),
+                        entities = brainAction.params,
+                        memorySessionType = sessionType,
+                        memoryMetadata = memoryMetadata,
+                        safetyDecision = safetyDecision
+                    )
+                }
+            }
+
 
             BrainActionType.PREPARE -> CommandResult.confirmationRequired(
                 message = brainAction.nextQuestion?.takeIf { it.isNotBlank() }
-                    ?: safetyDecision.message,
+                    ?: safetyDecision.reason,
                 intentType = resultIntentType,
                 actionType = resultActionType,
                 entities = brainAction.params,
                 memorySessionType = sessionType,
                 pendingConfirmationType = confirmationType,
-                memoryMetadata = memoryMetadata
+                memoryMetadata = memoryMetadata,
+                safetyDecision = safetyDecision
             )
 
             BrainActionType.HUMAN_ONLY -> CommandResult.blocked(
-                message = safetyDecision.message,
+                message = safetyDecision.reason,
                 intentType = resultIntentType,
                 actionType = resultActionType,
                 entities = brainAction.params,
                 memorySessionType = sessionType,
-                memoryMetadata = memoryMetadata
+                memoryMetadata = memoryMetadata,
+                safetyDecision = safetyDecision
             )
 
-            else -> CommandResult.success(
-                message = brainAction.reply,
-                intentType = resultIntentType,
-                actionType = resultActionType,
-                entities = brainAction.params,
-                memorySessionType = sessionType,
-                memoryMetadata = memoryMetadata
-            )
+            else -> {
+                if (phoneActionExecutor != null && isSupportedPhoneActionType(brainAction.actionType)) {
+                    executePhoneAction(brainAction, safetyDecision, sessionType, memoryMetadata)
+                } else {
+                    CommandResult.success(
+                        message = brainAction.reply,
+                        intentType = resultIntentType(brainAction),
+                        actionType = resultActionType(brainAction),
+                        entities = brainAction.params,
+                        memorySessionType = sessionType,
+                        memoryMetadata = memoryMetadata,
+                        safetyDecision = safetyDecision
+                    )
+                }
+            }
         }
+    }
+
+    private fun isPhoneActionIntent(intent: String): Boolean {
+        val lower = intent.lowercase(Locale.US)
+        return lower.contains("camera") || lower.contains("settings") || 
+               lower.contains("flashlight") || lower.contains("search") || 
+               lower.contains("back") || lower.contains("home") || 
+               lower.contains("recents") || lower.contains("notifications")
+    }
+
+    private fun isSupportedPhoneActionType(type: BrainActionType): Boolean {
+        return type in setOf(
+            BrainActionType.OPEN_APP,
+            BrainActionType.OPEN_CAMERA,
+            BrainActionType.OPEN_SETTINGS,
+            BrainActionType.SEARCH_WEB,
+            BrainActionType.TOGGLE_FLASHLIGHT
+        )
+    }
+
+    private fun executePhoneAction(
+        brainAction: BrainAction,
+        safetyDecision: SafetyDecision,
+        sessionType: BrainSessionType?,
+        memoryMetadata: Map<String, String>
+    ): CommandResult {
+        val phoneResult = phoneActionExecutor?.execute(brainAction)
+        return CommandResult(
+            success = phoneResult?.success ?: false,
+            status = if (phoneResult?.success == true) ActionResultStatus.SUCCESS else ActionResultStatus.FAILED,
+            message = phoneResult?.reason ?: "Phone action execution failed.",
+            intentType = resultIntentType(brainAction),
+            actionType = resultActionType(brainAction),
+            entities = brainAction.params,
+            memorySessionType = sessionType,
+            memoryMetadata = memoryMetadata + mapOf(
+                "phoneActionAttempted" to (phoneResult?.attempted?.toString() ?: "false"),
+                "phoneActionErrorCode" to (phoneResult?.errorCode ?: "")
+            ),
+            safetyDecision = safetyDecision,
+            phoneActionResult = phoneResult
+        )
     }
 
     private fun resultIntentType(brainAction: BrainAction): IntentType {

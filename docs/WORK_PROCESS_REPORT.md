@@ -11,6 +11,21 @@
 - The Android native build now forces CMake try-compile onto the static-library path to work around an arm64 `cmTC_9ff68` configure stall during external native build setup
 - The Android native build also pre-seeds CMake compiler-work cache values on Windows so the bundled Ninja/CMake configure step can skip the stalled ABI probe after manual compiler verification
 
+## Phase 25 Update (Phone Hand / Action Executor)
+
+- **Real Phone Executor Implementation**: Implemented `AndroidPhoneActionExecutor` as the real production path for performing safe Android actions.
+- **Safe Action Support**:
+    - **App Launching**: `AppResolver` successfully maps common app names to installed packages and launches them.
+    - **Camera**: System camera intent integration.
+    - **Settings**: Support for opening general and specific settings screens (WiFi, Bluetooth, etc.).
+    - **Web Search**: Integration with system search or browser fallback.
+    - **Flashlight Control**: Safe hardware-aware flashlight toggling via `FlashlightController`.
+    - **Basic Navigation**: Support for Home, Back, Recents, and Notification Shade via `NavigationController`.
+- **Mandatory Safety Gating**: Wired `SafetyGate` as the final authority in `BrainActionRuntime`. Blocked or unconfirmed actions never reach the real execution layer.
+- **Truthful Result Reporting**: `PhoneActionResult` captures the exact status of execution attempts, including error codes for missing apps, permissions, or service unreadiness.
+- **Diagnostic Transparency**: Added detailed logs with tag `NovaLunaPhase25` for every execution attempt, showing the action, target, safety decision, and result.
+- **Validation**: Achieved 100% pass rate for Phase 25 unit tests using Robolectric, verifying successful execution paths and truthful failure handling for all supported domains.
+
 ## Phase 24 Update (SafetyGate Final Authority)
 
 - **SafetyGate Final Authority**: SafetyGate is now the mandatory final authority for all phone actions, established between the brain's understanding and the executor's action.

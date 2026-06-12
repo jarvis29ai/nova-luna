@@ -88,9 +88,23 @@ class CommandBrain(
     private val resolver = IntentResolver(appLauncher)
     private val safetyGate = SafetyGate()
     private val brainActionValidator = BrainActionValidator()
+    private val appResolver = com.nova.luna.phone.AppResolver(context.applicationContext)
+    private val flashlightController = com.nova.luna.phone.FlashlightController(context.applicationContext)
+    private val navigationController = com.nova.luna.phone.NavigationController()
+    private val phoneActionExecutor = com.nova.luna.phone.AndroidPhoneActionExecutor(
+        context.applicationContext,
+        appResolver,
+        flashlightController,
+        navigationController
+    )
     private val router = CommandRouter(ActionExecutor(context.applicationContext))
     private val sessionManager = BrainSessionManager(brainMemoryStore)
-    private val brainActionRuntime = BrainActionRuntime(router, safetyGate, brainActionValidator)
+    private val brainActionRuntime = BrainActionRuntime(
+        commandRouter = router,
+        safetyGate = safetyGate,
+        phoneActionExecutor = phoneActionExecutor,
+        validator = brainActionValidator
+    )
     private val taskLoopCoordinator: TaskLoopCoordinator = AgentLoop(
         brainService = this.brainService,
         brainActionRuntime = brainActionRuntime,

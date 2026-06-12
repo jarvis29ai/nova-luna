@@ -38,6 +38,20 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Memory state is universal but still local-first: active sessions, pending confirmations, screen snapshots, recovery state, and preferences all stay on-device and must be redacted before storage
 - Optional smartwatch companion later for quick commands and watch-first conveniences
 
+## Phase 25 Update (Phone Hand / Action Executor)
+
+- **Real Phone Execution**: `AndroidPhoneActionExecutor` is the real implementation of `PhoneActionExecutor` that performs safe Android actions using `Context`, `Intent`, `PackageManager`, `CameraManager`, and `AccessibilityService`.
+- **Gated Execution Flow**: The flow is strictly enforced as: `BrainAction` → `SafetyGate.evaluate()` → `PhoneActionExecutor.execute()` (only if ALLOWED) → `CommandResult`.
+- **Supported Safe Actions**:
+    - **Open App**: Resolves app names to packages via `AppResolver` and launches them.
+    - **Open Camera**: Launches the system camera intent.
+    - **Open Settings**: Supports general, wifi, bluetooth, accessibility, display, battery, and app-specific settings.
+    - **Search Web**: Performs `ACTION_WEB_SEARCH` or falls back to browser search.
+    - **Flashlight**: Toggles device flashlight via `FlashlightController`.
+    - **Navigation**: Performs back, home, recents, and notification shade actions via `NavigationController` (using `NovaAccessibilityService`).
+- **Truthful Results**: `PhoneActionResult` captures attempted status, success/failure, and specific error codes (e.g., `APP_NOT_FOUND`, `CAMERA_PERMISSION_MISSING`, `ACCESSIBILITY_NOT_READY`).
+- **Safety Integrity**: Blocked actions by `SafetyGate` (payments, OTPs, login, etc.) never reach the executor.
+
 ## Phase 24 Update (SafetyGate Final Authority)
 
 - **Final Authority**: `SafetyGate` is now the final authority before any phone action can execute, placed between brain understanding and phone execution.

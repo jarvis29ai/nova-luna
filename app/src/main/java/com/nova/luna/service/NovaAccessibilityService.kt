@@ -21,6 +21,10 @@ class NovaAccessibilityService : AccessibilityService() {
         var instance: NovaAccessibilityService? = null
             private set
 
+        fun setTestInstance(testInstance: NovaAccessibilityService?) {
+            instance = testInstance
+        }
+
         private const val TAG = "NovaAccessibilitySvc"
     }
 
