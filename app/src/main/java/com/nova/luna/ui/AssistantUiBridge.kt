@@ -3,6 +3,7 @@ package com.nova.luna.ui
 import android.content.Context
 import com.nova.luna.brain.AssistantSession
 import com.nova.luna.brain.CommandSource
+import com.nova.luna.diagnostics.NativeModelProofRunner
 import com.nova.luna.diagnostics.ModelDiagnosticsProvider
 import com.nova.luna.model.CommandResult
 import com.nova.luna.modelinstall.ModelInstallService
@@ -125,6 +126,17 @@ class AssistantUiBridge(
 
     fun getPhase26Diagnostics(): Map<String, Any> {
         val modelDiagnostics = modelDiagnosticsProvider.getDiagnostics()
+        val modelStorage = PrivateAppModelStorage.from(context)
+        val runtimeStateStore = ModelRuntimeStateStore(modelStorage)
+        val modelInstallService = ModelInstallService(
+            pathResolver = ModelPathResolver(context, modelStorage, runtimeStateStore),
+            verifier = ModelInstallVerifier(),
+            runtimeStateStore = runtimeStateStore,
+            storage = modelStorage
+        )
+        val proofRunner = NativeModelProofRunner(modelStorage, modelInstallService)
+        val tokenizerProof = runCatching { proofRunner.runTokenizerProof() }.getOrNull()
+        val inferenceProof = runCatching { proofRunner.runInferenceProof() }.getOrNull()
         return mapOf(
             "phase" to 26,
             "ui_layer_available" to true,
@@ -160,6 +172,8 @@ class AssistantUiBridge(
             "model_storage_available_mb" to modelDiagnostics.storageAvailableMb,
             "model_warnings" to modelDiagnostics.warnings,
             "model_errors" to modelDiagnostics.errors,
+            "phase18_tokenizer_proof" to (tokenizerProof?.asMap() ?: emptyMap<String, Any>()),
+            "phase19_inference_proof" to (inferenceProof?.asMap() ?: emptyMap<String, Any>()),
             "safety_gate_available" to modelDiagnostics.safetyGateAvailable,
             "brain_router_available" to modelDiagnostics.brainRouterAvailable,
             "confirmation_system_available" to true,

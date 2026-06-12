@@ -4,16 +4,20 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.nova.luna.model.BrainModelRole
-import com.nova.luna.model.BrainRouteDecision
-import com.nova.luna.model.SafetyStatus
+import com.nova.luna.diagnostics.NativeModelProofRunner
+import com.nova.luna.modelinstall.ModelInstallService
+import com.nova.luna.modelinstall.ModelInstallVerifier
+import com.nova.luna.modelinstall.ModelPathResolver
+import com.nova.luna.modelinstall.ModelRuntimeStateStore
 import com.nova.luna.modelinstall.PrivateAppModelStorage
 import com.nova.luna.safety.SafetyGate
 
 /**
- * A debug-only receiver that allows ADB-triggered runtime diagnostics.
- * 
- * adb shell "am broadcast -p com.nova.luna.debug -a com.nova.luna.debug.ACTION_DIAGNOSE_RUNTIME --es command 'open camera'"
+ * Debug-only receiver for ADB-triggered model proof diagnostics.
+ *
+ * Examples:
+ * adb shell am broadcast -p com.nova.luna -a com.nova.luna.debug.ACTION_DIAGNOSE_RUNTIME --es command "open camera" --es mode tokenizer
+ * adb shell am broadcast -p com.nova.luna -a com.nova.luna.debug.ACTION_DIAGNOSE_RUNTIME --es command "open camera" --es mode inference
  */
 class DiagnosticBroadcastReceiver : BroadcastReceiver() {
 
@@ -22,17 +26,18 @@ class DiagnosticBroadcastReceiver : BroadcastReceiver() {
 
         val requestText = DiagnosticRequestResolver.resolve(
             command = intent.getStringExtra("command"),
-            request = intent.getStringExtra("request")
+            request = intent.getStringExtra("request"),
+            fallback = DEFAULT_TOKENIZER_SAMPLE
         )
-        val mode = intent.getStringExtra("mode") ?: "normal"
-        
+        val mode = intent.getStringExtra("mode") ?: "all"
+
         Log.i(TAG, "Received diagnostic request: $requestText, mode: $mode")
 
         val pendingResult = goAsync()
 
         Thread {
             try {
-                performPhase18NativeGgufDiagnostics(context, requestText, mode)
+                performPhase18And19Diagnostics(context, requestText, mode, intent)
             } catch (e: Throwable) {
                 Log.e(TAG, "Diagnostics failed", e)
             } finally {
@@ -41,122 +46,100 @@ class DiagnosticBroadcastReceiver : BroadcastReceiver() {
         }.start()
     }
 
-    private fun performPhase18NativeGgufDiagnostics(
+    private fun performPhase18And19Diagnostics(
         context: Context,
         requestText: String,
-        mode: String
+        mode: String,
+        intent: Intent
     ) {
         val storage = PrivateAppModelStorage.from(context)
-        val config = BrainRuntimeConfig.fromBuildConfig()
-        val preflight = LiteNativeProbePlanner.plan(storage)
-        val nativeRuntime = LlamaCppJni()
-        val engine = LiteLocalModelRuntime(
-            modelFile = preflight.modelFile,
-            modelId = PhoneLocalLlmModelId.QWEN_0_5B,
-            realInferenceEnabled = true,
-            nativeRuntime = nativeRuntime
+        val runtimeStateStore = ModelRuntimeStateStore(storage)
+        val modelInstallService = ModelInstallService(
+            pathResolver = ModelPathResolver(context, storage, runtimeStateStore),
+            verifier = ModelInstallVerifier(),
+            runtimeStateStore = runtimeStateStore,
+            storage = storage
         )
+        val proofRunner = NativeModelProofRunner(storage, modelInstallService)
+        val normalizedMode = mode.trim().lowercase()
+        val runTokenizer = normalizedMode in setOf("all", "tokenizer", "phase18")
+        val runInference = normalizedMode in setOf("all", "inference", "phase19")
+        val inferencePrompt = intent.getStringExtra("inference_prompt")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: DEFAULT_INFERENCE_PROMPT
 
-        val startTime = System.currentTimeMillis()
-        val result = if (preflight.shouldRunNativeProbe) {
-            engine.generate(requestText, 5000)
-        } else {
-            null
-        }
-        val duration = System.currentTimeMillis() - startTime
-
-        val jsonAttempt = if (result != null && preflight.shouldRunNativeProbe) {
-            val structuredRuntime = PhoneLocalLlmRuntime(
-                config = PhoneLocalLlmConfig(
-                    enabled = true,
-                    maxInputTokens = 2048,
-                    maxPromptChars = 4096,
-                    timeoutMs = 5000,
-                    models = listOf(
-                        PhoneLocalLlmModelConfig(
-                            id = PhoneLocalLlmModelId.QWEN_0_5B,
-                            enabled = true,
-                            assetPath = preflight.modelFile.absolutePath,
-                            quantizedFileName = preflight.modelFile.name,
-                            minimumRamMb = PhoneLocalLlmModelId.QWEN_0_5B.minimumRamMbHint,
-                            maxInputTokens = 2048,
-                            maxPromptChars = 4096,
-                            timeoutMs = 5000,
-                            priority = PhoneLocalLlmModelId.QWEN_0_5B.priority
-                        )
-                    )
-                ),
-                engine = engine
+        val tokenizerProof = if (runTokenizer) {
+            proofRunner.runTokenizerProof(
+                modelId = DEFAULT_MODEL_ID,
+                sampleText = requestText
             )
-            val routeDecision = BrainRouteDecision(
-                selectedRole = BrainModelRole.ACTION_JSON,
-                reason = "Phase 19 JSON/action attempt for open camera.",
-                requiresInternet = false,
-                requiresScreenContext = false,
-                fallbackAllowed = true,
-                safetyNotes = listOf(
-                    "Phase 19 diagnostic JSON attempt only.",
-                    "Do not execute phone actions directly."
-                )
-            )
-            structuredRuntime.generateBrainAction(BrainRequest(rawText = requestText), routeDecision)
         } else {
             null
         }
 
-        val action = result?.text?.let { BrainActionJsonCodec().decode(it) }
-        val safetyGate = SafetyGate()
-        val safetyDecision = action?.let { safetyGate.evaluate(action = it, originalUserText = requestText) }
-        val runtimeAvailable = result?.success == true && nativeRuntime.isLoaded()
-        val generationStatus = when {
-            !preflight.modelEnabled -> PhoneLocalLlmStatus.MODEL_DISABLED
-            !preflight.modelExists -> PhoneLocalLlmStatus.MODEL_ASSET_MISSING
-            result != null -> result.status
-            else -> PhoneLocalLlmStatus.UNAVAILABLE
+        val inferenceProof = if (runInference) {
+            proofRunner.runInferenceProof(
+                modelId = DEFAULT_MODEL_ID,
+                promptText = inferencePrompt
+            )
+        } else {
+            null
         }
-        val generationReason = result?.reason ?: preflight.reason
 
-        Log.i(TAG, "--- NOVA/LUNA PHASE 18 NATIVE GGUF DIAGNOSTICS ---")
+        Log.i(TAG, "--- NOVA/LUNA PHASE 18/19 MODEL PROOF ---")
         Log.i(TAG, "Input: $requestText")
-        Log.i(TAG, "Mode: $mode (native GGUF probe)")
-        Log.i(TAG, "Model Role: ${BrainModelRole.LITE_FALLBACK.wireValue}")
-        Log.i(TAG, "Model Path Checked: ${preflight.modelFile.absolutePath}")
-        Log.i(TAG, "Model Enabled: ${preflight.modelEnabled}")
-        Log.i(TAG, "Model Exists: ${preflight.modelExists}")
-        Log.i(TAG, "Model Loaded: ${nativeRuntime.isLoaded()}")
-        Log.i(TAG, "Runtime Available: $runtimeAvailable")
-        Log.i(TAG, "LITE_REAL_INFERENCE_ENABLED: ${config.liteRealInferenceEnabled}")
-        Log.i(TAG, "Probe Reason: ${preflight.reason}")
-        Log.i(TAG, "Generation Status: $generationStatus")
-        Log.i(TAG, "Generation Reason: $generationReason")
-        Log.i(TAG, "Raw Native Response: ${result?.text}")
-        Log.i(TAG, "Duration: ${duration}ms")
-        Log.i(TAG, "Latency (Engine): ${result?.latencyMillis ?: 0L}ms")
-        Log.i(TAG, "Engine Diagnostics: ${engine.diagnostics()}")
-        Log.i(TAG, "Native Diagnostics: ${nativeRuntime.diagnostics()}")
+        Log.i(TAG, "Mode: $mode")
+        Log.i(TAG, "Model Role: $DEFAULT_MODEL_ID")
 
-        if (jsonAttempt != null) {
-            Log.i(TAG, "JSON Attempt Raw Response: ${jsonAttempt.rawResponse}")
-            Log.i(TAG, "JSON Parse Attempted: true")
-            Log.i(TAG, "JSON Parse Success: ${jsonAttempt.jsonParsed && jsonAttempt.candidateAction != null && jsonAttempt.available}")
-            Log.i(TAG, "Parsed Intent: ${jsonAttempt.candidateAction?.intent ?: "none"}")
-            Log.i(TAG, "Parsed Risk Level: ${jsonAttempt.candidateAction?.riskLevel?.wireValue ?: "none"}")
-            Log.i(TAG, "JSON Attempt Reason: ${jsonAttempt.reason}")
-        }
-        
-        if (action != null) {
-            Log.i(TAG, "Parsed Intent: ${action.intent}")
-            Log.i(TAG, "Safety Decision: Status=${safetyDecision?.status}, Category=${safetyDecision?.category}")
-            Log.i(TAG, "Safety Reason: ${safetyDecision?.reason}")
-        } else {
-            Log.i(TAG, "Safety Decision: not evaluated because no BrainAction was produced.")
-            Log.i(TAG, "Safety Message: $generationReason")
-        }
+        tokenizerProof?.let { proof ->
+            Log.i(TAG, "PHASE_18_TOKENIZER_PROOF | ${formatMap(proof.asMap())}")
+        } ?: Log.i(TAG, "PHASE_18_TOKENIZER_PROOF | skipped=true")
+
+        inferenceProof?.let { proof ->
+            Log.i(TAG, "PHASE_19_INFERENCE_PROOF | ${formatMap(proof.asMap())}")
+
+            val decodedText = proof.decodedText
+            if (!decodedText.isNullOrBlank()) {
+                val codec = BrainActionJsonCodec()
+                val parsed = runCatching { codec.decode(decodedText) }.getOrNull()
+                if (parsed != null) {
+                    val safetyGate = SafetyGate()
+                    val safetyDecision = safetyGate.evaluate(action = parsed, originalUserText = inferencePrompt)
+                    Log.i(TAG, "PHASE_19_PARSED_ACTION | intent=${parsed.intent}, action_type=${parsed.actionType}, risk_level=${parsed.riskLevel.wireValue}, requires_confirmation=${parsed.requiresConfirmation}, safety_allowed=${safetyDecision.allowed}")
+                } else {
+                    Log.i(TAG, "PHASE_19_PARSED_ACTION | json_parse_success=false")
+                }
+            }
+        } ?: Log.i(TAG, "PHASE_19_INFERENCE_PROOF | skipped=true")
+
+        Log.i(TAG, "Model Install Storage: ${storage.describe(com.nova.luna.modelinstall.ModelPackId.LITE)}")
+        Log.i(TAG, "Runtime State Store: ${runtimeStateStore.find(com.nova.luna.modelinstall.ModelPackId.LITE)?.modelRootPath ?: "none"}")
         Log.i(TAG, "------------------------------------------------")
+    }
+
+    private fun formatMap(map: Map<String, Any?>): String {
+        return map.entries.joinToString(separator = ", ") { (key, value) ->
+            "$key=${formatValue(value)}"
+        }
+    }
+
+    private fun formatValue(value: Any?): String {
+        return when (value) {
+            null -> "null"
+            is String -> "\"$value\""
+            is Collection<*> -> value.joinToString(prefix = "[", postfix = "]") { item ->
+                formatValue(item)
+            }
+            else -> value.toString()
+        }
     }
 
     companion object {
         private const val TAG = "NovaLunaDiagnostic"
         const val ACTION_DIAGNOSE_RUNTIME = "com.nova.luna.debug.ACTION_DIAGNOSE_RUNTIME"
+        private const val DEFAULT_MODEL_ID = "lite"
+        private const val DEFAULT_TOKENIZER_SAMPLE = "open camera"
+        private const val DEFAULT_INFERENCE_PROMPT = """Return JSON only: {"actionType":"OPEN_CAMERA","riskLevel":"LOW"}"""
     }
 }

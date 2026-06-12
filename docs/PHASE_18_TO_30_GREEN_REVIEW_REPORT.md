@@ -1,20 +1,20 @@
 # Phase 18-30 Green Review Report
 
-Date: 2026-06-12
+Date: 2026-06-13
 
 ## Overall Result
 
 | Phase | Status | Notes |
 | --- | --- | --- |
-| 18 | PARTIAL | Native GGUF/tokenizer wiring is real and the native library compiles, but this environment did not have a live model file to exercise a real tokenizer load end-to-end. |
-| 19 | PARTIAL | Real native inference path is wired through JNI and llama.cpp, but no live GGUF model was available here to prove a real-model generation run. |
+| 18 | PARTIAL | Native GGUF/tokenizer wiring is real, a deterministic proof runner exists, and the local GGUF artifact is available, but no connected phone was present to run the live tokenizer proof end-to-end. |
+| 19 | PARTIAL | Real native inference path is wired through JNI and llama.cpp, a deterministic proof runner exists, and the local GGUF artifact is available, but no connected phone was present to run the live inference proof end-to-end. |
 | 20 | PASS | BrainRouter and BrainService route real local model roles and only fall back when the primary path is unavailable. |
 | 21 | PASS | Model install/path/checksum state is implemented and tested. |
 | 22 | PASS | Core / multilingual / lite model roles, switching, unload/reload, and RAM guard behavior are in place. |
 | 23 | PASS | Command understanding produces strict BrainAction JSON and handles sanitization/error cases. |
 | 24 | PASS | SafetyGate remains the mandatory authority and blocks the dangerous classes of actions. |
 | 25 | PASS | Phone action execution uses real Android intents/services and returns structured results. |
-| 26 | PARTIAL | Flutter UI and Kotlin bridge are implemented and tested, but `flutter build apk --debug` still reports artifact discovery failure even though the APK is emitted by Gradle. |
+| 26 | PASS | Flutter UI and Kotlin bridge are implemented and tested, and `flutter build apk --debug` now exits 0 with the APK emitted at `flutter_app/build/app/outputs/flutter-apk/app-debug.apk`. |
 | 27 | PASS | Voice STT/TTS flow is wired and covered by tests. |
 | 28 | PASS | Camera, YouTube, Settings, browser search, drafting, cab, food, and grocery flows are implemented with safety boundaries. |
 | 29 | PASS | Accessibility screen reading, classification, element finding, planner, and recovery are implemented and tested. |
@@ -24,15 +24,17 @@ Date: 2026-06-12
 
 ### Phase 18
 - Native bridge: `app/src/main/cpp/CMakeLists.txt`, `app/src/main/cpp/llama-jni.cpp`
-- Diagnostics: `app/src/main/java/com/nova/luna/brain/LiteLocalModelRuntime.kt`, `app/src/main/java/com/nova/luna/brain/LlamaCppJni.kt`
-- Test coverage: `app/src/test/java/com/nova/luna/brain/Phase18NativeLlamaIntegrationTest.kt`
+- Diagnostics / proof runner: `app/src/main/java/com/nova/luna/brain/LiteLocalModelRuntime.kt`, `app/src/main/java/com/nova/luna/brain/LlamaCppJni.kt`, `app/src/main/java/com/nova/luna/diagnostics/NativeModelProofRunner.kt`, `app/src/debug/java/com/nova/luna/brain/DiagnosticBroadcastReceiver.kt`
+- Test coverage: `app/src/test/java/com/nova/luna/brain/Phase18NativeLlamaIntegrationTest.kt`, `app/src/test/java/com/nova/luna/diagnostics/NativeModelProofRunnerTest.kt`
+- Local model artifact available: `C:/Users/cricv/Desktop/nova-luna-models/fallback-qwen-0.5b/qwen2.5-0.5b-instruct-q4_k_m.gguf`
 - Notes: real llama.cpp sources are compiled; the stub fallback file exists in the tree but is not linked by CMake.
 
 ### Phase 19
-- Real inference plumbing: `app/src/main/java/com/nova/luna/brain/NativeLlamaRuntime.kt`, `app/src/main/java/com/nova/luna/brain/LiteLocalModelRuntime.kt`, `app/src/main/cpp/llama-jni.cpp`
+- Real inference plumbing: `app/src/main/java/com/nova/luna/brain/NativeLlamaRuntime.kt`, `app/src/main/java/com/nova/luna/brain/LiteLocalModelRuntime.kt`, `app/src/main/cpp/llama-jni.cpp`, `app/src/main/java/com/nova/luna/diagnostics/NativeModelProofRunner.kt`
 - Honest failure handling: `real_inference` stays false unless generation succeeds; fake success blobs are rejected by tests.
-- Test coverage: `Phase18NativeLlamaIntegrationTest`, `PhoneLocalLlmOutputParserTest`, `PhoneLocalLlmPromptBuilderTest`
-- Limitation: no live GGUF model file was available in this environment, so end-to-end real-model output could not be observed here.
+- Test coverage: `Phase18NativeLlamaIntegrationTest`, `PhoneLocalLlmOutputParserTest`, `PhoneLocalLlmPromptBuilderTest`, `NativeModelProofRunnerTest`
+- Local model artifact available: `C:/Users/cricv/Desktop/nova-luna-models/fallback-qwen-0.5b/qwen2.5-0.5b-instruct-q4_k_m.gguf`
+- Limitation: no connected phone was available for the on-device live inference proof, so end-to-end real-model output could not be observed here.
 
 ### Phase 20
 - Routing: `app/src/main/java/com/nova/luna/brain/BrainRouter.kt`
@@ -67,7 +69,8 @@ Date: 2026-06-12
 - Flutter bridge: `app/src/main/java/com/nova/luna/ui/AssistantUiBridge.kt`, `app/src/main/java/com/nova/luna/MainActivity.kt`
 - Flutter UI: `flutter_app/lib/app/app_router.dart`, `flutter_app/lib/features/assistant/screens/assistant_home_screen.dart`
 - Flutter bridge service/models: `flutter_app/lib/features/assistant/services/assistant_brain_service.dart`, `flutter_app/lib/features/assistant/models/assistant_ui_models.dart`
-- Limitation: `flutter build apk --debug` still exits 1 with "couldn't find APK", although the APK is actually present at `flutter_app/build/app/outputs/flutter-apk/app-debug.apk`.
+- Flutter project fix: removed the `module:` declaration from `flutter_app/pubspec.yaml` so Flutter now treats the project as a normal app and resolves `build/app/outputs/flutter-apk/app-debug.apk` correctly.
+- Build proof: `flutter clean`, `flutter pub get`, `flutter analyze`, `flutter test`, `flutter build apk --debug` all passed.
 
 ### Phase 27
 - Voice stack: `app/src/main/java/com/nova/luna/voice/*`
@@ -97,6 +100,9 @@ Date: 2026-06-12
 - `app/src/main/java/com/nova/luna/phone/AndroidPhoneActionExecutor.kt`
 - `app/src/main/java/com/nova/luna/screen/ScreenElementType.kt`
 - `app/src/main/java/com/nova/luna/ui/AssistantUiBridge.kt`
+- `app/src/main/java/com/nova/luna/diagnostics/ModelProofModels.kt`
+- `app/src/main/java/com/nova/luna/diagnostics/NativeModelProofRunner.kt`
+- `app/src/debug/java/com/nova/luna/brain/DiagnosticBroadcastReceiver.kt`
 - `app/src/main/java/com/nova/luna/confirmation/*`
 - `app/src/main/java/com/nova/luna/diagnostics/*`
 - `app/src/main/java/com/nova/luna/screen/*`
@@ -119,11 +125,13 @@ Date: 2026-06-12
 - `flutter_app/lib/app/app_router.dart`
 - `flutter_app/lib/features/assistant/screens/assistant_home_screen.dart`
 - `flutter_app/android/app/build.gradle.kts`
+- `flutter_app/pubspec.yaml`
 
 ### Docs
 - `docs/PHASE_29_SCREEN_UNDERSTANDING_REPORT.md`
 - `docs/PHASE_30_CONFIRMATION_SYSTEM_REPORT.md`
 - `docs/PHASE_18_TO_30_GREEN_REVIEW_REPORT.md`
+- `docs/PHASE_18_TO_30_REAL_PHONE_SMOKE_TEST.md`
 
 ## Tests and Builds Run
 
@@ -137,16 +145,74 @@ Date: 2026-06-12
 - `flutter pub get` - PASS
 - `flutter analyze` - PASS
 - `flutter test` - PASS
-- `flutter build apk --debug` - FAIL at CLI artifact detection, but Gradle still emitted `flutter_app/build/app/outputs/flutter-apk/app-debug.apk`
+- `flutter build apk --debug` - PASS and emitted `flutter_app/build/app/outputs/flutter-apk/app-debug.apk`
 
 ### Device / Smoke
 - `& "$env:LOCALAPPDATA\\Android\\Sdk\\platform-tools\\adb.exe" devices` - PASS, no device connected
 
+## Final Blocker Fix Pass
+
+### Phase 18 final status
+- Status: PARTIAL
+- Proof path: `app/src/main/java/com/nova/luna/diagnostics/NativeModelProofRunner.kt`
+- Debug command path: `app/src/debug/java/com/nova/luna/brain/DiagnosticBroadcastReceiver.kt`
+- Evidence:
+  - The proof runner now resolves the same internal model path used by the app.
+  - Missing-model diagnostics return `MODEL_MISSING` honestly.
+  - The local GGUF artifact exists and hashes to `74A4DA8C9FDBCD15BD1F6D01D621410D31C6FC00986F5EB687824E7B93D7A9DB`.
+- Commands run:
+  - `Get-FileHash C:\Users\cricv\Desktop\nova-luna-models\fallback-qwen-0.5b\qwen2.5-0.5b-instruct-q4_k_m.gguf -Algorithm SHA256`
+- Limitation:
+  - No connected phone was available, so the live `adb shell am broadcast ... mode tokenizer` proof could not be executed here.
+
+### Phase 19 final status
+- Status: PARTIAL
+- Proof path: `app/src/main/java/com/nova/luna/diagnostics/NativeModelProofRunner.kt`
+- Debug command path: `app/src/debug/java/com/nova/luna/brain/DiagnosticBroadcastReceiver.kt`
+- Evidence:
+  - Real inference reports success only after actual native generation returns usable text and tokens.
+  - The local GGUF artifact exists and is wired through the same runtime path as the app.
+- Commands run:
+  - `Get-FileHash C:\Users\cricv\Desktop\nova-luna-models\fallback-qwen-0.5b\qwen2.5-0.5b-instruct-q4_k_m.gguf -Algorithm SHA256`
+- Limitation:
+  - No connected phone was available, so the live `adb shell am broadcast ... mode inference` proof could not be executed here.
+
+### Phase 26 final status
+- Status: PASS
+- Proof:
+  - `flutter clean`
+  - `flutter pub get`
+  - `flutter analyze`
+  - `flutter test`
+  - `flutter build apk --debug`
+- Output summary:
+  - Flutter exited 0 and emitted `flutter_app/build/app/outputs/flutter-apk/app-debug.apk`
+  - The previous APK discovery failure is resolved by treating the Flutter project as a normal app instead of a module
+- Files changed:
+  - `flutter_app/pubspec.yaml`
+  - `flutter_app/android/app/build.gradle.kts`
+  - `flutter_app/lib/app/app_router.dart`
+  - `flutter_app/lib/features/assistant/screens/assistant_home_screen.dart`
+
+### Real GGUF and phone smoke readiness
+- Real GGUF file available: yes
+  - `C:/Users/cricv/Desktop/nova-luna-models/fallback-qwen-0.5b/qwen2.5-0.5b-instruct-q4_k_m.gguf`
+- Real phone connected: no
+- Missing physical artifact: a USB-connected Android device for the live proof broadcasts and smoke test flow
+
+### Prototype status estimates
+- Brain: 94%
+- Hand/action executor: 96%
+- UI: 92%
+- Voice: 96%
+- Screen understanding: 94%
+- Confirmation safety: 98%
+- Overall prototype: 93%
+
 ## Remaining Known Limitations
 
-- No live GGUF model file was available in this environment, so phases 18-19 were verified by code, build, and honesty logic rather than by a real on-device model run.
-- `flutter build apk --debug` still returns exit code 1 even though the APK is present on disk. This looks like a Flutter CLI/toolchain artifact-discovery problem, not an app compile problem.
-- No USB device was attached, so no device smoke test was possible.
+- No USB device was attached, so the on-device live tokenizer/inference proof and smoke test were not run here.
+- The live proof commands are documented in `docs/PHASE_18_TO_30_REAL_PHONE_SMOKE_TEST.md`.
 
 ## Final Git Commit Hash
 
