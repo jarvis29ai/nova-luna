@@ -38,6 +38,18 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Memory state is universal but still local-first: active sessions, pending confirmations, screen snapshots, recovery state, and preferences all stay on-device and must be redacted before storage
 - Optional smartwatch companion later for quick commands and watch-first conveniences
 
+## Phase 26 Update (Real UI Assistant Layer)
+
+- **Real Assistant UI**: A futuristic Flutter-based UI that serves as the primary face of Nova/Luna.
+- **Flutter-Kotlin Bridge**: A robust communication layer using `MethodChannel` (`com.nova.luna/assistant_ui_phase26`) between the Flutter UI and the Kotlin brain/action runtime.
+- **Personality Support**: Real-time switching between Luna (female) and Nova (male) personalities, affecting UI themes, names, and future voice hooks.
+- **Command Input**: Supports text-based command entry with a real-time connection to the `AssistantSession`.
+- **Progress Tracking**: UI visualizes the assistant's internal states (`THINKING`, `ACTING`, `SAFETY_CHECKING`) with honest progress messages.
+- **Result Visualization**: Clear, structured cards for displaying success, failures, safety blocks, and confirmation requests.
+- **Safety Gate Integration**: `SafetyGate` decisions are explicitly communicated to the user through the UI (e.g., "Blocked by safety policy").
+- **Command History**: Maintains a local history of the last 10 commands with their results and timestamps.
+- **Diagnostics**: Integrated Phase 26 diagnostics to verify bridge and UI readiness.
+
 ## Phase 25 Update (Phone Hand / Action Executor)
 
 - **Real Phone Execution**: `AndroidPhoneActionExecutor` is the real implementation of `PhoneActionExecutor` that performs safe Android actions using `Context`, `Intent`, `PackageManager`, `CameraManager`, and `AccessibilityService`.

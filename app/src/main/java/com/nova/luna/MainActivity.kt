@@ -41,6 +41,10 @@ import com.nova.luna.brain.CommandSource
 import com.nova.luna.voice.*
 import com.nova.luna.model.CommandResult
 import com.nova.luna.ui.*
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.FlutterEngineCache
+import io.flutter.embedding.engine.dart.DartExecutor
+import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListener, AssistantSession.SessionListener {
     private lateinit var preferencesManager: PreferencesManager
@@ -56,6 +60,10 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
     lateinit var settingsController: SettingsController
     lateinit var modelManager: DefaultModelManager
     lateinit var brainDownloadPresenter: ModelBrainDownloadPresenter
+    
+    // Phase 26 Bridge
+    lateinit var assistantUiBridge: AssistantUiBridge
+    private var flutterEngine: FlutterEngine? = null
 
     private lateinit var bottomNavigation: com.google.android.material.bottomnavigation.BottomNavigationView
 
@@ -104,12 +112,92 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
         }
         assistantSession.addSessionListener(popupController)
 
+        // Phase 26 Bridge Initialization
+        assistantUiBridge = AssistantUiBridge(this, assistantSession)
+        setupFlutter()
+
         setupNavigation()
 
         if (!onboardingController.isComplete()) {
             startActivity(Intent(this, OnboardingActivity::class.java))
             finish()
         }
+    }
+
+    private fun setupFlutter() {
+        flutterEngine = FlutterEngine(this)
+        flutterEngine?.dartExecutor?.executeDartEntrypoint(
+            DartExecutor.DartEntrypoint.createDefault()
+        )
+        FlutterEngineCache.getInstance().put("assistant_engine", flutterEngine)
+
+        val channel = MethodChannel(flutterEngine?.dartExecutor?.binaryMessenger!!, "com.nova.luna/assistant_ui_phase26")
+        channel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "submitTextCommand" -> {
+                    val command = call.argument<String>("command") ?: ""
+                    val personality = call.argument<String>("personality") ?: "LUNA"
+                    val requestId = assistantUiBridge.submitTextCommand(command, personality)
+                    result.success(requestId)
+                }
+                "getAssistantState" -> {
+                    val state = assistantUiBridge.getAssistantState()
+                    result.success(stateToMap(state))
+                }
+                "getCommandHistory" -> {
+                    val history = assistantUiBridge.getCommandHistory()
+                    result.success(history.map { resultToMap(it) })
+                }
+                "setPersonality" -> {
+                    val personalityStr = call.argument<String>("personality") ?: "LUNA"
+                    val personality = try {
+                        AssistantPersonality.valueOf(personalityStr.uppercase())
+                    } catch (e: Exception) {
+                        AssistantPersonality.LUNA
+                    }
+                    assistantUiBridge.setPersonality(personality)
+                    result.success(null)
+                }
+                "getPhase26Diagnostics" -> {
+                    result.success(assistantUiBridge.getPhase26Diagnostics())
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        assistantUiBridge.onStateChanged = { state ->
+            runOnUiThread {
+                channel.invokeMethod("onStateChanged", stateToMap(state))
+            }
+        }
+    }
+
+    private fun stateToMap(state: AssistantUiState): Map<String, Any?> {
+        return mapOf(
+            "personality" to state.personality.name,
+            "status" to state.status.name,
+            "progressMessage" to state.progressMessage,
+            "lastCommand" to state.lastCommand,
+            "lastResult" to state.lastResult?.let { resultToMap(it) }
+        )
+    }
+
+    private fun resultToMap(res: AssistantUiResult): Map<String, Any?> {
+        return mapOf(
+            "requestId" to res.requestId,
+            "personality" to res.personality.name,
+            "commandText" to res.commandText,
+            "status" to res.status.name,
+            "progressMessage" to res.progressMessage,
+            "resultTitle" to res.resultTitle,
+            "resultMessage" to res.resultMessage,
+            "actionType" to res.actionType,
+            "riskLevel" to res.riskLevel,
+            "safetyDecision" to res.safetyDecision,
+            "errorCode" to res.errorCode,
+            "errorMessage" to res.errorMessage,
+            "timestampMs" to res.timestampMs
+        )
     }
 
     private fun setupNavigation() {

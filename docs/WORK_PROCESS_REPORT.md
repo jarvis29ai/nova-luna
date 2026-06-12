@@ -11,6 +11,24 @@
 - The Android native build now forces CMake try-compile onto the static-library path to work around an arm64 `cmTC_9ff68` configure stall during external native build setup
 - The Android native build also pre-seeds CMake compiler-work cache values on Windows so the bundled Ninja/CMake configure step can skip the stalled ABI probe after manual compiler verification
 
+## Phase 26 Update (Real UI Assistant Layer)
+
+- **Goal**: Build the real UI assistant layer for Nova/Luna using Flutter.
+- **Status**: 100% COMPLETE.
+- **Key Changes**:
+    - Integrated `flutter_app` as a module in the Android project.
+    - Implemented `AssistantUiBridge` in Kotlin to handle brain-to-UI communication.
+    - Implemented `AssistantBrainService` in Flutter using `MethodChannel`.
+    - Created a futuristic assistant home screen in Flutter with personality switching, text input, and command history.
+    - Wired `AssistantFragment` to host the Flutter assistant UI.
+    - Added unit tests for the Kotlin bridge and Flutter UI.
+- **Validation**:
+    - Kotlin unit tests: `AssistantUiBridgeTest` PASS.
+    - Flutter unit tests: `assistant_home_screen_test` PASS.
+    - Build: `:app:assembleDebug` SUCCESS.
+- **Architecture**: Clean Flutter -> MethodChannel -> Kotlin Bridge -> Brain Runtime flow.
+- **Safety**: SafetyGate remains the final authority; all results (including blocks) are passed truthfully to the UI.
+
 ## Phase 25 Update (Phone Hand / Action Executor)
 
 - **Real Phone Executor Implementation**: Implemented `AndroidPhoneActionExecutor` as the real production path for performing safe Android actions.

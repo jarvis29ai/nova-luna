@@ -4,54 +4,28 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
+import android.widget.FrameLayout
 import androidx.fragment.app.Fragment
-import com.google.android.material.floatingactionbutton.FloatingActionButton
-import com.nova.luna.MainActivity
 import com.nova.luna.R
-import com.nova.luna.voice.VoiceInputState
+import io.flutter.embedding.android.FlutterFragment
 
 class AssistantFragment : Fragment() {
-    private lateinit var promptText: TextView
-    private lateinit var examplePrompt: TextView
-    private lateinit var micButton: FloatingActionButton
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        return inflater.inflate(R.layout.fragment_assistant, container, false)
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+        val root = FrameLayout(requireContext())
+        root.id = View.generateViewId()
         
-        promptText = view.findViewById(R.id.promptText)
-        examplePrompt = view.findViewById(R.id.examplePrompt)
-        micButton = view.findViewById(R.id.micButton)
+        val flutterFragment = FlutterFragment.withCachedEngine("assistant_engine")
+            .build<FlutterFragment>()
 
-        val mainActivity = activity as? MainActivity ?: return
+        childFragmentManager.beginTransaction()
+            .replace(root.id, flutterFragment)
+            .commit()
 
-        micButton.setOnClickListener {
-            mainActivity.assistantSession.onVoiceInputStarted()
-            mainActivity.voiceInputController.startListening()
-        }
-
-        view.findViewById<View>(R.id.btnWakeLuna).setOnClickListener {
-            mainActivity.popupController.handleEvent(AssistantPopupEvent.WAKE_LUNA_MOCK)
-        }
-
-        view.findViewById<View>(R.id.btnWakeNova).setOnClickListener {
-            mainActivity.popupController.handleEvent(AssistantPopupEvent.WAKE_NOVA_MOCK)
-        }
-
-        view.findViewById<View>(R.id.closeButton).setOnClickListener {
-            mainActivity.findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottomNavigation)
-                .selectedItemId = R.id.navigation_home
-        }
-        
-        // Note: Real-time transcript updates would ideally be handled via a SharedViewModel
-        // For now, we rely on the popup handled by AssistantPopupController for feedback.
+        return root
     }
 }
