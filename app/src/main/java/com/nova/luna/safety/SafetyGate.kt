@@ -1,664 +1,320 @@
 package com.nova.luna.safety
 
-import com.nova.luna.model.ActionType
 import com.nova.luna.model.BrainAction
 import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainRiskLevel
-import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.SafetyDecision
-import com.nova.luna.model.SafetyLevel
+import com.nova.luna.model.SafetyCategory
+import com.nova.luna.model.SafetyStatus
 import com.nova.luna.memory.PendingConfirmation
 import java.util.Locale
 
 class SafetyGate {
-    private val blockedPatterns = listOf(
-        "send money",
-        "transfer money"
+
+    // HARD BLOCKS: PAYMENT / FINANCIAL
+    private val paymentTerms = listOf(
+        "pay now", "send money", "upi", "enter upi pin", "confirm payment", 
+        "buy now", "purchase", "checkout payment", "bank transfer", 
+        "wallet top up", "card payment", "net banking", "investment",
+        "trade real money", "crypto buy", "crypto sell", "rupay", "checkout payment",
+        "complete payment" // Security compatibility
     )
 
-    private val dangerousFinalPatterns = listOf(
-        "send money",
-        "pay now",
-        "pay with",
-        "bank",
-        "banking",
-        "upi",
-        "password",
-        "otp",
-        "captcha",
-        "login",
-        "sign in",
-        "delete",
-        "erase",
-        "remove account",
-        "confirm booking",
-        "book now",
-        "book ride",
-        "submit",
-        "request ride",
-        "request now",
-        "final booking",
-        "complete payment",
-        "order now",
-        "order this",
-        "book this",
-        "send this"
+    // HARD BLOCKS: OTP / VERIFICATION
+    private val otpTerms = listOf(
+        "read otp", "enter otp", "share otp", "auto-fill otp",
+        "verification code", "sms code", "email code", "one-time password",
+        "2fa code", "mfa code", "otp"
     )
 
-    private val manualOnlyPatterns = listOf(
-        "payment",
-        "pay now",
-        "pay with",
-        "bank",
-        "banking",
-        "upi",
-        "password",
-        "otp",
-        "one time password",
-        "captcha",
-        "login",
-        "sign in",
-        "login bypass",
-        "delete account",
-        "remove account",
-        "delete data",
-        "biometric",
-        "fingerprint",
-        "face unlock"
+    // HARD BLOCKS: LOGIN / AUTH
+    private val loginTerms = listOf(
+        "login", "sign in", "enter password", "type password",
+        "reset password", "change password", "biometric unlock",
+        "unlock app", "enter pin", "enter passcode", "authenticate", "password",
+        "bypass login" // Security compatibility
     )
 
-    private val confirmationRequiredPatterns = listOf(
-        "send message",
-        "send email",
-        "post",
-        "share",
-        "follow",
-        "subscribe",
-        "comment",
-        "place order",
-        "confirm order",
-        "book ride",
-        "confirm booking",
-        "final booking",
-        "complete payment",
-        "book now",
-        "request ride",
-        "request now",
-        "order now",
-        "order this",
-        "book this",
-        "send this",
-        "send it"
+    // HARD BLOCKS: CAPTCHA / BOT CHECK
+    private val captchaTerms = listOf(
+        "solve captcha", "click captcha", "bypass captcha",
+        "i am not robot", "bot check", "human verification", "captcha"
     )
 
-    private val grocerySensitivePatterns = listOf(
-        "send money",
-        "transfer money",
-        "bank",
-        "banking",
-        "upi",
-        "payment",
-        "pay",
-        "password",
-        "otp",
-        "one time password",
-        "captcha",
-        "login",
-        "sign in",
-        "complete payment",
-        "pay now",
-        "pay with",
-        "card",
-        "cvv",
-        "pin",
-        "final order",
-        "place final order",
-        "complete order",
-        "delete",
-        "erase",
-        "remove account"
+    // HARD BLOCKS: DESTRUCTIVE / IRREVERSIBLE / UNSAFE
+    private val destructiveTerms = listOf(
+        "delete account", "delete files", "factory reset", "erase phone",
+        "wipe data", "uninstall app", "remove account", "clear all data",
+        "send resignation", "block contact", "report user",
+        "cancel subscription without confirmation", "permanently delete",
+        "format storage", "delete", "erase", "place final order",
+        "beer", "alcohol", "wine", "liquor", "spirits" // Food safety compatibility
     )
 
-    private val foodUnsafePatterns = listOf(
-        "beer",
-        "wine",
-        "whiskey",
-        "whisky",
-        "vodka",
-        "rum",
-        "gin",
-        "scotch",
-        "alcohol",
-        "liquor",
-        "cocktail",
-        "tobacco",
-        "cigarette",
-        "cigarettes",
-        "cigar",
-        "cannabis",
-        "weed",
-        "drugs",
-        "medicine",
-        "medicines",
-        "pill",
-        "pills",
-        "tablet",
-        "tablets",
-        "capsule",
-        "capsules",
-        "syrup",
-        "drug",
-        "restricted item",
-        "restricted items",
-        "unsafe item",
-        "unsafe items"
+    // HARD BLOCKS: PRIVACY-SENSITIVE
+    private val privacySensitiveTerms = listOf(
+        "open private photos", "read private messages", "send personal data",
+        "share location", "expose contacts", "export chats", "send documents",
+        "access hidden files", "access banking app", "access password manager",
+        "aadhaar", "pan", "personal data"
     )
 
-    private val foodSensitivePatterns = listOf(
-        "send money",
-        "transfer money",
-        "payment",
-        "pay",
-        "pay now",
-        "pay with",
-        "bank",
-        "banking",
-        "upi",
-        "password",
-        "otp",
-        "one time password",
-        "captcha",
-        "login",
-        "sign in",
-        "card",
-        "cvv",
-        "pin",
-        "complete payment",
-        "delete",
-        "erase",
-        "remove account"
+    // CONFIRMATION REQUIRED: BOOKINGS, COMMUNICATIONS, ORDERS
+    private val confirmationTerms = listOf(
+        "book cab", "confirm ride", "place food order", "place grocery order",
+        "place shopping order", "reserve hotel", "book ticket", "submit form",
+        "final submit", "post publicly", "send email", "send message",
+        "make phone call", "cancel order", "cancel booking", "accept terms",
+        "schedule appointment", "send location", "share contact", "call mom", "call dad",
+        "book", "order", "share live location", "buy", "checkout"
     )
-
-    fun evaluate(commandIntent: CommandIntent): SafetyDecision {
-        val normalized = commandIntent.normalizedText.lowercase(Locale.US)
-
-        if (commandIntent.actionType == ActionType.STOP_SERVICE) {
-            return SafetyDecision.allow("Stop command accepted.")
-        }
-
-        if (containsGroceryPlanningBoundaryPhrase(normalized)) {
-            return SafetyDecision(
-                level = SafetyLevel.SAFE,
-                allowed = true,
-                message = "Planning flow allowed due to explicit boundary phrase.",
-                requiresBiometric = false,
-                finalActionAllowed = false
-            )
-        }
-
-        if (containsManualOnlyKeyword(normalized) || containsBlockedKeyword(normalized)) {
-            return SafetyDecision.block(
-                "Blocked command: payments, banking, checkout, passwords, OTPs, and CAPTCHA work must stay manual."
-            )
-        }
-
-        if (isDangerousFinalAction(normalized)) {
-            return SafetyDecision.requireConfirmation(
-                "That looks like a final step. Please confirm to continue."
-            )
-        }
-
-        if (commandIntent.actionType == ActionType.FOOD_ORDER) {
-            if (containsUnsafeFoodKeyword(normalized, commandIntent.entities)) {
-                return SafetyDecision.block("Blocked: unsafe food orders must stay manual.")
-            }
-
-            if (containsFoodSensitiveKeyword(normalized, commandIntent.entities)) {
-                return SafetyDecision.humanOnly(
-                    "That food step includes payment, login, OTP, or CAPTCHA details, so it must stay manual."
-                )
-            }
-
-            return SafetyDecision(
-                level = SafetyLevel.SAFE,
-                allowed = true,
-                message = "Food ordering flow allowed. Final payment, OTP, login, and CAPTCHA steps must stay manual.",
-                requiresBiometric = false,
-                finalActionAllowed = false
-            )
-        }
-
-        if (commandIntent.actionType == ActionType.GROCERY_BOOKING) {
-            if (containsGrocerySensitiveKeyword(normalized) &&
-                !containsGroceryPlanningBoundaryPhrase(normalized)
-            ) {
-                return SafetyDecision.block(
-                    "Blocked: payments, banking, passwords, OTPs, CAPTCHAs, and card flows must stay manual."
-                )
-            }
-
-            return SafetyDecision(
-                level = SafetyLevel.SAFE,
-                allowed = true,
-                message = "Grocery booking flow allowed. Final payment, OTP, login, and CAPTCHA steps must stay manual.",
-                requiresBiometric = false,
-                finalActionAllowed = false
-            )
-        }
-
-        if (commandIntent.actionType == ActionType.SHOPPING) {
-            if (containsShoppingSensitiveKeyword(normalized)) {
-                return SafetyDecision.humanOnly(
-                    "That shopping step includes sensitive payment or account details, so it must stay manual."
-                )
-            }
-
-            return SafetyDecision(
-                level = SafetyLevel.SAFE,
-                allowed = true,
-                message = "Shopping flow allowed. Final payment, OTP, login, and CAPTCHA steps must stay manual.",
-                requiresBiometric = false,
-                finalActionAllowed = false
-            )
-        }
-
-        if (commandIntent.actionType == ActionType.CAB_BOOKING) {
-            if (containsBlockedKeyword(normalized)) {
-                return SafetyDecision.block(
-                    "Blocked: payments, banking, passwords, OTPs, CAPTCHAs, and checkout flows must stay manual."
-                )
-            }
-
-            return SafetyDecision(
-                level = SafetyLevel.SAFE,
-                allowed = true,
-                message = "Cab booking flow allowed. Final booking, payment, OTP, and CAPTCHA steps must stay manual.",
-                requiresBiometric = false,
-                finalActionAllowed = false
-            )
-        }
-
-        if (containsBlockedKeyword(normalized)) {
-            return SafetyDecision.block(
-                "Blocked: payments, banking, passwords, OTPs, CAPTCHAs, and checkout flows must stay manual."
-            )
-        }
-
-        if ((commandIntent.actionType == ActionType.CLICK_TEXT ||
-                commandIntent.actionType == ActionType.TYPE_TEXT) &&
-            containsDangerousFinalKeyword(normalized)
-        ) {
-            return SafetyDecision.humanOnly(
-                "That looks like a final step, so it must stay manual."
-            )
-        }
-
-        return when (commandIntent.actionType) {
-            ActionType.CALL_CONTACT,
-            ActionType.TAKE_SCREENSHOT -> {
-                SafetyDecision.requireBiometric(
-                    "This is a sensitive command. Use the app to confirm with biometrics before trying again."
-                )
-            }
-
-            ActionType.OPEN_SETTINGS,
-            ActionType.OPEN_ACCESSIBILITY_SETTINGS -> {
-                SafetyDecision(
-                    level = SafetyLevel.SAFE,
-                    allowed = true,
-                    message = "Command allowed.",
-                    requiresBiometric = false,
-                    finalActionAllowed = true
-                )
-            }
-
-            ActionType.OPEN_USAGE_ACCESS_SETTINGS -> {
-                if (normalized.contains("usage") &&
-                    (normalized.contains("settings") || normalized.contains("permission"))
-                ) {
-                    SafetyDecision(
-                        level = SafetyLevel.SAFE,
-                        allowed = true,
-                        message = "Command allowed.",
-                        requiresBiometric = false,
-                        finalActionAllowed = true
-                    )
-                } else {
-                    SafetyDecision.requireBiometric(
-                        "This is a sensitive command. Use the app to confirm with biometrics before trying again."
-                    )
-                }
-            }
-
-            ActionType.BLOCKED -> SafetyDecision.block("Blocked command.")
-            else -> SafetyDecision(
-                level = SafetyLevel.SAFE,
-                allowed = true,
-                message = "Command allowed.",
-                requiresBiometric = false,
-                finalActionAllowed = true
-            )
-        }
-    }
 
     fun evaluate(
-        brainAction: BrainAction,
+        action: BrainAction,
+        originalUserText: String? = null,
         pendingConfirmation: PendingConfirmation? = null,
         userConfirmed: Boolean = false
     ): SafetyDecision {
-        val normalized = buildNormalizedBrainActionText(brainAction)
-        val requestText = buildBrainActionRequestText(brainAction)
-        val confirmationMatched = pendingConfirmation?.matchesBrainAction(brainAction) == true &&
-            !pendingConfirmation.isExpired()
-        val effectiveUserConfirmed = userConfirmed && confirmationMatched
+        val originalActionType = action.actionType.name
+        val rawCommandLower = (originalUserText ?: action.rawCommand).lowercase(Locale.US)
+        val normalizedLower = action.normalizedCommand.lowercase(Locale.US)
+        
+        // 1. Combine all text sources for keyword analysis
+        val searchableText = buildString {
+            append(rawCommandLower).append(" ")
+            append(normalizedLower).append(" ")
+            action.params.values.forEach { append(it.lowercase(Locale.US)).append(" ") }
+        }
 
-        if (pendingConfirmation != null && userConfirmed && !confirmationMatched) {
-            return SafetyDecision.requireConfirmation(
-                "That confirmation no longer matches the pending request."
+        // 2. HARD BLOCKS: Keywords match or explicit sensitive ActionType
+        val blockedPayment = containsAny(searchableText, paymentTerms) || action.actionType == BrainActionType.PAYMENT_REQUEST
+        if (blockedPayment) {
+            return SafetyDecision.block(
+                reason = "Payment and financial actions are strictly blocked for your safety. Please handle this manually.",
+                category = SafetyCategory.PAYMENT_OR_FINANCIAL,
+                originalActionType = originalActionType,
+                blockedTerms = findMatchingTerms(searchableText, paymentTerms)
             )
         }
 
-        if (isGroceryBrainAction(brainAction)) {
-            if (brainAction.actionType == BrainActionType.HUMAN_ONLY ||
-                brainAction.riskLevel == BrainRiskLevel.BLOCKED
-            ) {
-                return SafetyDecision.humanOnly(
-                    brainAction.reply.ifBlank {
-                        "That needs to stay manual for your safety."
-                    }
-                )
-            }
-
-            if (containsGrocerySensitiveKeyword(requestText)) {
-                return SafetyDecision.humanOnly(
-                    "That grocery step includes a sensitive action, so it must stay manual."
-                )
-            }
-
-            if ((brainAction.riskLevel == BrainRiskLevel.CONFIRMATION_REQUIRED ||
-                    brainAction.requiresConfirmation ||
-                    brainAction.actionType == BrainActionType.PREPARE) &&
-                !effectiveUserConfirmed
-            ) {
-                return SafetyDecision.requireConfirmation(
-                    brainAction.nextQuestion?.takeIf { it.isNotBlank() }
-                        ?: brainAction.reply.ifBlank {
-                            "Please confirm to continue."
-                        }
-                )
-            }
-
-            return SafetyDecision(
-                level = SafetyLevel.SAFE,
-                allowed = true,
-                message = brainAction.reply.ifBlank { "Grocery flow allowed." },
-                requiresBiometric = false,
-                finalActionAllowed = brainAction.finalActionAllowed
+        val blockedOtp = containsAny(searchableText, otpTerms) || action.actionType == BrainActionType.OTP_REQUEST
+        if (blockedOtp) {
+            return SafetyDecision.block(
+                reason = "OTP and verification codes are blocked for your safety. Please handle this manually.",
+                category = SafetyCategory.OTP_OR_VERIFICATION_CODE,
+                originalActionType = originalActionType,
+                blockedTerms = findMatchingTerms(searchableText, otpTerms)
             )
         }
 
-        if (isFoodBrainAction(brainAction)) {
-            if (brainAction.actionType == BrainActionType.HUMAN_ONLY ||
-                brainAction.riskLevel == BrainRiskLevel.BLOCKED
-            ) {
-                return SafetyDecision.humanOnly(
-                    brainAction.reply.ifBlank {
-                        "That needs to stay manual for your safety."
-                    }
-                )
-            }
-
-            if (containsUnsafeFoodKeyword(requestText, brainAction.params)) {
-                return SafetyDecision.humanOnly(
-                    "That food order must stay manual."
-                )
-            }
-
-            if ((brainAction.riskLevel == BrainRiskLevel.CONFIRMATION_REQUIRED ||
-                    brainAction.requiresConfirmation ||
-                    brainAction.actionType == BrainActionType.PREPARE) &&
-                !effectiveUserConfirmed
-            ) {
-                return SafetyDecision.requireConfirmation(
-                    brainAction.nextQuestion?.takeIf { it.isNotBlank() }
-                        ?: brainAction.reply.ifBlank {
-                            "Please confirm to continue."
-                        }
-                )
-            }
-
-            return SafetyDecision(
-                level = SafetyLevel.SAFE,
-                allowed = true,
-                message = brainAction.reply.ifBlank { "Food ordering flow allowed." },
-                requiresBiometric = false,
-                finalActionAllowed = brainAction.finalActionAllowed
+        val blockedLogin = containsAny(searchableText, loginTerms) || action.actionType == BrainActionType.LOGIN_REQUEST
+        if (blockedLogin) {
+            return SafetyDecision.block(
+                reason = "Login and authentication actions are blocked for your safety. Please handle this manually.",
+                category = SafetyCategory.LOGIN_OR_AUTHENTICATION,
+                originalActionType = originalActionType,
+                blockedTerms = findMatchingTerms(searchableText, loginTerms)
             )
         }
 
-        if (isShoppingBrainAction(brainAction)) {
-            if (brainAction.actionType == BrainActionType.HUMAN_ONLY ||
-                brainAction.riskLevel == BrainRiskLevel.BLOCKED
-            ) {
-                return SafetyDecision.humanOnly(
-                    brainAction.reply.ifBlank {
-                        "That needs to stay manual for your safety."
-                    }
-                )
-            }
-
-            if (containsShoppingSensitiveKeyword(requestText)) {
-                return SafetyDecision.humanOnly(
-                    "That shopping step includes a sensitive action, so it must stay manual."
-                )
-            }
-
-            if ((brainAction.riskLevel == BrainRiskLevel.CONFIRMATION_REQUIRED ||
-                    brainAction.requiresConfirmation ||
-                    brainAction.actionType == BrainActionType.PREPARE) &&
-                !effectiveUserConfirmed
-            ) {
-                return SafetyDecision.requireConfirmation(
-                    brainAction.nextQuestion?.takeIf { it.isNotBlank() }
-                        ?: brainAction.reply.ifBlank {
-                            "Please confirm to continue."
-                        }
-                )
-            }
-
-            return SafetyDecision(
-                level = SafetyLevel.SAFE,
-                allowed = true,
-                message = brainAction.reply.ifBlank { "Shopping flow allowed." },
-                requiresBiometric = false,
-                finalActionAllowed = brainAction.finalActionAllowed
+        val blockedCaptcha = containsAny(searchableText, captchaTerms) || action.actionType == BrainActionType.CAPTCHA_REQUEST
+        if (blockedCaptcha) {
+            return SafetyDecision.block(
+                reason = "CAPTCHA or bot checks cannot be automated. Please handle this manually.",
+                category = SafetyCategory.CAPTCHA_OR_BOT_CHECK,
+                originalActionType = originalActionType,
+                blockedTerms = findMatchingTerms(searchableText, captchaTerms)
             )
         }
 
-        if (brainAction.actionType == BrainActionType.HUMAN_ONLY ||
-            brainAction.riskLevel == BrainRiskLevel.BLOCKED ||
-            containsManualOnlyKeyword(normalized) ||
-            containsBlockedKeyword(normalized)
-        ) {
+        val blockedDestructive = containsAny(searchableText, destructiveTerms) || action.actionType == BrainActionType.DESTRUCTIVE_REQUEST
+        if (blockedDestructive) {
+            val reason = if (containsAny(searchableText, listOf("beer", "alcohol", "wine", "liquor", "spirits"))) {
+                 "Blocked due to unsafe food orders (alcohol/restricted items)."
+            } else {
+                 "Destructive or irreversible actions are blocked for your safety. Please handle this manually."
+            }
+            return SafetyDecision.block(
+                reason = reason,
+                category = SafetyCategory.DESTRUCTIVE_ACTION,
+                originalActionType = originalActionType,
+                blockedTerms = findMatchingTerms(searchableText, destructiveTerms)
+            )
+        }
+
+        val blockedPrivacy = containsAny(searchableText, privacySensitiveTerms) || action.actionType == BrainActionType.PRIVACY_SENSITIVE_REQUEST
+        if (blockedPrivacy) {
+            return SafetyDecision.block(
+                reason = "Privacy-sensitive actions are blocked for your safety. Please handle this manually.",
+                category = SafetyCategory.PRIVACY_SENSITIVE,
+                originalActionType = originalActionType,
+                blockedTerms = findMatchingTerms(searchableText, privacySensitiveTerms)
+            )
+        }
+
+        // 3. HARD BLOCKS: Model explicitly flagged it as HUMAN_ONLY or HIGH risk
+        if (action.riskLevel == BrainRiskLevel.HUMAN_ONLY || action.riskLevel == BrainRiskLevel.HIGH || action.actionType == BrainActionType.HUMAN_ONLY) {
             return SafetyDecision.humanOnly(
-                brainAction.reply.ifBlank {
-                    "That needs to stay manual for your safety."
-                }
+                reason = "This action is flagged as high-risk or human-only. Please handle this manually.",
+                category = SafetyCategory.UNKNOWN_OR_UNSUPPORTED,
+                originalActionType = originalActionType
             )
         }
 
-        if (brainAction.riskLevel == BrainRiskLevel.CONFIRMATION_REQUIRED ||
-            brainAction.requiresConfirmation ||
-            brainAction.actionType == BrainActionType.PREPARE
-        ) {
-            if (!effectiveUserConfirmed) {
+        // 4. PREVIOUSLY CONFIRMED (Phase 30 will handle this more robustly)
+        if (pendingConfirmation != null && userConfirmed) {
+            val matches = pendingConfirmation.actionSummary == action.reply
+            
+            if (matches) {
+                return SafetyDecision.allow(
+                    reason = "Action confirmed by user.",
+                    category = mapConfirmationCategory(action, searchableText),
+                    allowedActionType = action.actionType.name,
+                    originalActionType = originalActionType
+                )
+            } else {
                 return SafetyDecision.requireConfirmation(
-                    brainAction.nextQuestion?.takeIf { it.isNotBlank() }
-                        ?: brainAction.reply.ifBlank {
-                            "Please confirm to continue."
-                        }
+                    reason = "The pending action no longer matches the current request. Please confirm again.",
+                    category = mapConfirmationCategory(action, searchableText),
+                    originalActionType = originalActionType
                 )
             }
         }
 
-        if (containsDangerousFinalKeyword(normalized) &&
-            !brainAction.finalActionAllowed
-        ) {
-            return SafetyDecision.humanOnly(
-                "That final step must stay manual."
-            )
+        // 5. CONFIRMATION REQUIRED: Keywords or Medium Risk or Specific Action Types
+        val isDraft = rawCommandLower.contains("draft") || normalizedLower.contains("draft")
+        val isCompare = rawCommandLower.contains("compare") || normalizedLower.contains("compare") || 
+                        rawCommandLower.contains("search") || rawCommandLower.contains("show")
+        val isPlanning = rawCommandLower.contains("stop before payment") || 
+                         rawCommandLower.contains("stop before finalize") ||
+                         rawCommandLower.contains("stop at final confirmation")
+        
+        // Low-risk exceptions that would otherwise be confirmation-required or blocked
+        if (isDraft || isCompare || isPlanning) {
+             // If it's just a draft, comparison, or planning, allow it as safe low risk
+             if (action.actionType in setOf(BrainActionType.MAKE_CALL_DRAFT, BrainActionType.SEND_MESSAGE_DRAFT, BrainActionType.CAB_SEARCH, BrainActionType.FOOD_SEARCH, BrainActionType.GROCERY_SEARCH, BrainActionType.OPEN_APP)) {
+                 return SafetyDecision.allow(
+                     reason = "Drafting, searching, and planning are safe low-risk actions.",
+                     category = SafetyCategory.SAFE_LOW_RISK,
+                     allowedActionType = action.actionType.name,
+                     originalActionType = originalActionType
+                 )
+             }
         }
 
-        if (containsConfirmationRequiredKeyword(normalized) &&
-            !effectiveUserConfirmed
-        ) {
+        val requiresConfirmationByActionType = action.actionType in setOf(
+            BrainActionType.MAKE_CALL_DRAFT,
+            BrainActionType.SEND_MESSAGE_DRAFT,
+            BrainActionType.CAB_SEARCH,
+            BrainActionType.FOOD_SEARCH,
+            BrainActionType.GROCERY_SEARCH,
+            BrainActionType.BOOKING_REQUEST,
+            BrainActionType.CREATE_CONTENT
+        )
+
+        val requiresConfirmationByKeyword = containsAny(searchableText, confirmationTerms)
+        val requiresConfirmationByModel = action.requiresConfirmation || action.riskLevel == BrainRiskLevel.MEDIUM
+
+        if (requiresConfirmationByActionType || requiresConfirmationByKeyword || requiresConfirmationByModel) {
+            val category = mapConfirmationCategory(action, searchableText)
+            val reason = if (action.actionType == BrainActionType.FOOD_SEARCH || action.actionType == BrainActionType.GROCERY_SEARCH) {
+                "Food ordering flow allowed, but final confirmation is required."
+            } else {
+                "Confirmation is required before executing this action."
+            }
             return SafetyDecision.requireConfirmation(
-                brainAction.nextQuestion?.takeIf { it.isNotBlank() }
-                    ?: brainAction.reply.ifBlank {
-                        "Please confirm to continue."
-                    }
+                reason = reason,
+                category = category,
+                originalActionType = originalActionType
             )
         }
 
-        return SafetyDecision(
-            level = SafetyLevel.SAFE,
-            allowed = true,
-            message = brainAction.reply.ifBlank { "Command allowed." },
-            requiresBiometric = false,
-            requiresConfirmation = false,
-            finalActionAllowed = brainAction.finalActionAllowed
+        // 6. UNKNOWN / AMBIGUOUS
+        if (action.actionType == BrainActionType.UNKNOWN || action.actionType == BrainActionType.UNSUPPORTED || action.riskLevel == BrainRiskLevel.UNKNOWN) {
+            return SafetyDecision.requireConfirmation(
+                reason = "I'm not sure if this action is safe. Please confirm you want to proceed.",
+                category = SafetyCategory.UNKNOWN_OR_UNSUPPORTED,
+                originalActionType = originalActionType
+            )
+        }
+
+        // 7. ALLOWED: Low Risk
+        if (action.riskLevel == BrainRiskLevel.LOW && !action.requiresConfirmation) {
+            return SafetyDecision.allow(
+                reason = "Action is safe to execute.",
+                category = SafetyCategory.SAFE_LOW_RISK,
+                allowedActionType = action.actionType.name,
+                originalActionType = originalActionType
+            )
+        }
+
+        // Default Fallback: Block if unsure
+        return SafetyDecision.block(
+            reason = "Action blocked by default safety policy because it could not be verified as safe.",
+            category = SafetyCategory.UNKNOWN_OR_UNSUPPORTED,
+            originalActionType = originalActionType
         )
     }
 
-    private fun isDangerousFinalAction(normalized: String): Boolean {
-        if (containsGroceryPlanningBoundaryPhrase(normalized)) return false
-        return containsDangerousFinalKeyword(normalized) || containsConfirmationRequiredKeyword(normalized)
-    }
-
-    private fun buildNormalizedBrainActionText(brainAction: BrainAction): String {
-        val paramsText = brainAction.params.entries.joinToString(separator = " ") { (key, value) ->
-            "$key $value"
-        }
-        return listOf(
-            brainAction.intent,
-            paramsText
-        ).joinToString(separator = " ").lowercase(Locale.US)
-    }
-
-    private fun buildBrainActionRequestText(brainAction: BrainAction): String {
-        val paramsText = brainAction.params.entries.joinToString(separator = " ") { (key, value) ->
-            "$key $value"
-        }
-        return listOf(
-            brainAction.intent,
-            paramsText,
-            brainAction.nextQuestion.orEmpty()
-        ).joinToString(separator = " ").lowercase(Locale.US)
-    }
-
-    private fun containsBlockedKeyword(normalized: String): Boolean {
-        return blockedPatterns.any { keyword ->
-            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
-        }
-    }
-
-    private fun containsGrocerySensitiveKeyword(normalized: String): Boolean {
-        return grocerySensitivePatterns.any { keyword ->
-            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
-        }
-    }
-
-    private fun containsGroceryPlanningBoundaryPhrase(normalized: String): Boolean {
-        return listOf(
-            "stop before payment",
-            "stop before final payment",
-            "stop at final confirmation",
-            "manual payment boundary"
-        ).any { phrase -> normalized.contains(phrase) }
-    }
-
-    private fun containsUnsafeFoodKeyword(normalized: String, params: Map<String, String>): Boolean {
-        val merged = buildString {
-            append(normalized)
-            append(' ')
-            append(params["foodItem"].orEmpty())
-            append(' ')
-            append(params["restaurantName"].orEmpty())
-        }.lowercase(Locale.US)
-
-        return foodUnsafePatterns.any { keyword ->
-            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(merged)
-        }
-    }
-
-    private fun containsFoodSensitiveKeyword(normalized: String, params: Map<String, String>): Boolean {
-        val merged = buildString {
-            append(normalized)
-            append(' ')
-            append(params["foodItem"].orEmpty())
-            append(' ')
-            append(params["restaurantName"].orEmpty())
-        }.lowercase(Locale.US)
-
-        return foodSensitivePatterns.any { keyword ->
-            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(merged)
-        }
-    }
-
-    private fun isGroceryBrainAction(brainAction: BrainAction): Boolean {
-        return brainAction.intent.startsWith("grocery", ignoreCase = true)
-    }
-
-    private fun isFoodBrainAction(brainAction: BrainAction): Boolean {
-        return brainAction.intent.startsWith("food", ignoreCase = true)
-    }
-
-    private fun containsDangerousFinalKeyword(normalized: String): Boolean {
-        return dangerousFinalPatterns.any { keyword ->
-            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
-        }
-    }
-
-    private fun containsManualOnlyKeyword(normalized: String): Boolean {
-        return manualOnlyPatterns.any { keyword ->
-            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
-        }
-    }
-
-    private fun containsConfirmationRequiredKeyword(normalized: String): Boolean {
-        return confirmationRequiredPatterns.any { keyword ->
-            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
-        }
-    }
-
-    private fun containsShoppingSensitiveKeyword(normalized: String): Boolean {
-        val patterns = listOf(
-            "send money",
-            "transfer money",
-            "bank transfer",
-            "password",
-            "otp",
-            "one time password",
-            "captcha",
-            "login",
-            "sign in",
-            "bypass login",
-            "credit card details",
-            "card number",
-            "cvv",
-            "upi pin",
-            "card pin",
-            "delete",
-            "erase",
-            "remove account"
+    fun evaluate(intent: com.nova.luna.model.CommandIntent): SafetyDecision {
+        val action = BrainAction(
+            intent = intent.intentType.name,
+            actionType = mapActionType(intent.actionType),
+            riskLevel = intent.riskLevel,
+            requiresConfirmation = intent.requiresConfirmation,
+            params = intent.entities,
+            rawCommand = intent.rawText,
+            normalizedCommand = intent.normalizedText
+        ).withPhase23Metadata(
+            schemaVersion = 1,
+            source = com.nova.luna.model.BrainActionSource.RULE_FALLBACK,
+            rawCommand = intent.rawText,
+            normalizedCommand = intent.normalizedText,
+            confidence = 1.0,
+            assistantReply = "",
+            reason = "SafetyGate CommandIntent evaluation"
         )
+        return evaluate(action, originalUserText = intent.rawText)
+    }
 
-        return patterns.any { keyword ->
-            Regex("""\b${Regex.escape(keyword)}\b""").containsMatchIn(normalized)
+    private fun mapActionType(type: com.nova.luna.model.ActionType): BrainActionType {
+        return when (type) {
+            com.nova.luna.model.ActionType.OPEN_APP -> BrainActionType.OPEN_APP
+            com.nova.luna.model.ActionType.OPEN_SETTINGS -> BrainActionType.OPEN_SETTINGS
+            com.nova.luna.model.ActionType.CALL_CONTACT -> BrainActionType.MAKE_CALL_DRAFT
+            com.nova.luna.model.ActionType.CAB_BOOKING -> BrainActionType.CAB_SEARCH
+            com.nova.luna.model.ActionType.FOOD_ORDER -> BrainActionType.FOOD_SEARCH
+            com.nova.luna.model.ActionType.GROCERY_BOOKING -> BrainActionType.GROCERY_SEARCH
+            com.nova.luna.model.ActionType.COMMUNICATION -> BrainActionType.SEND_MESSAGE_DRAFT
+            com.nova.luna.model.ActionType.CONTENT_CREATION -> BrainActionType.CREATE_CONTENT
+            com.nova.luna.model.ActionType.BLOCKED -> BrainActionType.HUMAN_ONLY
+            else -> BrainActionType.EXTERNAL_ACTION
         }
     }
 
-    private fun isShoppingBrainAction(brainAction: BrainAction): Boolean {
-        return brainAction.intent.startsWith("shopping", ignoreCase = true)
+    private fun containsAny(text: String, terms: List<String>): Boolean {
+        return terms.any { term -> text.contains(term) }
+    }
+
+    private fun findMatchingTerms(text: String, terms: List<String>): List<String> {
+        return terms.filter { term -> text.contains(term) }
+    }
+
+    private fun mapConfirmationCategory(action: BrainAction, searchableText: String): SafetyCategory {
+        return when {
+            action.actionType == BrainActionType.MAKE_CALL_DRAFT || 
+            action.actionType == BrainActionType.SEND_MESSAGE_DRAFT ||
+            searchableText.contains("call") || searchableText.contains("message") || searchableText.contains("email") -> 
+                SafetyCategory.MESSAGE_OR_CALL_SENSITIVE
+            
+            action.actionType == BrainActionType.CAB_SEARCH || 
+            action.actionType == BrainActionType.FOOD_SEARCH || 
+            action.actionType == BrainActionType.GROCERY_SEARCH || 
+            action.actionType == BrainActionType.BOOKING_REQUEST ||
+            searchableText.contains("book") || searchableText.contains("order") -> 
+                SafetyCategory.BOOKING_OR_ORDER_FINALIZATION
+                
+            else -> SafetyCategory.MEDIUM_RISK_CONFIRMATION_REQUIRED
+        }
     }
 }

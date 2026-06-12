@@ -18,6 +18,7 @@ import com.nova.luna.memory.PendingConfirmationType
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.model.IntentType
+import com.nova.luna.model.SafetyStatus
 import com.nova.luna.safety.SafetyGate
 import com.nova.luna.agent.AgentLoop
 import com.nova.luna.agent.TaskLoopCoordinator
@@ -255,12 +256,12 @@ class CommandBrain(
         }
 
         // 5. Mandatory Safety Check (Phase 6 stabilization)
-        val safetyDecision = safetyGate.evaluate(currentParsed)
-        if (!safetyDecision.allowed && !safetyDecision.requiresConfirmation) {
-            return finish(CommandResult.blocked(safetyDecision.message))
+        val safetyDecision = safetyGate.evaluate(intent = currentParsed)
+        if (safetyDecision.status == SafetyStatus.BLOCKED) {
+            return finish(CommandResult.blocked(safetyDecision.reason))
         }
-        if (safetyDecision.requiresConfirmation) {
-            return finish(CommandResult.confirmationRequired(safetyDecision.message))
+        if (safetyDecision.status == SafetyStatus.CONFIRMATION_REQUIRED) {
+            return finish(CommandResult.confirmationRequired(safetyDecision.reason))
         }
 
         // 6. Handle Stop/Cancel

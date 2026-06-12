@@ -4,6 +4,7 @@ import com.nova.luna.food.FoodProvider
 import com.nova.luna.model.ActionType
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.IntentType
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,11 +27,11 @@ class FoodSafetyGateTest {
         )
 
         assertFalse(decision.allowed)
-        assertTrue(decision.message.contains("unsafe food orders"))
+        assertTrue(decision.reason.contains("unsafe food orders"))
     }
 
     @Test
-    fun `safe food orders are allowed`() {
+    fun `safe food orders require confirmation`() {
         val decision = safetyGate.evaluate(
             CommandIntent(
                 rawText = "order sandwich",
@@ -40,7 +41,9 @@ class FoodSafetyGateTest {
             )
         )
 
-        assertTrue(decision.allowed)
-        assertTrue(decision.message.contains("Food ordering flow allowed"))
+        // Phase 24: "order" requires confirmation
+        assertFalse(decision.allowed)
+        assertEquals(com.nova.luna.model.SafetyStatus.CONFIRMATION_REQUIRED, decision.status)
+        assertTrue(decision.reason.contains("Food ordering flow allowed"))
     }
 }

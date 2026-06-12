@@ -3,6 +3,7 @@ package com.nova.luna.brain
 import com.nova.luna.model.BrainAction
 import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainRiskLevel
+import com.nova.luna.model.SafetyStatus
 import com.nova.luna.safety.SafetyGate
 import java.util.Locale
 
@@ -61,9 +62,13 @@ class OnlineAiOutputSanitizer(
             return rejected(providerResult, policyResult, routeDecision, userConsentGiven, networkAvailable, "Online helper output was rejected by BrainActionValidator.")
         }
 
-        val safetyDecision = safetyGate.evaluate(safeCandidateAction, userConfirmed = userConsentGiven)
-        if (!safetyDecision.allowed) {
-            return rejected(providerResult, policyResult, routeDecision, userConsentGiven, networkAvailable, safetyDecision.message)
+        val safetyDecision = safetyGate.evaluate(
+            action = safeCandidateAction,
+            originalUserText = request.rawText,
+            userConfirmed = userConsentGiven
+        )
+        if (safetyDecision.status == SafetyStatus.BLOCKED) {
+            return rejected(providerResult, policyResult, routeDecision, userConsentGiven, networkAvailable, safetyDecision.reason)
         }
 
         val trace = buildTrace(

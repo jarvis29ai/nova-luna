@@ -9,6 +9,7 @@ import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
 import com.nova.luna.model.IntentType
 import com.nova.luna.model.SafetyDecision
+import com.nova.luna.model.SafetyStatus
 import com.nova.luna.safety.SafetyGate
 
 class BrainActionRuntime(
@@ -22,11 +23,13 @@ class BrainActionRuntime(
 
     fun evaluateSafety(
         brainAction: BrainAction,
+        rawText: String? = null,
         pendingConfirmation: PendingConfirmation? = null,
         userConfirmed: Boolean = false
     ): SafetyDecision {
         return safetyGate.evaluate(
-            brainAction,
+            action = brainAction,
+            originalUserText = rawText,
             pendingConfirmation = pendingConfirmation,
             userConfirmed = userConfirmed
         )
@@ -39,11 +42,18 @@ class BrainActionRuntime(
         pendingConfirmation: PendingConfirmation? = null,
         userConfirmed: Boolean = false
     ): CommandResult? {
+        val safetyDecision = evaluateSafety(brainAction, rawText, pendingConfirmation, userConfirmed)
+        
         if (!isAcceptable(brainAction)) {
-            return null
+            return CommandResult.blocked(
+                message = "This action was flagged as potentially unsafe by the pre-validator.",
+                intentType = resultIntentType(brainAction),
+                actionType = resultActionType(brainAction),
+                entities = brainAction.params,
+                safetyDecision = safetyDecision
+            )
         }
 
-        val safetyDecision = evaluateSafety(brainAction, pendingConfirmation, userConfirmed)
         val resultIntentType = resultIntentType(brainAction)
         val resultActionType = resultActionType(brainAction)
         val sessionType = sessionTypeForBrainAction(brainAction) ?: pendingConfirmation?.sessionType
@@ -54,42 +64,39 @@ class BrainActionRuntime(
             put("parsedIntentType", parsed.intentType.name)
             put("parsedActionType", parsed.actionType.name)
             put("brainActionIntent", brainAction.intent)
+            put("safetyStatus", safetyDecision.status.name)
+            put("safetyCategory", safetyDecision.category.name)
+            put("safetyReason", safetyDecision.reason)
+            put("finalAuthority", "SafetyGate")
         }
 
-        if (!safetyDecision.allowed) {
-            return when {
-                safetyDecision.requiresBiometric -> CommandResult.biometricRequired(
-                    message = safetyDecision.message,
-                    intentType = resultIntentType,
-                    actionType = resultActionType,
-                    entities = brainAction.params,
-                    memorySessionType = sessionType,
-                    pendingConfirmationType = confirmationType,
-                    memoryMetadata = memoryMetadata
-                )
-
-                safetyDecision.requiresConfirmation -> CommandResult.confirmationRequired(
-                    message = safetyDecision.message,
-                    intentType = resultIntentType,
-                    actionType = resultActionType,
-                    entities = brainAction.params,
-                    memorySessionType = sessionType,
-                    pendingConfirmationType = confirmationType,
-                    memoryMetadata = memoryMetadata
-                )
-
-                else -> CommandResult.blocked(
-                    message = safetyDecision.message,
-                    intentType = resultIntentType,
-                    actionType = resultActionType,
-                    entities = brainAction.params,
-                    memorySessionType = sessionType,
-                    pendingConfirmationType = confirmationType,
-                    memoryMetadata = memoryMetadata
-                )
-            }
+        if (safetyDecision.status == SafetyStatus.BLOCKED) {
+            return CommandResult.blocked(
+                message = safetyDecision.reason,
+                intentType = resultIntentType,
+                actionType = resultActionType,
+                entities = brainAction.params,
+                memorySessionType = sessionType,
+                pendingConfirmationType = confirmationType,
+                memoryMetadata = memoryMetadata,
+                safetyDecision = safetyDecision
+            )
         }
 
+        if (safetyDecision.status == SafetyStatus.CONFIRMATION_REQUIRED || safetyDecision.requiresUserConfirmation) {
+            return CommandResult.confirmationRequired(
+                message = safetyDecision.reason,
+                intentType = resultIntentType,
+                actionType = resultActionType,
+                entities = brainAction.params,
+                memorySessionType = sessionType,
+                pendingConfirmationType = confirmationType,
+                memoryMetadata = memoryMetadata,
+                safetyDecision = safetyDecision
+            )
+        }
+
+        // ONLY IF ALLOWED
         return when (brainAction.actionType) {
             BrainActionType.EXTERNAL_ACTION -> {
                 val routedResult = commandRouter.route(brainAction)

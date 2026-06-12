@@ -19,7 +19,7 @@ class SafetyGatePhase6PendingConfirmationTest {
     fun `matching pending confirmation allows the confirmed brain action`() {
         val brainAction = groceryBrainAction()
         val decision = safetyGate.evaluate(
-            brainAction = brainAction,
+            action = brainAction,
             pendingConfirmation = pendingConfirmation(brainAction),
             userConfirmed = true
         )
@@ -37,7 +37,7 @@ class SafetyGatePhase6PendingConfirmationTest {
         )
 
         val decision = safetyGate.evaluate(
-            brainAction = brainAction,
+            action = brainAction,
             pendingConfirmation = mismatchedConfirmation,
             userConfirmed = true
         )

@@ -12,6 +12,7 @@ import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.InternetPermissionCategory
 import com.nova.luna.model.InternetPermissionDecision
 import com.nova.luna.model.IntentType
+import com.nova.luna.model.SafetyStatus
 import com.nova.luna.model.isLocalBrainRole
 import com.nova.luna.model.isFutureLocalBrainRole
 import com.nova.luna.memory.BrainMemoryStore
@@ -337,7 +338,8 @@ class BrainService(
                     finalProvider = runtimeState.selectedProvider,
                     finalBrainAction = action,
                     finalSafetyDecision = safetyGate.evaluate(
-                        action,
+                        action = action,
+                        originalUserText = rawText,
                         pendingConfirmation = request.pendingConfirmation,
                         userConfirmed = request.onlineConsentGiven
                     ),
@@ -389,10 +391,12 @@ class BrainService(
                         finalProvider = runtimeState.selectedProvider,
                         finalBrainAction = action,
                         finalSafetyDecision = safetyGate.evaluate(
-                            action,
+                            action = action,
+                            originalUserText = rawText,
                             pendingConfirmation = request.pendingConfirmation,
                             userConfirmed = request.onlineConsentGiven
                         ),
+
                         runtimeStatus = runtimeState.copy(
                             reason = runtimeReason(policyDecision, fallbackUsed = false, routeDecision = null, finalProvider = runtimeState.selectedProvider),
                             onlineTrace = onlineTrace,
@@ -457,7 +461,8 @@ class BrainService(
                 finalProvider = finalProvider,
                 finalBrainAction = finalAction,
                 finalSafetyDecision = safetyGate.evaluate(
-                    finalAction,
+                    action = finalAction,
+                    originalUserText = rawText,
                     pendingConfirmation = request.pendingConfirmation,
                     userConfirmed = request.onlineConsentGiven
                 ),
@@ -503,10 +508,12 @@ class BrainService(
                 finalProvider = runtimeState.selectedProvider,
                 finalBrainAction = action,
                 finalSafetyDecision = safetyGate.evaluate(
-                    action,
+                    action = action,
+                    originalUserText = rawText,
                     pendingConfirmation = request.pendingConfirmation,
                     userConfirmed = request.onlineConsentGiven
                 ),
+
                 routerTrace = buildRouterTrace(
                     routeDecision = routeDecision,
                     mockFallbackUsed = true,
@@ -574,10 +581,12 @@ class BrainService(
                 finalProvider = runtimeState.selectedProvider,
                 finalBrainAction = action,
                 finalSafetyDecision = safetyGate.evaluate(
-                    action,
+                    action = action,
+                    originalUserText = rawText,
                     pendingConfirmation = request.pendingConfirmation,
                     userConfirmed = request.onlineConsentGiven
                 ),
+
                 routerTrace = buildRouterTrace(
                     routeDecision = localFallbackDecision,
                     mockFallbackUsed = true,
@@ -1385,17 +1394,32 @@ class BrainService(
         brainAction: BrainAction
     ): BrainAction {
         val safetyDecision = safetyGate.evaluate(
-            brainAction,
+            action = brainAction,
+            originalUserText = request.rawText,
             pendingConfirmation = request.pendingConfirmation,
             userConfirmed = request.onlineConsentGiven
         )
+        
+        val finalAction = if (safetyDecision.status == SafetyStatus.BLOCKED) {
+            brainAction.copy(
+                actionType = BrainActionType.HUMAN_ONLY,
+                riskLevel = BrainRiskLevel.BLOCKED,
+                requiresConfirmation = false,
+                finalActionAllowed = false,
+                reply = safetyDecision.reason,
+                intent = "human_only"
+            )
+        } else {
+            brainAction
+        }
+        
         sessionManager.recordBrainAction(
             request = request,
             routeDecision = routeDecision,
-            brainAction = brainAction,
+            brainAction = finalAction,
             safetyDecision = safetyDecision
         )
-        return brainAction
+        return finalAction
     }
 
     private fun fallback(rawText: String): BrainAction {

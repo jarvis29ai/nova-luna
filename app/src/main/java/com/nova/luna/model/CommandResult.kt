@@ -110,7 +110,8 @@ data class CommandResult(
             pendingConfirmationType: PendingConfirmationType? = null,
             screenMemorySnapshotId: String? = null,
             recoveryState: RecoveryState? = null,
-            memoryMetadata: Map<String, String> = emptyMap()
+            memoryMetadata: Map<String, String> = emptyMap(),
+            safetyDecision: SafetyDecision? = null
         ): CommandResult {
             return CommandResult(
                 success = false,
@@ -119,7 +120,7 @@ data class CommandResult(
                 domain = domain,
                 intentType = intentType,
                 actionType = actionType,
-                safetyDecision = SafetyDecision.block(message),
+                safetyDecision = safetyDecision ?: SafetyDecision.block(reason = message),
                 entities = entities,
                 memorySessionType = memorySessionType,
                 memorySessionId = memorySessionId,
@@ -141,7 +142,8 @@ data class CommandResult(
             pendingConfirmationType: PendingConfirmationType? = null,
             screenMemorySnapshotId: String? = null,
             recoveryState: RecoveryState? = null,
-            memoryMetadata: Map<String, String> = emptyMap()
+            memoryMetadata: Map<String, String> = emptyMap(),
+            safetyDecision: SafetyDecision? = null
         ): CommandResult {
             return CommandResult(
                 success = false,
@@ -150,7 +152,7 @@ data class CommandResult(
                 domain = domain,
                 intentType = intentType,
                 actionType = actionType,
-                safetyDecision = SafetyDecision.requireConfirmation(message),
+                safetyDecision = safetyDecision ?: SafetyDecision.requireConfirmation(reason = message),
                 awaitingConfirmation = true,
                 entities = entities,
                 memorySessionType = memorySessionType,
@@ -172,7 +174,8 @@ data class CommandResult(
             pendingConfirmationType: PendingConfirmationType? = null,
             screenMemorySnapshotId: String? = null,
             recoveryState: RecoveryState? = null,
-            memoryMetadata: Map<String, String> = emptyMap()
+            memoryMetadata: Map<String, String> = emptyMap(),
+            safetyDecision: SafetyDecision? = null
         ): CommandResult {
             return CommandResult(
                 success = false,
@@ -180,7 +183,7 @@ data class CommandResult(
                 message = message,
                 intentType = intentType,
                 actionType = actionType,
-                safetyDecision = SafetyDecision.requireBiometric(message),
+                safetyDecision = safetyDecision ?: SafetyDecision.block(reason = message, requiresBiometric = true),
                 entities = entities,
                 memorySessionType = memorySessionType,
                 memorySessionId = memorySessionId,

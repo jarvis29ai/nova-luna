@@ -5,6 +5,7 @@ import com.nova.luna.model.ActionType
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.IntentType
 import com.nova.luna.safety.SafetyGate
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -29,11 +30,13 @@ class CabSafetyGateTest {
     }
 
     @Test
-    fun `cab booking preparation is allowed`() {
+    fun `cab booking preparation requires confirmation`() {
         val parsed = parser.parse("book cab to DB Mall")
         val decision = safetyGate.evaluate(parsed)
 
-        assertTrue(decision.allowed)
+        // Phase 24: "book cab" is medium risk and requires confirmation
+        assertFalse(decision.allowed)
+        assertEquals(com.nova.luna.model.SafetyStatus.CONFIRMATION_REQUIRED, decision.status)
         assertFalse(decision.requiresBiometric)
     }
 }

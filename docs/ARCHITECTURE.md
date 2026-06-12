@@ -38,6 +38,15 @@ The default architecture should stay offline-first, with zero backend cost unles
 - Memory state is universal but still local-first: active sessions, pending confirmations, screen snapshots, recovery state, and preferences all stay on-device and must be redacted before storage
 - Optional smartwatch companion later for quick commands and watch-first conveniences
 
+## Phase 24 Update (SafetyGate Final Authority)
+
+- **Final Authority**: `SafetyGate` is now the final authority before any phone action can execute, placed between brain understanding and phone execution.
+- **Strict Blocking**: deterministic rules block payment, OTP, login, CAPTCHA, destructive, and privacy-sensitive actions even if an LLM suggests them.
+- **Confirmation Enforcement**: Medium-risk tasks (bookings, communications, orders) are held for future explicit user confirmation (Phase 30).
+- **Bypass Prevention**: Every execution path (`BrainActionRuntime`, `BrainService`, diagnostics) is wired to `SafetyGate` to ensure no action bypasses safety evaluation.
+- **Untrusted Input**: LLM output is treated as untrusted; `SafetyGate` scans all `params` and `rawCommand` text for sensitive terms regardless of model confidence.
+- **Robust Safety Model**: `SafetyDecision` now tracks `status`, `category`, `reason`, and `blockedTerms` for full transparency in results and diagnostics.
+
 ## Phase 23 Update (Command Understanding Brain)
 
 - A robust command understanding brain layer is now implemented to convert raw user input into structured `BrainAction` JSON.

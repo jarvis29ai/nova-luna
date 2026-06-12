@@ -12,7 +12,7 @@ class GrocerySafetyGateTest {
     private val safetyGate = SafetyGate()
 
     @Test
-    fun `grocery booking allows order and checkout but blocks payment steps`() {
+    fun `grocery booking requires confirmation but blocks payment steps`() {
         val allowed = safetyGate.evaluate(
             CommandIntent(
                 rawText = "buy milk and bread",
@@ -35,9 +35,14 @@ class GrocerySafetyGateTest {
             )
         )
 
-        assertTrue(allowed.allowed)
-        assertTrue(checkout.allowed)
-        assertFalse(blocked.allowed)
+        // Phase 24: "buy" and "checkout" are medium risk
+        assertFalse(allowed.allowed)
+        assertEquals(com.nova.luna.model.SafetyStatus.CONFIRMATION_REQUIRED, allowed.status)
+        
+        assertFalse(checkout.allowed)
+        assertEquals(com.nova.luna.model.SafetyStatus.CONFIRMATION_REQUIRED, checkout.status)
+        
+        assertEquals(com.nova.luna.model.SafetyStatus.BLOCKED, blocked.status)
     }
 
     @Test
@@ -58,6 +63,7 @@ class GrocerySafetyGateTest {
                 )
             )
 
+            println("Phrase: '$text', Status: ${decision.status}, Level: ${decision.level}")
             assertFalse("Expected $text to stay manual", decision.allowed)
             assertTrue("Expected $text to be blocked or human-only", decision.level == com.nova.luna.model.SafetyLevel.BLOCKED || decision.level == com.nova.luna.model.SafetyLevel.HUMAN_ONLY)
         }

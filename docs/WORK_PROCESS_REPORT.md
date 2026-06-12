@@ -11,6 +11,16 @@
 - The Android native build now forces CMake try-compile onto the static-library path to work around an arm64 `cmTC_9ff68` configure stall during external native build setup
 - The Android native build also pre-seeds CMake compiler-work cache values on Windows so the bundled Ninja/CMake configure step can skip the stalled ABI probe after manual compiler verification
 
+## Phase 24 Update (SafetyGate Final Authority)
+
+- **SafetyGate Final Authority**: SafetyGate is now the mandatory final authority for all phone actions, established between the brain's understanding and the executor's action.
+- **Robust Blocking Rules**: Implemented strict deterministic blocking for payments, OTPs, login/auth, CAPTCHAs, destructive actions, and privacy-sensitive data access.
+- **Confirmation Enforcement**: Medium-risk tasks (bookings, communications, orders) are now strictly held for future user confirmation, returning a `CONFIRMATION_REQUIRED` status.
+- **Comprehensive Integration**: Wired `SafetyGate` into `BrainActionRuntime`, `BrainService`, and diagnostics. No execution path can bypass the safety evaluation.
+- **Untrusted LLM Handling**: Treat LLM output as untrusted; `SafetyGate` scans all `params` and `rawCommand` text for sensitive terms regardless of model confidence or risk classification.
+- **Modern Safety Model**: Updated `SafetyDecision` to track `status`, `category`, `reason`, and `blockedTerms` for full transparency.
+- **Validation**: Achieved 100% pass rate for new Phase 24 unit tests and successfully refined legacy regression tests (Cab, Food, Grocery, Shopping) to align with stricter Phase 24 standards.
+
 ## Phase 23 Update (Command Understanding Brain)
 
 - A sophisticated command understanding brain layer is now implemented, providing the foundation for structured intent extraction and risk assessment.

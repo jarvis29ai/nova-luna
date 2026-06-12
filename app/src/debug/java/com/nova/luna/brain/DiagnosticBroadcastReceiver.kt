@@ -6,6 +6,7 @@ import android.content.Intent
 import android.util.Log
 import com.nova.luna.model.BrainModelRole
 import com.nova.luna.model.BrainRouteDecision
+import com.nova.luna.model.SafetyStatus
 import com.nova.luna.modelinstall.PrivateAppModelStorage
 import com.nova.luna.safety.SafetyGate
 
@@ -105,7 +106,7 @@ class DiagnosticBroadcastReceiver : BroadcastReceiver() {
 
         val action = result?.text?.let { BrainActionJsonCodec().decode(it) }
         val safetyGate = SafetyGate()
-        val safetyDecision = action?.let { safetyGate.evaluate(it) }
+        val safetyDecision = action?.let { safetyGate.evaluate(action = it, originalUserText = requestText) }
         val runtimeAvailable = result?.success == true && nativeRuntime.isLoaded()
         val generationStatus = when {
             !preflight.modelEnabled -> PhoneLocalLlmStatus.MODEL_DISABLED
@@ -145,8 +146,8 @@ class DiagnosticBroadcastReceiver : BroadcastReceiver() {
         
         if (action != null) {
             Log.i(TAG, "Parsed Intent: ${action.intent}")
-            Log.i(TAG, "Safety Decision: Allowed=${safetyDecision?.allowed}, Level=${safetyDecision?.level}")
-            Log.i(TAG, "Safety Message: ${safetyDecision?.message}")
+            Log.i(TAG, "Safety Decision: Status=${safetyDecision?.status}, Category=${safetyDecision?.category}")
+            Log.i(TAG, "Safety Reason: ${safetyDecision?.reason}")
         } else {
             Log.i(TAG, "Safety Decision: not evaluated because no BrainAction was produced.")
             Log.i(TAG, "Safety Message: $generationReason")
