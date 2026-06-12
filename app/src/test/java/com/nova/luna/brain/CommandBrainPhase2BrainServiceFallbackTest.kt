@@ -136,5 +136,9 @@ class CommandBrainPhase2BrainServiceFallbackTest {
                 actionType = ActionType.MUSIC
             )
         }
+
+        override fun handleConfirmationText(rawText: String, commandIntent: CommandIntent): CommandResult {
+            return CommandResult.success("Handled confirmation")
+        }
     }
 }

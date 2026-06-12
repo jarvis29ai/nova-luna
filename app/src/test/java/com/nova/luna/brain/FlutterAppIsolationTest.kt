@@ -7,7 +7,7 @@ import org.junit.Test
 
 class FlutterAppIsolationTest {
     @Test
-    fun `flutter app is not wired into the Android module graph`() {
+    fun `flutter app is wired through the generated include script`() {
         val settingsFile = listOf(
             File("settings.gradle"),
             File("../settings.gradle")
@@ -19,6 +19,7 @@ class FlutterAppIsolationTest {
         assertTrue(settingsGradle.contains(":app"))
         assertTrue(settingsGradle.contains(":wear"))
         assertTrue(settingsGradle.contains(":shared"))
-        assertFalse(settingsGradle.contains("flutter_app"))
+        assertTrue(settingsGradle.contains("flutter_app/.android/include_flutter.groovy"))
+        assertFalse(settingsGradle.contains(":flutter_app"))
     }
 }

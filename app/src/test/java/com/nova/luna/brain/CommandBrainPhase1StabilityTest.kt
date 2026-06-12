@@ -204,5 +204,10 @@ class CommandBrainPhase1StabilityTest {
                 actionType = ActionType.MUSIC
             )
         }
+
+        override fun handleConfirmationText(rawText: String, commandIntent: CommandIntent): CommandResult {
+            totalCalls += 1
+            return CommandResult.success("Handled confirmation")
+        }
     }
 }

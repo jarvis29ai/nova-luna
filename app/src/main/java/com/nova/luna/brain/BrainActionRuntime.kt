@@ -7,9 +7,14 @@ import com.nova.luna.phone.PhoneActionExecutor
 import com.nova.luna.safety.SafetyGate
 import java.util.Locale
 
+import com.nova.luna.confirmation.ConfirmationManager
+import com.nova.luna.confirmation.ConfirmationRequest
+import java.util.UUID
+
 class BrainActionRuntime(
     private val commandRouter: CommandRouter,
     private val safetyGate: SafetyGate,
+    private val confirmationManager: ConfirmationManager,
     private val phoneActionExecutor: PhoneActionExecutor? = null,
     private val validator: BrainActionValidator = BrainActionValidator()
 ) {
@@ -80,11 +85,22 @@ class BrainActionRuntime(
         }
 
         if (safetyDecision.status == SafetyStatus.CONFIRMATION_REQUIRED || safetyDecision.requiresUserConfirmation) {
+            val id = UUID.randomUUID().toString()
+            val request = ConfirmationRequest(
+                confirmationId = id,
+                action = brainAction,
+                safetyDecision = safetyDecision,
+                title = "Confirm Action",
+                summary = brainAction.reply.takeIf { it.isNotBlank() } ?: safetyDecision.reason,
+                details = brainAction.params
+            )
+            confirmationManager.createConfirmation(request)
+
             return CommandResult.confirmationRequired(
                 message = safetyDecision.reason,
                 intentType = resultIntentType,
                 actionType = resultActionType,
-                entities = brainAction.params,
+                entities = brainAction.params + mapOf("confirmationId" to id),
                 memorySessionType = sessionType,
                 pendingConfirmationType = confirmationType,
                 memoryMetadata = memoryMetadata,

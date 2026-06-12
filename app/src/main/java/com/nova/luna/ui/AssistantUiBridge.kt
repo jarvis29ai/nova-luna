@@ -3,7 +3,15 @@ package com.nova.luna.ui
 import android.content.Context
 import com.nova.luna.brain.AssistantSession
 import com.nova.luna.brain.CommandSource
+import com.nova.luna.diagnostics.ModelDiagnosticsProvider
 import com.nova.luna.model.CommandResult
+import com.nova.luna.modelinstall.ModelInstallService
+import com.nova.luna.modelinstall.ModelInstallVerifier
+import com.nova.luna.modelinstall.ModelPathResolver
+import com.nova.luna.modelinstall.ModelRuntimeStateStore
+import com.nova.luna.modelinstall.PrivateAppModelStorage
+import com.nova.luna.safety.SafetyGate
+import com.nova.luna.util.AccessibilityReadiness
 import com.nova.luna.voice.*
 import org.json.JSONObject
 import java.util.UUID
@@ -16,6 +24,17 @@ class AssistantUiBridge(
     private var currentPersonality = AssistantPersonality.LUNA
     private var currentState = AssistantUiState(personality = currentPersonality)
     private val commandHistory = mutableListOf<AssistantUiResult>()
+    private val modelDiagnosticsProvider by lazy {
+        val storage = PrivateAppModelStorage.from(context)
+        val runtimeStateStore = ModelRuntimeStateStore(storage)
+        val modelInstallService = ModelInstallService(
+            pathResolver = ModelPathResolver(context, storage, runtimeStateStore),
+            verifier = ModelInstallVerifier(),
+            runtimeStateStore = runtimeStateStore,
+            storage = storage
+        )
+        ModelDiagnosticsProvider(context, modelInstallService, SafetyGate())
+    }
     
     // Callback for Flutter (to be set by MethodChannel handler)
     var onStateChanged: ((AssistantUiState) -> Unit)? = null
@@ -105,6 +124,7 @@ class AssistantUiBridge(
     }
 
     fun getPhase26Diagnostics(): Map<String, Any> {
+        val modelDiagnostics = modelDiagnosticsProvider.getDiagnostics()
         return mapOf(
             "phase" to 26,
             "ui_layer_available" to true,
@@ -118,7 +138,55 @@ class AssistantUiBridge(
             "brain_runtime_connected" to true,
             "safety_result_display_supported" to true,
             "current_personality" to currentPersonality.name,
-            "history_count" to commandHistory.size
+            "history_count" to commandHistory.size,
+            "installed_models" to modelDiagnostics.installedModels.map {
+                mapOf(
+                    "model_id" to it.modelId,
+                    "display_name" to it.displayName,
+                    "role" to it.role,
+                    "resolved_path" to it.resolvedPath,
+                    "exists" to it.exists,
+                    "readable" to it.readable,
+                    "size_bytes" to it.sizeBytes,
+                    "ready" to it.ready,
+                    "reason" to it.reason,
+                    "last_check_timestamp" to it.lastCheckTimestamp
+                )
+            },
+            "model_overall_status" to modelDiagnostics.overallStatus,
+            "model_ram_total_mb" to modelDiagnostics.ramTotalMb,
+            "model_ram_available_mb" to modelDiagnostics.ramAvailableMb,
+            "model_storage_total_mb" to modelDiagnostics.storageTotalMb,
+            "model_storage_available_mb" to modelDiagnostics.storageAvailableMb,
+            "model_warnings" to modelDiagnostics.warnings,
+            "model_errors" to modelDiagnostics.errors,
+            "safety_gate_available" to modelDiagnostics.safetyGateAvailable,
+            "brain_router_available" to modelDiagnostics.brainRouterAvailable,
+            "confirmation_system_available" to true,
+            "screen_understanding_available" to AccessibilityReadiness.isBound(),
+            "last_error" to (modelDiagnostics.errors.firstOrNull() ?: currentState.voiceError ?: "")
+        )
+    }
+
+    fun getModelDiagnostics(provider: com.nova.luna.diagnostics.ModelDiagnosticsProvider): Map<String, Any> {
+        val diag = provider.getDiagnostics()
+        return mapOf(
+            "overallStatus" to diag.overallStatus,
+            "ramTotalMb" to diag.ramTotalMb,
+            "ramAvailableMb" to diag.ramAvailableMb,
+            "storageTotalMb" to diag.storageTotalMb,
+            "storageAvailableMb" to diag.storageAvailableMb,
+            "warnings" to diag.warnings,
+            "errors" to diag.errors,
+            "installedModels" to diag.installedModels.map {
+                mapOf(
+                    "modelId" to it.modelId,
+                    "displayName" to it.displayName,
+                    "ready" to it.ready,
+                    "exists" to it.exists,
+                    "sizeBytes" to it.sizeBytes
+                )
+            }
         )
     }
 

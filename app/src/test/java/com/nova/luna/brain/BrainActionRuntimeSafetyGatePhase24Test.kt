@@ -17,8 +17,9 @@ class BrainActionRuntimeSafetyGatePhase24Test {
 
     private val router = mock(CommandRouter::class.java)
     private val safetyGate = SafetyGate()
+    private val confirmationManager = mock(com.nova.luna.confirmation.ConfirmationManager::class.java)
     private val validator = BrainActionValidator()
-    private val runtime = BrainActionRuntime(router, safetyGate, null, validator)
+    private val runtime = BrainActionRuntime(router, safetyGate, confirmationManager, null, validator)
 
     @Test
     fun `test bypass prevention - payment action blocked in runtime`() {

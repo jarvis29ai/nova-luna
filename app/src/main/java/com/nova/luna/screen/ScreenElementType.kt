@@ -4,8 +4,10 @@ enum class ScreenElementType {
     TEXT,
     BUTTON,
     INPUT,
+    TEXT_FIELD,
     SEARCH_FIELD,
     LIST,
+    LIST_ITEM,
     CARD,
     IMAGE,
     CHECKBOX,
@@ -20,5 +22,6 @@ enum class ScreenElementType {
     PAYMENT_FIELD,
     DIALOG,
     PROGRESS,
+    SCROLL_CONTAINER,
     UNKNOWN
 }

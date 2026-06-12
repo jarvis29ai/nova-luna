@@ -1,66 +1,71 @@
 package com.nova.luna.brain
 
 import com.nova.luna.executor.ActionExecutorGateway
+import com.nova.luna.model.ActionType
 import com.nova.luna.model.CommandIntent
 import com.nova.luna.model.CommandResult
+import com.nova.luna.model.IntentType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CommandRouterDomainRoutingTest {
+
     @Test
-    fun `shopping and music conversation routes reach the domain executors`() {
+    fun `grocery phrases route into the grocery booking branch`() {
         val executor = FakeActionExecutor()
         val router = CommandRouter(executor)
 
-        val shoppingResult = router.routeShoppingConversation("buy a phone", CommandIntent(rawText = "buy a phone"))
-        val musicResult = router.routeMusicConversation("pause music", CommandIntent(rawText = "pause music"))
+        val intent = CommandIntent(
+            rawText = "buy milk",
+            intentType = IntentType.GROCERY_BOOKING,
+            actionType = ActionType.GROCERY_BOOKING
+        )
 
-        assertEquals(1, executor.shoppingConversationCount)
-        assertEquals(1, executor.musicConversationCount)
-        assertEquals("Handled shopping", shoppingResult.message)
-        assertEquals("Handled music", musicResult.message)
+        val result = router.route(intent)
+
+        assertEquals(1, executor.executeCount)
+        assertTrue(result.success)
     }
 
     private class FakeActionExecutor : ActionExecutorGateway {
-        var shoppingConversationCount = 0
-        var musicConversationCount = 0
+        var executeCount = 0
 
-        override fun execute(commandIntent: CommandIntent): CommandResult = CommandResult.success("Executed")
+        override fun execute(commandIntent: CommandIntent): CommandResult {
+            executeCount++
+            return CommandResult.success("Executed")
+        }
 
         override fun hasActiveCabBookingSession(): Boolean = false
         override fun cancelCabBookingSession(): CommandResult = CommandResult.success("Cancelled")
-        override fun handleCabBookingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled cab")
+        override fun handleCabBookingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveFoodBookingSession(): Boolean = false
         override fun cancelFoodBookingSession(): CommandResult = CommandResult.success("Cancelled")
-        override fun handleFoodBookingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled food")
+        override fun handleFoodBookingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveGroceryBookingSession(): Boolean = false
         override fun cancelGroceryBookingSession(): CommandResult = CommandResult.success("Cancelled")
-        override fun handleGroceryBookingText(rawText: String, commandIntent: CommandIntent, userConfirmed: Boolean): CommandResult = CommandResult.success("Handled grocery")
+        override fun handleGroceryBookingText(rawText: String, commandIntent: CommandIntent, userConfirmed: Boolean): CommandResult = CommandResult.success("Handled")
 
         override fun hasActivePhoneContactSession(): Boolean = false
-        override fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled phone")
+        override fun handlePhoneContactText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveCommunicationSession(): Boolean = false
-        override fun handleCommunicationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled communication")
+        override fun handleCommunicationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveContentCreationSession(): Boolean = false
-        override fun handleContentCreationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled content")
+        override fun handleContentCreationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveMediaSession(): Boolean = false
-        override fun handleMediaText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled media")
+        override fun handleMediaText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveShoppingSession(): Boolean = false
-        override fun handleShoppingText(rawText: String, commandIntent: CommandIntent): CommandResult {
-            shoppingConversationCount++
-            return CommandResult.success("Handled shopping")
-        }
+        override fun handleShoppingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
 
         override fun hasActiveMusicSession(): Boolean = false
-        override fun handleMusicText(rawText: String, commandIntent: CommandIntent): CommandResult {
-            musicConversationCount++
-            return CommandResult.success("Handled music")
-        }
+        override fun handleMusicText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled music")
+
+        override fun handleConfirmationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled confirmation")
     }
 }

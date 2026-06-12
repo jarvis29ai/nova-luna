@@ -102,6 +102,7 @@ class CommandBrain(
     private val brainActionRuntime = BrainActionRuntime(
         commandRouter = router,
         safetyGate = safetyGate,
+        confirmationManager = com.nova.luna.confirmation.ConfirmationManagerProvider.instance,
         phoneActionExecutor = phoneActionExecutor,
         validator = brainActionValidator
     )

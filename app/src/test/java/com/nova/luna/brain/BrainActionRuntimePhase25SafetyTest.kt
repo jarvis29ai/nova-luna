@@ -17,9 +17,10 @@ class BrainActionRuntimePhase25SafetyTest {
 
     private val router = mock(CommandRouter::class.java)
     private val safetyGate = SafetyGate()
+    private val confirmationManager = mock(com.nova.luna.confirmation.ConfirmationManager::class.java)
     private val executor = mock(PhoneActionExecutor::class.java)
     private val validator = BrainActionValidator()
-    private val runtime = BrainActionRuntime(router, safetyGate, executor, validator)
+    private val runtime = BrainActionRuntime(router, safetyGate, confirmationManager, executor, validator)
 
     @Test
     fun `allowed safe action reaches executor`() {

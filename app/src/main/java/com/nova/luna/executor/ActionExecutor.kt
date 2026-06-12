@@ -193,12 +193,14 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
 
     private fun performExecution(commandIntent: CommandIntent, service: NovaAccessibilityService?, retryCount: Int): CommandResult {
         return when (commandIntent.actionType) {
-            ActionType.LAUNCH_APP, ActionType.OPEN_APP -> appLauncher.launchApp(commandIntent)
+            ActionType.LAUNCH_APP -> appLauncher.launchApp(commandIntent)
+            ActionType.OPEN_APP -> appLauncher.launchApp(commandIntent)
             ActionType.GO_HOME -> navExecutor.goHome(commandIntent)
             ActionType.GO_BACK -> navExecutor.goBack(commandIntent)
             ActionType.OPEN_RECENTS -> navExecutor.openRecents(commandIntent)
             ActionType.OPEN_NOTIFICATIONS -> navExecutor.openNotifications(commandIntent)
-            ActionType.CLICK_TEXT, ActionType.TAP_TEXT -> tapExecutor.tap(commandIntent)
+            ActionType.CLICK_TEXT -> tapExecutor.tap(commandIntent)
+            ActionType.TAP_TEXT -> tapExecutor.tap(commandIntent)
             ActionType.TAP_DESCRIPTION -> {
                 val query = commandIntent.entities["text"] ?: commandIntent.entities["query"] ?: ""
                 if (service?.clickByContentDescription(query) == true) {
@@ -207,8 +209,10 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
                     CommandResult.failure(message = "Could not find $query by description", status = ActionResultStatus.NOT_FOUND, actionType = commandIntent.actionType)
                 }
             }
-            ActionType.SCROLL_FORWARD, ActionType.SCROLL_DOWN -> scrollExecutor.scrollForward(commandIntent)
-            ActionType.SCROLL_BACKWARD, ActionType.SCROLL_UP -> scrollExecutor.scrollBackward(commandIntent)
+            ActionType.SCROLL_FORWARD -> scrollExecutor.scrollForward(commandIntent)
+            ActionType.SCROLL_DOWN -> scrollExecutor.scrollForward(commandIntent)
+            ActionType.SCROLL_BACKWARD -> scrollExecutor.scrollBackward(commandIntent)
+            ActionType.SCROLL_UP -> scrollExecutor.scrollBackward(commandIntent)
             ActionType.TYPE_TEXT -> typeExecutor.typeText(commandIntent)
             ActionType.READ_SCREEN -> {
                 val state = service?.captureScreenState()
@@ -245,6 +249,10 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             ActionType.OPEN_SETTINGS -> settingsExecutor.openSettings(commandIntent).withMemoryContext(BrainSessionType.BASIC_CONTROL)
             ActionType.OPEN_ACCESSIBILITY_SETTINGS -> settingsExecutor.openAccessibilitySettings(commandIntent).withMemoryContext(BrainSessionType.BASIC_CONTROL)
             ActionType.OPEN_USAGE_ACCESS_SETTINGS -> settingsExecutor.openUsageAccessSettings(commandIntent).withMemoryContext(BrainSessionType.BASIC_CONTROL)
+            ActionType.OPEN_CAMERA -> CommandResult.success("Handled by PhoneActionExecutor", actionType = commandIntent.actionType).withMemoryContext(BrainSessionType.BASIC_CONTROL)
+            ActionType.OPEN_YOUTUBE -> CommandResult.success("Handled by PhoneActionExecutor", actionType = commandIntent.actionType).withMemoryContext(BrainSessionType.BASIC_CONTROL)
+            ActionType.BROWSER_SEARCH -> CommandResult.success("Handled by PhoneActionExecutor", actionType = commandIntent.actionType).withMemoryContext(BrainSessionType.BASIC_CONTROL)
+            ActionType.TAP_NODE -> CommandResult.failure("Not implemented", status = ActionResultStatus.FAILED)
             ActionType.CALL_CONTACT -> {
                 val phoneRequest = phoneParser.parse(commandIntent.rawText)
                 phoneOrchestrator.start(phoneRequest).toPhoneCommandResult(commandIntent).withMemoryContext(BrainSessionType.PHONE)
@@ -265,7 +273,15 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
                 entities = commandIntent.entities,
                 shouldStopListening = true
             ).withMemoryContext(BrainSessionType.BASIC_CONTROL)
-            ActionType.BLOCKED,
+            ActionType.BLOCKED -> CommandResult.failure(
+                "Action BLOCKED.",
+                status = ActionResultStatus.BLOCKED,
+                intentType = commandIntent.intentType,
+                actionType = commandIntent.actionType,
+                entities = commandIntent.entities
+            ).withMemoryContext(BrainSessionType.BASIC_CONTROL)
+            ActionType.CANCEL -> CommandResult.success("Cancelled", actionType = commandIntent.actionType)
+            ActionType.NO_OP -> CommandResult.success("No operation performed", actionType = commandIntent.actionType)
             ActionType.UNKNOWN -> CommandResult.failure(
                 "I could not map that command to a safe action.",
                 status = ActionResultStatus.BLOCKED,
@@ -274,7 +290,6 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
                 entities = commandIntent.entities
             ).withMemoryContext(BrainSessionType.BASIC_CONTROL)
             ActionType.MEDIA_CONTROL -> handleMediaText(commandIntent.rawText, commandIntent).withMemoryContext(BrainSessionType.MEDIA)
-            else -> CommandResult.failure("Unsupported action type", status = ActionResultStatus.UNSUPPORTED)
         }
     }
 
@@ -352,6 +367,38 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
     override fun handleMusicText(rawText: String, commandIntent: CommandIntent): CommandResult {
         val result = musicOrchestrator.handleRequest(rawText)
         return result.toCommandResult(commandIntent).withMemoryContext(BrainSessionType.MUSIC)
+    }
+
+    private val confirmationManager = com.nova.luna.confirmation.ConfirmationManagerProvider.instance
+    private val confirmationParser = com.nova.luna.confirmation.ConfirmationReplyParser()
+
+    override fun handleConfirmationText(rawText: String, commandIntent: CommandIntent): CommandResult {
+        val confirmationId = commandIntent.entities["confirmationId"] ?: return CommandResult.failure("No confirmation pending.")
+        
+        val replyAction = confirmationParser.parseReply(rawText)
+        
+        return when (replyAction) {
+            com.nova.luna.confirmation.ConfirmationAction.CONFIRM -> {
+                val result = confirmationManager.confirm(confirmationId)
+                if (result.status == com.nova.luna.confirmation.ConfirmationStatus.CONFIRMED) {
+                    val request = confirmationManager.getPendingConfirmation(confirmationId)
+                    if (request != null) {
+                        CommandResult.success("Action confirmed and proceeding.")
+                    } else {
+                        CommandResult.failure("Confirmation expired.")
+                    }
+                } else {
+                    CommandResult.failure(result.message)
+                }
+            }
+            com.nova.luna.confirmation.ConfirmationAction.CANCEL -> {
+                confirmationManager.cancel(confirmationId)
+                CommandResult.success("Action cancelled.")
+            }
+            com.nova.luna.confirmation.ConfirmationAction.UNKNOWN -> {
+                CommandResult.failure("I didn't understand your confirmation. Please say 'confirm' or 'cancel'.")
+            }
+        }
     }
 
     private fun shouldVerifyScreen(actionType: ActionType): Boolean {
@@ -438,6 +485,9 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             ActionType.OPEN_SETTINGS,
             ActionType.OPEN_ACCESSIBILITY_SETTINGS,
             ActionType.OPEN_USAGE_ACCESS_SETTINGS,
+            ActionType.OPEN_CAMERA,
+            ActionType.OPEN_YOUTUBE,
+            ActionType.BROWSER_SEARCH,
             ActionType.TAKE_SCREENSHOT,
             ActionType.BLOCKED,
             ActionType.CANCEL,

@@ -75,5 +75,6 @@ class CommandRouterSafetyTest {
         override fun handleShoppingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled")
         override fun hasActiveMusicSession(): Boolean = false
         override fun handleMusicText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled music")
+        override fun handleConfirmationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success("Handled confirmation")
     }
 }

@@ -53,9 +53,10 @@ class BrainServicePhase5Test {
     }
 
     @Test
-    fun `flutter module is not added by accident`() {
+    fun `flutter module is wired through include script only`() {
         val settingsGradle = locateProjectFile("settings.gradle", "settings.gradle.kts").readText()
-        org.junit.Assert.assertFalse(settingsGradle.contains("flutter_app"))
+        org.junit.Assert.assertTrue(settingsGradle.contains("flutter_app/.android/include_flutter.groovy"))
+        org.junit.Assert.assertFalse(settingsGradle.contains(":flutter_app"))
     }
 
     private fun locateProjectFile(vararg names: String): File {
@@ -122,5 +123,6 @@ class BrainServicePhase5Test {
         override fun handleShoppingText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success(message = "Handled")
         override fun hasActiveMusicSession(): Boolean = false
         override fun handleMusicText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success(message = "Handled music")
+        override fun handleConfirmationText(rawText: String, commandIntent: CommandIntent): CommandResult = CommandResult.success(message = "Handled confirmation")
     }
 }

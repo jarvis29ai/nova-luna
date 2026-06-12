@@ -29,8 +29,11 @@ class AndroidPhoneActionExecutor(
         return when (action.actionType) {
             BrainActionType.OPEN_APP -> openApp(action)
             BrainActionType.OPEN_CAMERA -> openCamera(action)
+            BrainActionType.SEARCH_YOUTUBE -> openYouTube(action)
             BrainActionType.OPEN_SETTINGS -> openSettings(action)
             BrainActionType.SEARCH_WEB -> searchWeb(action)
+            BrainActionType.MAKE_CALL_DRAFT -> openDialerDraft(action)
+            BrainActionType.SEND_MESSAGE_DRAFT -> openMessageDraft(action)
             BrainActionType.EXTERNAL_ACTION -> {
                 if (action.intent.lowercase(Locale.US).contains("search") || action.intent.lowercase(Locale.US).contains("web")) {
                     searchWeb(action)
@@ -106,6 +109,37 @@ class AndroidPhoneActionExecutor(
                 packageName = packageName,
                 reason = "Failed to start $appName: ${e.message}",
                 errorCode = "START_ACTIVITY_FAILED"
+            )
+        }
+    }
+
+    private fun openYouTube(action: BrainAction): PhoneActionResult {
+        val query = action.params["query"]
+        val intent = if (!query.isNullOrBlank()) {
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}"))
+        } else {
+            context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
+                ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/"))
+        }
+
+        return try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            logSuccess("OPEN_YOUTUBE", query)
+            PhoneActionResult(
+                actionName = "OPEN_YOUTUBE",
+                attempted = true,
+                success = true,
+                reason = if (!query.isNullOrBlank()) "Searching YouTube for '$query'." else "Opened YouTube."
+            )
+        } catch (e: Exception) {
+            logFailure("OPEN_YOUTUBE", "YOUTUBE_FAILED", query)
+            PhoneActionResult(
+                actionName = "OPEN_YOUTUBE",
+                attempted = true,
+                success = false,
+                reason = "Failed to open YouTube: ${e.message}",
+                errorCode = "YOUTUBE_FAILED"
             )
         }
     }
@@ -299,6 +333,67 @@ class AndroidPhoneActionExecutor(
             reason = reason,
             errorCode = if (!success) status.name else null
         )
+    }
+
+    private fun openMessageDraft(action: BrainAction): PhoneActionResult {
+        val contact = action.params["contact"] ?: ""
+        val body = action.params["body"] ?: ""
+        
+        val intent = Intent(Intent.ACTION_SENDTO).apply {
+            data = Uri.parse("smsto:${Uri.encode(contact)}")
+            if (body.isNotBlank()) {
+                putExtra("sms_body", body)
+            }
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        return try {
+            context.startActivity(intent)
+            logSuccess("OPEN_MESSAGE_DRAFT", contact)
+            PhoneActionResult(
+                actionName = "OPEN_MESSAGE_DRAFT",
+                attempted = true,
+                success = true,
+                reason = "Opened SMS draft for $contact."
+            )
+        } catch (e: Exception) {
+            logFailure("OPEN_MESSAGE_DRAFT", "SMS_DRAFT_FAILED", contact)
+            PhoneActionResult(
+                actionName = "OPEN_MESSAGE_DRAFT",
+                attempted = true,
+                success = false,
+                reason = "Failed to open message draft: ${e.message}",
+                errorCode = "SMS_DRAFT_FAILED"
+            )
+        }
+    }
+
+    private fun openDialerDraft(action: BrainAction): PhoneActionResult {
+        val contact = action.params["contact"] ?: ""
+        
+        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(contact)}")).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        return try {
+            context.startActivity(intent)
+            logSuccess("OPEN_DIALER_DRAFT", contact)
+            PhoneActionResult(
+                actionName = "OPEN_DIALER_DRAFT",
+                attempted = true,
+                success = true,
+                reason = "Opened dialer for $contact."
+            )
+        } catch (e: Exception) {
+            logFailure("OPEN_DIALER_DRAFT", "DIALER_DRAFT_FAILED", contact)
+            PhoneActionResult(
+                actionName = "OPEN_DIALER_DRAFT",
+                attempted = true,
+                success = false,
+                reason = "Failed to open dialer: ${e.message}",
+                errorCode = "DIALER_DRAFT_FAILED"
+            )
+        }
     }
 
     private fun unsupportedAction(action: BrainAction): PhoneActionResult {
