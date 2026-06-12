@@ -188,18 +188,30 @@ class BrainActionRuntime(
         memoryMetadata: Map<String, String>
     ): CommandResult {
         val phoneResult = phoneActionExecutor?.execute(brainAction)
+        val resolvedEntities = buildMap {
+            putAll(brainAction.params)
+            phoneResult?.packageName?.let { put("resolvedPackage", it) }
+            // Legacy/Test compatibility for app label
+            if (brainAction.actionType == BrainActionType.OPEN_APP) {
+                val label = phoneResult?.label 
+                    ?: brainAction.params["appName"] 
+                    ?: brainAction.params["package"]
+                label?.let { put("resolvedLabel", it) }
+            }
+        }
+        
         return CommandResult(
             success = phoneResult?.success ?: false,
             status = if (phoneResult?.success == true) ActionResultStatus.SUCCESS else ActionResultStatus.FAILED,
             message = phoneResult?.reason ?: "Phone action execution failed.",
             intentType = resultIntentType(brainAction),
             actionType = resultActionType(brainAction),
-            entities = brainAction.params,
+            entities = resolvedEntities,
             memorySessionType = sessionType,
             memoryMetadata = memoryMetadata + mapOf(
                 "phoneActionAttempted" to (phoneResult?.attempted?.toString() ?: "false"),
                 "phoneActionErrorCode" to (phoneResult?.errorCode ?: "")
-            ),
+            ) + (phoneResult?.packageName?.let { mapOf("resolvedPackage" to it) } ?: emptyMap()),
             safetyDecision = safetyDecision,
             phoneActionResult = phoneResult
         )

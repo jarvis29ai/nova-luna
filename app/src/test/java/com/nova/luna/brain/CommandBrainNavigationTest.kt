@@ -25,19 +25,13 @@ class CommandBrainNavigationTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         service = Mockito.mock(NovaAccessibilityService::class.java)
-        installServiceInstance(service)
+        NovaAccessibilityService.setTestInstance(service)
         brain = CommandBrain(context)
     }
 
     @After
     fun tearDown() {
-        installServiceInstance(null)
-    }
-
-    private fun installServiceInstance(instance: NovaAccessibilityService?) {
-        val field = NovaAccessibilityService::class.java.getDeclaredField("instance")
-        field.isAccessible = true
-        field.set(null, instance)
+        NovaAccessibilityService.setTestInstance(null)
     }
 
     @Test

@@ -25,17 +25,17 @@ class LiteCommandModel(
                 intent = "open_app",
                 reply = "Opening ${displayAppName(commandIntent)}.",
                 actionType = BrainActionType.OPEN_APP,
-                riskLevel = BrainRiskLevel.LOW,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
                 params = commandIntent.entities
             )
 
             ActionType.STOP_SERVICE -> brainAction(
                 request,
-                intent = "stop",
+                intent = "stop_service",
                 reply = "Stopping assistant.",
                 actionType = BrainActionType.SET_DEVICE_SETTING,
-                riskLevel = BrainRiskLevel.LOW,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
                 params = emptyMap()
             )
@@ -44,40 +44,40 @@ class LiteCommandModel(
                 request,
                 intent = "go_home",
                 reply = "Going home.",
-                actionType = BrainActionType.OPEN_APP,
-                riskLevel = BrainRiskLevel.LOW,
+                actionType = BrainActionType.NONE,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
-                params = emptyMap()
+                params = mapOf("command" to "go_home")
             )
 
             ActionType.GO_BACK -> brainAction(
                 request,
                 intent = "go_back",
                 reply = "Going back.",
-                actionType = BrainActionType.OPEN_APP,
-                riskLevel = BrainRiskLevel.LOW,
+                actionType = BrainActionType.NONE,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
-                params = emptyMap()
+                params = mapOf("command" to "go_back")
             )
 
             ActionType.OPEN_RECENTS -> brainAction(
                 request,
                 intent = "open_recents",
                 reply = "Opening recent apps.",
-                actionType = BrainActionType.OPEN_APP,
-                riskLevel = BrainRiskLevel.LOW,
+                actionType = BrainActionType.NONE,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
-                params = emptyMap()
+                params = mapOf("command" to "open_recents")
             )
 
             ActionType.OPEN_NOTIFICATIONS -> brainAction(
                 request,
                 intent = "open_notifications",
                 reply = "Opening notifications.",
-                actionType = BrainActionType.OPEN_APP,
-                riskLevel = BrainRiskLevel.LOW,
+                actionType = BrainActionType.NONE,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
-                params = emptyMap()
+                params = mapOf("command" to "open_notifications")
             )
 
             ActionType.READ_NOTIFICATIONS -> brainAction(
@@ -85,7 +85,7 @@ class LiteCommandModel(
                 intent = "read_notifications",
                 reply = "Reading notifications.",
                 actionType = BrainActionType.ASK_QUESTION,
-                riskLevel = BrainRiskLevel.LOW,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
                 params = emptyMap()
             )
@@ -95,7 +95,7 @@ class LiteCommandModel(
                 intent = "scroll_down",
                 reply = "Scrolling down.",
                 actionType = BrainActionType.SET_DEVICE_SETTING,
-                riskLevel = BrainRiskLevel.LOW,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
                 params = emptyMap()
             )
@@ -105,27 +105,27 @@ class LiteCommandModel(
                 intent = "scroll_up",
                 reply = "Scrolling up.",
                 actionType = BrainActionType.SET_DEVICE_SETTING,
-                riskLevel = BrainRiskLevel.LOW,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
                 params = emptyMap()
             )
 
             ActionType.CLICK_TEXT -> brainAction(
                 request,
-                intent = "click",
+                intent = "tap_text",
                 reply = "Clicking ${commandIntent.entities["text"]}.",
                 actionType = BrainActionType.SET_DEVICE_SETTING,
-                riskLevel = BrainRiskLevel.LOW,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
                 params = commandIntent.entities
             )
 
             ActionType.TYPE_TEXT -> brainAction(
                 request,
-                intent = "type",
+                intent = "type_text",
                 reply = "Typing text.",
                 actionType = BrainActionType.SET_DEVICE_SETTING,
-                riskLevel = BrainRiskLevel.LOW,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
                 params = commandIntent.entities
             )
@@ -135,7 +135,7 @@ class LiteCommandModel(
                 intent = "open_settings",
                 reply = "Opening settings.",
                 actionType = BrainActionType.OPEN_SETTINGS,
-                riskLevel = BrainRiskLevel.LOW,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
                 params = emptyMap()
             )
@@ -145,7 +145,7 @@ class LiteCommandModel(
                 intent = "open_accessibility_settings",
                 reply = "Opening accessibility settings.",
                 actionType = BrainActionType.OPEN_SETTINGS,
-                riskLevel = BrainRiskLevel.LOW,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
                 params = emptyMap()
             )
@@ -155,14 +155,14 @@ class LiteCommandModel(
                 intent = "open_usage_settings",
                 reply = "Opening usage access settings.",
                 actionType = BrainActionType.OPEN_SETTINGS,
-                riskLevel = BrainRiskLevel.LOW,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
                 params = emptyMap()
             )
 
             ActionType.CALL_CONTACT -> brainAction(
                 request,
-                intent = "call",
+                intent = "call_contact",
                 reply = "I can prepare a call, but I will stop before placing it.",
                 actionType = BrainActionType.MAKE_CALL_DRAFT,
                 riskLevel = BrainRiskLevel.MEDIUM,
@@ -182,10 +182,10 @@ class LiteCommandModel(
 
             ActionType.TAKE_SCREENSHOT -> brainAction(
                 request,
-                intent = "screenshot",
+                intent = "take_screenshot",
                 reply = "Taking screenshot.",
                 actionType = BrainActionType.SET_DEVICE_SETTING,
-                riskLevel = BrainRiskLevel.LOW,
+                riskLevel = BrainRiskLevel.SAFE,
                 requiresConfirmation = false,
                 params = emptyMap()
             )
@@ -232,6 +232,7 @@ class LiteCommandModel(
             rawCommand = request.rawText,
             normalizedCommand = AssistantTextNormalizer.normalize(request.rawText),
             intent = intent,
+            reply = reply,
             actionType = actionType,
             riskLevel = riskLevel,
             requiresConfirmation = requiresConfirmation,

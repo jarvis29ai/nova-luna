@@ -56,8 +56,14 @@ class ActionJsonModel(
         }
 
         if (!validator.isAcceptable(candidateAction)) {
-            return BrainModelResult.unavailable(
+            return BrainModelResult.available(
                 role = role,
+                candidateAction = candidateAction.copy(
+                    intent = "human_only",
+                    reply = "I encountered an issue while processing your request. Please try again or use manual control.",
+                    assistantReply = "I encountered an issue while processing your request. Please try again or use manual control."
+                ),
+                rawResponse = codec.encode(candidateAction),
                 reason = "ActionJsonModel produced a candidate rejected by BrainActionValidator.",
                 safetyNotes = routeDecision.safetyNotes + listOf(
                     "ActionJsonModel only emits safe BrainAction JSON.",
@@ -162,22 +168,26 @@ class ActionJsonModel(
             else -> "I can prepare the grocery flow locally and stop before checkout."
         }
 
+        val replyText = if (activeSession) {
+            "Continuing the grocery flow."
+        } else {
+            "I can prepare the grocery flow and keep the final step manual."
+        }
+        
         return BrainAction(
             schemaVersion = 1,
-            source = BrainActionSource.RULE_FALLBACK,
+            source = BrainActionSource.MODEL,
             rawCommand = request.rawText,
-            normalizedCommand = normalize(request.rawText),
+            normalizedCommand = AssistantTextNormalizer.normalize(request.rawText),
             intent = intent,
+            reply = replyText,
             actionType = BrainActionType.EXTERNAL_ACTION,
             riskLevel = BrainRiskLevel.LOW,
             requiresConfirmation = false,
+            finalActionAllowed = false,
             params = params,
             confidence = 0.9,
-            assistantReply = if (activeSession) {
-                "Continuing the grocery flow."
-            } else {
-                "I can prepare the grocery flow and keep the final step manual."
-            },
+            assistantReply = replyText,
             reason = nextQuestion ?: "Grocery planning action."
         )
     }
@@ -198,18 +208,21 @@ class ActionJsonModel(
             else -> "I will stop before checkout."
         }
 
+        val replyText = "I can prepare the food order and keep the final step manual."
         return BrainAction(
             source = BrainActionSource.RULE_FALLBACK,
             rawCommand = request.rawText,
             normalizedCommand = normalize(request.rawText),
             intent = "food_order",
-            actionType = BrainActionType.FOOD_SEARCH,
-            riskLevel = BrainRiskLevel.MEDIUM,
-            requiresConfirmation = true,
+            reply = replyText,
+            actionType = BrainActionType.EXTERNAL_ACTION,
+            riskLevel = BrainRiskLevel.LOW,
+            requiresConfirmation = false,
+            finalActionAllowed = false,
             params = params,
             confidence = 0.9,
-            assistantReply = "I can prepare the food order and keep the final step manual.",
-            reason = nextQuestion ?: "Food ordering action."
+            assistantReply = replyText,
+            reason = nextQuestion
         )
     }
 
@@ -228,17 +241,20 @@ class ActionJsonModel(
             cuisineHint?.let { put("foodHint", it) }
         }
 
+        val replyText = "I can help plan the food request and keep the final step manual."
         return BrainAction(
             source = BrainActionSource.RULE_FALLBACK,
             rawCommand = request.rawText,
             normalizedCommand = normalized,
             intent = "food_planning",
-            actionType = BrainActionType.FOOD_SEARCH,
-            riskLevel = BrainRiskLevel.MEDIUM,
-            requiresConfirmation = true,
+            reply = replyText,
+            actionType = BrainActionType.EXTERNAL_ACTION,
+            riskLevel = BrainRiskLevel.LOW,
+            requiresConfirmation = false,
+            finalActionAllowed = false,
             params = params,
             confidence = 0.8,
-            assistantReply = "I can help plan the food request and keep the final step manual.",
+            assistantReply = replyText,
             reason = "What food or restaurant details should I capture?"
         )
     }
@@ -267,7 +283,7 @@ class ActionJsonModel(
 
         val commandTypeLabel = parsed.commandType.name.lowercase(Locale.US)
         val outputTypeLabel = parsed.outputType.name.lowercase(Locale.US)
-        val reply = when (parsed.commandType) {
+        val replyText = when (parsed.commandType) {
             ContentCreationCommandType.CREATE_PPT -> "I can create a PPT and keep the final step manual."
             ContentCreationCommandType.CREATE_IMAGE -> "I can create an image and keep the final step manual."
             ContentCreationCommandType.CREATE_VIDEO -> "I can create a video draft and keep the final step manual."
@@ -328,44 +344,49 @@ class ActionJsonModel(
             rawCommand = request.rawText,
             normalizedCommand = normalize(request.rawText),
             intent = intent,
+            reply = replyText,
             actionType = BrainActionType.CREATE_CONTENT,
             riskLevel = if (requiresConfirmation) BrainRiskLevel.MEDIUM else BrainRiskLevel.LOW,
             requiresConfirmation = requiresConfirmation,
             params = params,
             confidence = 0.9,
-            assistantReply = reply,
+            assistantReply = replyText,
             reason = nextQuestion
         )
     }
 
     private fun taskPlanningAction(request: BrainRequest): BrainAction {
+        val replyText = "I can organize that task into a safe local plan."
         return BrainAction(
             source = BrainActionSource.RULE_FALLBACK,
             rawCommand = request.rawText,
             normalizedCommand = normalize(request.rawText),
             intent = "task_planning",
+            reply = replyText,
             actionType = BrainActionType.ASK_QUESTION,
             riskLevel = BrainRiskLevel.LOW,
             requiresConfirmation = false,
             params = mapOf("rawText" to request.rawText),
             confidence = 0.7,
-            assistantReply = "I can organize that task into a safe local plan.",
+            assistantReply = replyText,
             reason = "Task planning action."
         )
     }
 
     private fun generalPlanningAction(request: BrainRequest): BrainAction {
+        val replyText = "I can structure that request into a safe local plan."
         return BrainAction(
             source = BrainActionSource.RULE_FALLBACK,
             rawCommand = request.rawText,
             normalizedCommand = normalize(request.rawText),
             intent = "plan_request",
+            reply = replyText,
             actionType = BrainActionType.ASK_QUESTION,
             riskLevel = BrainRiskLevel.LOW,
             requiresConfirmation = false,
             params = mapOf("rawText" to request.rawText),
             confidence = 0.5,
-            assistantReply = "I can structure that request into a safe local plan.",
+            assistantReply = replyText,
             reason = "General planning action."
         )
     }

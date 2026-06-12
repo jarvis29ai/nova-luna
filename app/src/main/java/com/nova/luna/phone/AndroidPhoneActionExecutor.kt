@@ -59,7 +59,7 @@ class AndroidPhoneActionExecutor(
             reason = "App name not provided in parameters."
         )
 
-        val packageName = appResolver.resolvePackage(appName) ?: return PhoneActionResult(
+        val appInfo = appResolver.resolveAppInfo(appName) ?: return PhoneActionResult(
             actionName = "OPEN_APP",
             attempted = true,
             success = false,
@@ -67,6 +67,9 @@ class AndroidPhoneActionExecutor(
             reason = "App '$appName' not found or not installed.",
             errorCode = "APP_NOT_FOUND"
         )
+
+        val packageName = appInfo.packageName
+        val label = appInfo.label
 
         return try {
             val intent = context.packageManager.getLaunchIntentForPackage(packageName)
@@ -79,7 +82,8 @@ class AndroidPhoneActionExecutor(
                     attempted = true,
                     success = true,
                     packageName = packageName,
-                    reason = "Opened $appName."
+                    label = label,
+                    reason = "Opened $label."
                 )
             } else {
                 logFailure("OPEN_APP", "LAUNCH_INTENT_NOT_FOUND", packageName)
@@ -260,16 +264,26 @@ class AndroidPhoneActionExecutor(
             logFailure("NAVIGATION_$name", status.name)
         }
 
+        val reason = when (status) {
+            NavigationController.NavigationStatus.SUCCESS -> {
+                when (name) {
+                    "HOME" -> "Going home."
+                    "BACK" -> "Going back."
+                    "RECENTS" -> "Opening recent apps."
+                    "NOTIFICATIONS" -> "Opening notifications."
+                    else -> "Navigation $name successful."
+                }
+            }
+            NavigationController.NavigationStatus.ACCESSIBILITY_NOT_READY -> "Accessibility service is not ready, so I cannot press $name yet."
+            NavigationController.NavigationStatus.FAILED -> "Failed to perform navigation $name."
+            NavigationController.NavigationStatus.UNSUPPORTED -> "Navigation $name is not supported."
+        }
+
         return PhoneActionResult(
             actionName = "NAVIGATION_$name",
             attempted = status != NavigationController.NavigationStatus.ACCESSIBILITY_NOT_READY,
             success = success,
-            reason = when (status) {
-                NavigationController.NavigationStatus.SUCCESS -> "Navigation $name successful."
-                NavigationController.NavigationStatus.ACCESSIBILITY_NOT_READY -> "Accessibility service is not ready, so I cannot press $name yet."
-                NavigationController.NavigationStatus.FAILED -> "Failed to perform navigation $name."
-                NavigationController.NavigationStatus.UNSUPPORTED -> "Navigation $name is not supported."
-            },
+            reason = reason,
             errorCode = if (!success) status.name else null
         )
     }

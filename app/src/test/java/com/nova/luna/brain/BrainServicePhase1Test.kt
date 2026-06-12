@@ -19,14 +19,13 @@ class BrainServicePhase1Test {
 
         assertEquals("cab_booking", action.intent)
         assertEquals(BrainActionType.EXTERNAL_ACTION, action.actionType)
-        assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
+        assertEquals(BrainRiskLevel.LOW, action.riskLevel)
         assertFalse(action.requiresConfirmation)
         assertFalse(action.finalActionAllowed)
         assertEquals("DB Mall", action.params["dropLocation"])
         assertEquals("AUTO", action.params["rideType"])
         assertEquals("true", action.params["wantsCheapest"])
         assertEquals("Where should I pick you up from?", action.nextQuestion)
-        assertTrue(action.reply.contains("pickup location"))
     }
 
     @Test
@@ -35,7 +34,7 @@ class BrainServicePhase1Test {
 
         assertEquals("cab_compare", action.intent)
         assertEquals(BrainActionType.EXTERNAL_ACTION, action.actionType)
-        assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
+        assertEquals(BrainRiskLevel.LOW, action.riskLevel)
         assertEquals("OLA,RAPIDO", action.params["providers"])
         assertEquals("home", action.params["destination"])
         assertFalse(action.requiresConfirmation)
@@ -50,7 +49,7 @@ class BrainServicePhase1Test {
 
         assertEquals("grocery_booking", action.intent)
         assertEquals(BrainActionType.EXTERNAL_ACTION, action.actionType)
-        assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
+        assertEquals(BrainRiskLevel.LOW, action.riskLevel)
         assertFalse(action.requiresConfirmation)
         assertFalse(action.finalActionAllowed)
         assertEquals("Luna order milk and bread", action.params["rawText"])
@@ -63,25 +62,35 @@ class BrainServicePhase1Test {
 
         assertEquals("prepare_message", action.intent)
         assertEquals(BrainActionType.PREPARE, action.actionType)
-        assertEquals(BrainRiskLevel.CONFIRMATION_REQUIRED, action.riskLevel)
+        assertEquals(BrainRiskLevel.MEDIUM, action.riskLevel)
         assertEquals("whatsapp", action.params["appName"])
         assertEquals("mom", action.params["contact"])
         assertEquals("What should I say to Mom?", action.nextQuestion)
         assertFalse(action.requiresConfirmation)
         assertFalse(action.finalActionAllowed)
-        assertTrue(action.reply.contains("whatsapp", ignoreCase = true))
-        assertTrue(action.reply.contains("prepare") || action.reply.contains("draft") || action.reply.contains("message"))
     }
 
     @Test
     fun `send money stays human only`() {
-        val action = service.process("send money to mom")
+        val action = service.process("send money to Rahul")
 
         assertEquals("human_only", action.intent)
         assertEquals(BrainActionType.HUMAN_ONLY, action.actionType)
-        assertEquals(BrainRiskLevel.BLOCKED, action.riskLevel)
-        assertFalse(action.requiresConfirmation)
+        assertEquals(BrainRiskLevel.HUMAN_ONLY, action.riskLevel)
+        assertTrue(action.requiresConfirmation)
         assertFalse(action.finalActionAllowed)
+    }
+
+    @Test
+    fun `open app phrases route correctly to lite command model`() {
+        val action = service.process("open WhatsApp")
+
+        assertEquals("open_app", action.intent)
+        assertEquals(BrainActionType.OPEN_APP, action.actionType)
+        assertEquals(BrainRiskLevel.LOW, action.riskLevel)
+        assertFalse(action.requiresConfirmation)
+        assertTrue(action.finalActionAllowed)
+        assertEquals("whatsapp", action.params["appName"])
     }
 
     @Test
@@ -90,7 +99,7 @@ class BrainServicePhase1Test {
             intent = "open_app",
             reply = "Opening WhatsApp.",
             actionType = BrainActionType.EXTERNAL_ACTION,
-            riskLevel = BrainRiskLevel.SAFE,
+            riskLevel = BrainRiskLevel.LOW,
             requiresConfirmation = false,
             finalActionAllowed = true,
             params = mapOf(

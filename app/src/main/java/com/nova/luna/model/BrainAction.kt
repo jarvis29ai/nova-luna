@@ -16,8 +16,8 @@ data class BrainAction(
     val normalizedCommand: String = "",
     val confidence: Double = 1.0,
     val language: String = "unknown",
-    val assistantReply: String = reply,
-    val reason: String = nextQuestion ?: "",
+    val assistantReply: String = "",
+    val reason: String = "",
     val errors: List<String> = emptyList()
 ) {
     fun withPhase23Metadata(

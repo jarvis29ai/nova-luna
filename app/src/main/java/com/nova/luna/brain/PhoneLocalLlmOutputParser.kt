@@ -42,7 +42,8 @@ class PhoneLocalLlmOutputParser(
                 reason = "Model output did not decode into BrainAction JSON."
             )
 
-        if (candidateAction.intent.isBlank() || candidateAction.reply.isBlank()) {
+        val effectiveReply = candidateAction.reply.ifBlank { candidateAction.assistantReply }
+        if (candidateAction.intent.isBlank() || effectiveReply.isBlank()) {
             return failure(
                 rawOutput = output,
                 extractedJson = extractedJson,

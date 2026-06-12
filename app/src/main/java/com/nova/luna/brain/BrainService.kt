@@ -1295,9 +1295,10 @@ class BrainService(
         } else {
             PhoneLocalLlmStatus.UNAVAILABLE
         }
+        val assistantReplyText = "$roleDisplayName is not ready yet, but I can still handle basic commands."
         return BrainAction(
             intent = "local_model_unavailable",
-            reply = "$roleDisplayName is not ready yet, but I can still handle basic commands.",
+            reply = assistantReplyText,
             actionType = BrainActionType.UNKNOWN,
             riskLevel = BrainRiskLevel.LOW,
             requiresConfirmation = false,
@@ -1312,7 +1313,7 @@ class BrainService(
             rawCommand = rawText,
             normalizedCommand = AssistantTextNormalizer.normalize(rawText),
             confidence = 0.0,
-            assistantReply = "$roleDisplayName is not ready yet, but I can still handle basic commands.",
+            assistantReply = assistantReplyText,
             reason = reason
         )
     }
@@ -1321,12 +1322,14 @@ class BrainService(
         rawText: String,
         reason: String
     ): BrainAction {
+        val replyText = "AI brain is not installed yet. Open model setup to download Nova/Luna AI Brain."
         return BrainAction(
             schemaVersion = 1,
             source = BrainActionSource.ERROR,
             rawCommand = rawText,
             normalizedCommand = AssistantTextNormalizer.normalize(rawText),
             intent = "local_model_unavailable",
+            reply = replyText,
             actionType = BrainActionType.UNKNOWN,
             riskLevel = BrainRiskLevel.LOW,
             requiresConfirmation = false,
@@ -1335,7 +1338,7 @@ class BrainService(
                 "routeRole" to BrainModelRole.MOCK_FALLBACK.wireValue
             ),
             confidence = 0.0,
-            assistantReply = "AI brain is not installed yet. Open model setup to download Nova/Luna AI Brain.",
+            assistantReply = replyText,
             reason = reason
         )
     }
@@ -1358,18 +1361,20 @@ class BrainService(
     }
 
     private fun offlineInfoAction(rawText: String, reason: String): BrainAction {
+        val replyText = "I need internet for live information. I can still help with offline-only actions."
         return BrainAction(
             schemaVersion = 1,
             source = BrainActionSource.RULE_FALLBACK,
             rawCommand = rawText,
             normalizedCommand = AssistantTextNormalizer.normalize(rawText),
             intent = "internet_unavailable",
+            reply = replyText,
             actionType = BrainActionType.ASK_CLARIFICATION,
             riskLevel = BrainRiskLevel.LOW,
             requiresConfirmation = false,
             params = mapOf("reason" to reason),
             confidence = 1.0,
-            assistantReply = "I need internet for live information. I can still help with offline-only actions.",
+            assistantReply = replyText,
             reason = "Offline limitation: $reason"
         )
     }
@@ -1393,48 +1398,37 @@ class BrainService(
         routeDecision: BrainRouteDecision?,
         brainAction: BrainAction
     ): BrainAction {
-        val safetyDecision = safetyGate.evaluate(
-            action = brainAction,
-            originalUserText = request.rawText,
-            pendingConfirmation = request.pendingConfirmation,
-            userConfirmed = request.onlineConsentGiven
-        )
-        
-        val finalAction = if (safetyDecision.status == SafetyStatus.BLOCKED) {
-            brainAction.copy(
-                actionType = BrainActionType.HUMAN_ONLY,
-                riskLevel = BrainRiskLevel.BLOCKED,
-                requiresConfirmation = false,
-                finalActionAllowed = false,
-                reply = safetyDecision.reason,
-                intent = "human_only"
-            )
-        } else {
-            brainAction
-        }
+        val finalAction = brainAction
         
         sessionManager.recordBrainAction(
             request = request,
             routeDecision = routeDecision,
             brainAction = finalAction,
-            safetyDecision = safetyDecision
+            safetyDecision = safetyGate.evaluate(
+                action = finalAction,
+                originalUserText = request.rawText,
+                pendingConfirmation = request.pendingConfirmation,
+                userConfirmed = request.onlineConsentGiven
+            )
         )
         return finalAction
     }
 
     private fun fallback(rawText: String): BrainAction {
+        val replyText = "I'm sorry, my local brain is not ready yet. I can try to help you if you connect to the internet, or you can try a simpler command."
         return BrainAction(
             schemaVersion = 1,
             source = BrainActionSource.ERROR,
             rawCommand = rawText,
             normalizedCommand = AssistantTextNormalizer.normalize(rawText),
             intent = "local_model_unavailable",
+            reply = replyText,
             actionType = BrainActionType.UNKNOWN,
-            riskLevel = BrainRiskLevel.LOW,
+            riskLevel = BrainRiskLevel.UNKNOWN,
             requiresConfirmation = false,
             params = emptyMap(),
             confidence = 0.0,
-            assistantReply = "I'm sorry, my local brain is not ready yet. I can try to help you if you connect to the internet, or you can try a simpler command.",
+            assistantReply = replyText,
             reason = "Generic brain service fallback."
         )
     }

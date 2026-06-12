@@ -15,7 +15,7 @@ import com.nova.luna.screen.ScreenVerificationResult
 import com.nova.luna.util.AccessibilityNodeUtils
 import java.util.ArrayDeque
 
-class NovaAccessibilityService : AccessibilityService() {
+open class NovaAccessibilityService : AccessibilityService() {
     companion object {
         @Volatile
         var instance: NovaAccessibilityService? = null
@@ -132,25 +132,25 @@ class NovaAccessibilityService : AccessibilityService() {
         return screenStateVerifier.verify(before, after, commandIntent, commandResult)
     }
 
-    fun goHome(): Boolean {
+    open fun goHome(): Boolean {
         return performGlobalAction(GLOBAL_ACTION_HOME).also { success ->
             if (!success) Log.w(TAG, "goHome failed.")
         }
     }
 
-    fun goBack(): Boolean {
+    open fun goBack(): Boolean {
         return performGlobalAction(GLOBAL_ACTION_BACK).also { success ->
             if (!success) Log.w(TAG, "goBack failed.")
         }
     }
 
-    fun openRecents(): Boolean {
+    open fun openRecents(): Boolean {
         return performGlobalAction(GLOBAL_ACTION_RECENTS).also { success ->
             if (!success) Log.w(TAG, "openRecents failed.")
         }
     }
 
-    fun openNotifications(): Boolean {
+    open fun openNotifications(): Boolean {
         return performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS).also { success ->
             if (!success) Log.w(TAG, "openNotifications failed.")
         }

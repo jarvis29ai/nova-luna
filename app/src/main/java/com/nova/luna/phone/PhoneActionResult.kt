@@ -8,6 +8,7 @@ data class PhoneActionResult(
     val success: Boolean,
     val reason: String,
     val packageName: String? = null,
+    val label: String? = null,
     val safetyDecision: SafetyDecision? = null,
     val requiresUserAction: Boolean = false,
     val errorCode: String? = null

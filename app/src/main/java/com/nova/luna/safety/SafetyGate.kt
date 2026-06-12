@@ -17,7 +17,7 @@ class SafetyGate {
         "buy now", "purchase", "checkout payment", "bank transfer", 
         "wallet top up", "card payment", "net banking", "investment",
         "trade real money", "crypto buy", "crypto sell", "rupay", "checkout payment",
-        "complete payment" // Security compatibility
+        "complete payment"
     )
 
     // HARD BLOCKS: OTP / VERIFICATION
@@ -32,7 +32,7 @@ class SafetyGate {
         "login", "sign in", "enter password", "type password",
         "reset password", "change password", "biometric unlock",
         "unlock app", "enter pin", "enter passcode", "authenticate", "password",
-        "bypass login" // Security compatibility
+        "bypass login"
     )
 
     // HARD BLOCKS: CAPTCHA / BOT CHECK
@@ -48,7 +48,7 @@ class SafetyGate {
         "send resignation", "block contact", "report user",
         "cancel subscription without confirmation", "permanently delete",
         "format storage", "delete", "erase", "place final order",
-        "beer", "alcohol", "wine", "liquor", "spirits" // Food safety compatibility
+        "beer", "alcohol", "wine", "liquor", "spirits"
     )
 
     // HARD BLOCKS: PRIVACY-SENSITIVE
@@ -153,7 +153,7 @@ class SafetyGate {
         }
 
         // 3. HARD BLOCKS: Model explicitly flagged it as HUMAN_ONLY or HIGH risk
-        if (action.riskLevel == BrainRiskLevel.HUMAN_ONLY || action.riskLevel == BrainRiskLevel.HIGH || action.actionType == BrainActionType.HUMAN_ONLY) {
+        if (action.riskLevel == BrainRiskLevel.HUMAN_ONLY || action.riskLevel == BrainRiskLevel.HIGH || action.actionType == BrainActionType.HUMAN_ONLY || action.riskLevel == BrainRiskLevel.BLOCKED) {
             return SafetyDecision.humanOnly(
                 reason = "This action is flagged as high-risk or human-only. Please handle this manually.",
                 category = SafetyCategory.UNKNOWN_OR_UNSUPPORTED,
@@ -187,12 +187,13 @@ class SafetyGate {
                         rawCommandLower.contains("search") || rawCommandLower.contains("show")
         val isPlanning = rawCommandLower.contains("stop before payment") || 
                          rawCommandLower.contains("stop before finalize") ||
-                         rawCommandLower.contains("stop at final confirmation")
+                         rawCommandLower.contains("stop at final confirmation") ||
+                         !action.finalActionAllowed
         
         // Low-risk exceptions that would otherwise be confirmation-required or blocked
         if (isDraft || isCompare || isPlanning) {
              // If it's just a draft, comparison, or planning, allow it as safe low risk
-             if (action.actionType in setOf(BrainActionType.MAKE_CALL_DRAFT, BrainActionType.SEND_MESSAGE_DRAFT, BrainActionType.CAB_SEARCH, BrainActionType.FOOD_SEARCH, BrainActionType.GROCERY_SEARCH, BrainActionType.OPEN_APP)) {
+             if (action.actionType in setOf(BrainActionType.MAKE_CALL_DRAFT, BrainActionType.SEND_MESSAGE_DRAFT, BrainActionType.CAB_SEARCH, BrainActionType.FOOD_SEARCH, BrainActionType.GROCERY_SEARCH, BrainActionType.OPEN_APP, BrainActionType.EXTERNAL_ACTION, BrainActionType.PREPARE)) {
                  return SafetyDecision.allow(
                      reason = "Drafting, searching, and planning are safe low-risk actions.",
                      category = SafetyCategory.SAFE_LOW_RISK,
@@ -213,7 +214,9 @@ class SafetyGate {
         )
 
         val requiresConfirmationByKeyword = containsAny(searchableText, confirmationTerms)
-        val requiresConfirmationByModel = action.requiresConfirmation || action.riskLevel == BrainRiskLevel.MEDIUM
+        val requiresConfirmationByModel = action.requiresConfirmation || 
+                                          action.riskLevel == BrainRiskLevel.MEDIUM ||
+                                          action.riskLevel == BrainRiskLevel.CONFIRMATION_REQUIRED
 
         if (requiresConfirmationByActionType || requiresConfirmationByKeyword || requiresConfirmationByModel) {
             val category = mapConfirmationCategory(action, searchableText)
@@ -239,7 +242,8 @@ class SafetyGate {
         }
 
         // 7. ALLOWED: Low Risk
-        if (action.riskLevel == BrainRiskLevel.LOW && !action.requiresConfirmation) {
+        val isLowRisk = action.riskLevel == BrainRiskLevel.LOW || action.riskLevel == BrainRiskLevel.SAFE
+        if (isLowRisk && !action.requiresConfirmation) {
             return SafetyDecision.allow(
                 reason = "Action is safe to execute.",
                 category = SafetyCategory.SAFE_LOW_RISK,
@@ -248,9 +252,9 @@ class SafetyGate {
             )
         }
 
-        // Default Fallback: Block if unsure
-        return SafetyDecision.block(
-            reason = "Action blocked by default safety policy because it could not be verified as safe.",
+        // 8. UNKNOWN / AMBIGUOUS - Prefer confirmation over hard block
+        return SafetyDecision.requireConfirmation(
+            reason = "This action requires your confirmation for safety.",
             category = SafetyCategory.UNKNOWN_OR_UNSUPPORTED,
             originalActionType = originalActionType
         )

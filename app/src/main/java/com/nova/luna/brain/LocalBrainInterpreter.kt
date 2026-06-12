@@ -39,9 +39,10 @@ class LocalBrainInterpreter {
                 request.rawText,
                 intent = "cab_session",
                 reply = "Continuing the cab flow.",
-                type = BrainActionType.CAB_SEARCH,
-                risk = BrainRiskLevel.MEDIUM,
-                confirm = true
+                type = BrainActionType.EXTERNAL_ACTION,
+                risk = BrainRiskLevel.LOW,
+                confirm = false,
+                finalAllowed = false
             )
         }
 
@@ -50,9 +51,10 @@ class LocalBrainInterpreter {
                 request.rawText,
                 intent = "grocery_session",
                 reply = "Continuing the grocery flow.",
-                type = BrainActionType.GROCERY_SEARCH,
-                risk = BrainRiskLevel.MEDIUM,
-                confirm = true,
+                type = BrainActionType.EXTERNAL_ACTION,
+                risk = BrainRiskLevel.LOW,
+                confirm = false,
+                finalAllowed = false,
                 params = mapOf("activeGrocerySession" to "true")
             )
         }
@@ -62,9 +64,10 @@ class LocalBrainInterpreter {
                 request.rawText,
                 intent = "food_session",
                 reply = "Continuing the food flow.",
-                type = BrainActionType.FOOD_SEARCH,
-                risk = BrainRiskLevel.MEDIUM,
-                confirm = true,
+                type = BrainActionType.EXTERNAL_ACTION,
+                risk = BrainRiskLevel.LOW,
+                confirm = false,
+                finalAllowed = false,
                 params = mapOf("activeFoodSession" to "true")
             )
         }
@@ -173,9 +176,10 @@ class LocalBrainInterpreter {
             rawText = rawText,
             intent = "food_order",
             reply = reply,
-            type = BrainActionType.FOOD_SEARCH,
-            risk = BrainRiskLevel.MEDIUM,
-            confirm = true,
+            type = BrainActionType.EXTERNAL_ACTION,
+            risk = BrainRiskLevel.LOW,
+            confirm = false,
+            finalAllowed = false,
             params = params
         )
     }
@@ -186,7 +190,7 @@ class LocalBrainInterpreter {
             "send money", "payment", "pay now", "pay with", "complete payment",
             "banking", "bank transfer", "upi", "password", "otp", "one time password",
             "enter otp", "captcha", "solve captcha", "login", "sign in", "bypass login",
-            "place final order", "place order without", "delete", "erase", "remove account"
+            "place order without", "delete", "erase", "remove account"
         )
 
         if (Regex("""\bpay\b\s+\d+""").containsMatchIn(normalized) || blockedPatterns.any { containsPhrase(normalized, it) }) {
@@ -197,6 +201,7 @@ class LocalBrainInterpreter {
                 type = BrainActionType.HUMAN_ONLY,
                 risk = BrainRiskLevel.HUMAN_ONLY,
                 confirm = true,
+                finalAllowed = false,
                 params = mapOf("reason" to "sensitive_action")
             )
         }
@@ -234,13 +239,15 @@ class LocalBrainInterpreter {
             rawText = rawText,
             intent = "cab_compare",
             reply = reply,
-            type = BrainActionType.CAB_SEARCH,
-            risk = BrainRiskLevel.MEDIUM,
-            confirm = true,
+            type = BrainActionType.EXTERNAL_ACTION,
+            risk = BrainRiskLevel.LOW,
+            confirm = false,
+            finalAllowed = false,
             params = mapOf(
                 "destination" to (destination ?: ""),
                 "providers" to providers.joinToString(separator = ",") { it.name }
-            )
+            ),
+            nextQuestion = "Would you like me to book the cheapest one?"
         )
     }
 
@@ -262,15 +269,18 @@ class LocalBrainInterpreter {
             rawText = rawText,
             intent = "cab_booking",
             reply = reply,
-            type = BrainActionType.CAB_SEARCH,
-            risk = BrainRiskLevel.MEDIUM,
-            confirm = true,
+            type = BrainActionType.EXTERNAL_ACTION,
+            risk = BrainRiskLevel.LOW,
+            confirm = false,
+            finalAllowed = false,
             params = mapOf(
+                "dropLocation" to (parsed.dropText ?: ""),
                 "destination" to (parsed.dropText ?: ""),
                 "rideType" to rideType.name,
                 "pickupMode" to parsed.pickupMode.name,
                 "wantsCheapest" to parsed.wantsCheapest.toString()
-            )
+            ),
+            nextQuestion = "Where should I pick you up from?"
         )
     }
 
@@ -288,10 +298,14 @@ class LocalBrainInterpreter {
             rawText = rawText,
             intent = "grocery_booking",
             reply = reply,
-            type = BrainActionType.GROCERY_SEARCH,
-            risk = BrainRiskLevel.MEDIUM,
-            confirm = true,
-            params = mapOf("items" to items)
+            type = BrainActionType.EXTERNAL_ACTION,
+            risk = BrainRiskLevel.LOW,
+            confirm = false,
+            finalAllowed = false,
+            params = mapOf(
+                "items" to items,
+                "rawText" to rawText
+            )
         )
     }
 
@@ -328,13 +342,15 @@ class LocalBrainInterpreter {
             rawText = rawText,
             intent = "prepare_message",
             reply = reply,
-            type = BrainActionType.SEND_MESSAGE_DRAFT,
+            type = BrainActionType.PREPARE,
             risk = BrainRiskLevel.MEDIUM,
-            confirm = true,
+            confirm = false,
+            finalAllowed = false,
             params = buildMap {
                 appName?.let { put("appName", it.lowercase(Locale.US)) }
                 contact?.let { put("contact", it.lowercase(Locale.US)) }
-            }
+            },
+            nextQuestion = "What should I say to ${displayContact?.replaceFirstChar { it.titlecase(Locale.US) } ?: "them"}?"
         )
     }
 
@@ -358,11 +374,15 @@ class LocalBrainInterpreter {
             else -> "I'll handle that for you."
         }
 
-        val risk = if (intent.actionType == ActionType.BLOCKED) BrainRiskLevel.HUMAN_ONLY else BrainRiskLevel.LOW
+        val risk = when (intent.actionType) {
+            ActionType.BLOCKED -> BrainRiskLevel.HUMAN_ONLY
+            ActionType.UNKNOWN -> BrainRiskLevel.UNKNOWN
+            else -> BrainRiskLevel.LOW
+        }
 
         return brainAction(
             rawText = rawText,
-            intent = intent.intentType.name.lowercase(Locale.US),
+            intent = if (intent.actionType == ActionType.UNKNOWN) "unknown" else intent.intentType.name.lowercase(Locale.US),
             reply = reply,
             type = when (intent.actionType) {
                 ActionType.BLOCKED -> BrainActionType.HUMAN_ONLY
@@ -371,7 +391,7 @@ class LocalBrainInterpreter {
                 else -> BrainActionType.UNKNOWN
             },
             risk = risk,
-            confirm = risk != BrainRiskLevel.LOW,
+            confirm = risk == BrainRiskLevel.MEDIUM || risk == BrainRiskLevel.HUMAN_ONLY,
             params = intent.entities
         )
     }
@@ -394,20 +414,25 @@ class LocalBrainInterpreter {
         type: BrainActionType,
         risk: BrainRiskLevel,
         confirm: Boolean,
-        params: Map<String, String> = emptyMap()
+        params: Map<String, String> = emptyMap(),
+        nextQuestion: String? = null,
+        finalAllowed: Boolean = !confirm
     ): BrainAction {
         return BrainAction(
             source = BrainActionSource.RULE_FALLBACK,
             rawCommand = rawText,
             normalizedCommand = normalize(rawText),
             intent = intent,
+            reply = reply,
             actionType = type,
             riskLevel = risk,
             requiresConfirmation = confirm,
             params = params,
             confidence = 0.9,
             assistantReply = reply,
-            reason = "Local interpreter rule match."
+            reason = nextQuestion ?: "Local interpreter rule match.",
+            nextQuestion = nextQuestion,
+            finalActionAllowed = finalAllowed
         )
     }
 

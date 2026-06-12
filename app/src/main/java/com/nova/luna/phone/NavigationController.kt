@@ -12,14 +12,14 @@ class NavigationController {
         UNSUPPORTED
     }
 
-    fun goHome(): NavigationStatus = performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
-    fun goBack(): NavigationStatus = performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
-    fun openRecents(): NavigationStatus = performGlobalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
-    fun openNotifications(): NavigationStatus = performGlobalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)
+    fun goHome(): NavigationStatus = wrapServiceCall { it.goHome() }
+    fun goBack(): NavigationStatus = wrapServiceCall { it.goBack() }
+    fun openRecents(): NavigationStatus = wrapServiceCall { it.openRecents() }
+    fun openNotifications(): NavigationStatus = wrapServiceCall { it.openNotifications() }
 
-    private fun performGlobalAction(action: Int): NavigationStatus {
+    private fun wrapServiceCall(call: (NovaAccessibilityService) -> Boolean): NavigationStatus {
         val service = NovaAccessibilityService.instance ?: return NavigationStatus.ACCESSIBILITY_NOT_READY
-        return if (service.performGlobalAction(action)) {
+        return if (call(service)) {
             NavigationStatus.SUCCESS
         } else {
             NavigationStatus.FAILED

@@ -104,7 +104,7 @@ class CommandRouter(
 }
 
 fun BrainAction.toCommandIntent(): CommandIntent {
-    val rawText = params["rawText"] ?: ""
+    val rawText = params["rawText"] ?: this.rawCommand
     return CommandIntent(
         rawText = rawText,
         intentType = when (intent) {

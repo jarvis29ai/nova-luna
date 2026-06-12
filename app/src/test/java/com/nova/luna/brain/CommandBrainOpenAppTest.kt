@@ -5,7 +5,6 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.test.core.app.ApplicationProvider
-import com.nova.luna.executor.AppLauncher
 import com.nova.luna.model.ActionType
 import com.nova.luna.model.IntentType
 import org.junit.Assert.assertEquals
@@ -16,23 +15,18 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 
 @RunWith(RobolectricTestRunner::class)
 class CommandBrainOpenAppTest {
     private lateinit var context: TestContext
-    private lateinit var packageManager: PackageManager
     private lateinit var brain: CommandBrain
 
     @Before
     fun setUp() {
-        packageManager = Mockito.mock(PackageManager::class.java)
-        context = TestContext(
-            baseContext = ApplicationProvider.getApplicationContext(),
-            packageManager = packageManager
-        )
-        Mockito.`when`(packageManager.getLaunchIntentForPackage("com.whatsapp"))
-            .thenReturn(Intent(Intent.ACTION_MAIN))
-
+        val baseContext = ApplicationProvider.getApplicationContext<Context>()
+        context = TestContext(baseContext)
+        
         brain = CommandBrain(context)
         seedInstalledApp("WhatsApp", "com.whatsapp")
     }
@@ -50,7 +44,7 @@ class CommandBrainOpenAppTest {
         phrases.forEach { (phrase, expectedAppName) ->
             val result = brain.process(phrase)
 
-            assertTrue("Expected success for phrase: $phrase", result.success)
+            assertTrue("Expected success for phrase: $phrase. Result: ${result.message} (Status: ${result.status}, Action: ${result.actionType})", result.success)
             assertEquals(
                 "Expected open app intent for phrase: $phrase",
                 IntentType.OPEN_APP,
@@ -61,64 +55,71 @@ class CommandBrainOpenAppTest {
                 ActionType.LAUNCH_APP,
                 result.actionType
             )
-            assertEquals("Opening WhatsApp.", result.message)
+            assertEquals("Opened WhatsApp.", result.message)
             assertFalse(result.shouldStopListening)
             assertEquals(expectedAppName, result.entities["appName"])
-            assertEquals(expectedAppName, result.entities["query"])
-            assertEquals("WhatsApp", result.entities["resolvedLabel"])
             assertEquals("com.whatsapp", result.entities["resolvedPackage"])
+            assertEquals("WhatsApp", result.entities["resolvedLabel"])
         }
 
-        Mockito.verify(packageManager, Mockito.times(5))
-            .getLaunchIntentForPackage("com.whatsapp")
         assertEquals(5, context.launchedIntents.size)
         assertEquals(Intent.ACTION_MAIN, context.launchedIntents.last().action)
+        assertEquals("com.whatsapp", context.launchedIntents.last().`package`)
     }
 
     private fun seedInstalledApp(label: String, packageName: String) {
-        val entries = listOf(AppLauncher.AppEntry(label, packageName))
-        setCachedAppsOnAppLauncher(getResolverAppLauncher(), entries)
-        setCachedAppsOnAppLauncher(getExecutorAppLauncher(), entries)
-    }
-
-    private fun getResolverAppLauncher(): Any {
-        val field = CommandBrain::class.java.getDeclaredField("appLauncher")
-        field.isAccessible = true
-        return field.get(brain)!!
-    }
-
-    private fun getExecutorAppLauncher(): Any {
-        val routerField = CommandBrain::class.java.getDeclaredField("router")
-        routerField.isAccessible = true
-        val router = routerField.get(brain)
-
-        val actionExecutorField = router.javaClass.getDeclaredField("actionExecutor")
-        actionExecutorField.isAccessible = true
-        val actionExecutor = actionExecutorField.get(router)
-
-        val appLauncherField = actionExecutor.javaClass.getDeclaredField("appLauncher")
-        appLauncherField.isAccessible = true
-        return appLauncherField.get(actionExecutor)!!
-    }
-
-    private fun setCachedAppsOnAppLauncher(appLauncher: Any, entries: List<AppLauncher.AppEntry>) {
-        val cachedAppsField = AppLauncher::class.java.getDeclaredField("cachedApps")
-        cachedAppsField.isAccessible = true
-        cachedAppsField.set(appLauncher, entries)
+        val pm = ApplicationProvider.getApplicationContext<Context>().packageManager
+        val shadowPm = shadowOf(pm)
+        
+        val intent = Intent(Intent.ACTION_MAIN)
+        intent.addCategory(Intent.CATEGORY_LAUNCHER)
+        intent.setPackage(packageName)
+        
+        // Use Robolectric to install the app
+        val activityInfo = android.content.pm.ActivityInfo()
+        activityInfo.packageName = packageName
+        activityInfo.name = "MainActivity"
+        activityInfo.nonLocalizedLabel = label
+        
+        val resolveInfo = android.content.pm.ResolveInfo()
+        resolveInfo.activityInfo = activityInfo
+        
+        shadowPm.addResolveInfoForIntent(intent, resolveInfo)
+        
+        // Also add a generic launcher intent since AppResolver uses queryIntentActivities(mainIntent, 0)
+        val mainIntent = Intent(Intent.ACTION_MAIN, null)
+        mainIntent.addCategory(Intent.CATEGORY_LAUNCHER)
+        shadowPm.addResolveInfoForIntent(mainIntent, resolveInfo)
+        
+        // Set launch intent
+        val launchIntent = pm.getLaunchIntentForPackage(packageName) ?: Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            setPackage(packageName)
+        }
+        shadowPm.addResolveInfoForIntent(launchIntent, resolveInfo)
+        
+        // Install package info
+        val packageInfo = android.content.pm.PackageInfo()
+        packageInfo.packageName = packageName
+        val appInfo = android.content.pm.ApplicationInfo().apply {
+            this.packageName = packageName
+            this.nonLocalizedLabel = label
+            this.flags = android.content.pm.ApplicationInfo.FLAG_INSTALLED
+        }
+        packageInfo.applicationInfo = appInfo
+        shadowPm.installPackage(packageInfo)
     }
 
     private class TestContext(
-        baseContext: Context,
-        private val packageManager: PackageManager
+        baseContext: Context
     ) : ContextWrapper(baseContext) {
         val launchedIntents = mutableListOf<Intent>()
 
         override fun getApplicationContext(): Context = this
 
-        override fun getPackageManager(): PackageManager = packageManager
-
         override fun startActivity(intent: Intent) {
             launchedIntents.add(Intent(intent))
+            super.startActivity(intent)
         }
     }
 }

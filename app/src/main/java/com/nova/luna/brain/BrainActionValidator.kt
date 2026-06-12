@@ -71,7 +71,8 @@ class BrainActionValidator {
     )
 
     fun isAcceptable(action: BrainAction): Boolean {
-        if (action.intent.isBlank() || action.reply.isBlank()) {
+        val effectiveReply = action.reply.ifBlank { action.assistantReply }
+        if (action.intent.isBlank() || effectiveReply.isBlank()) {
             return false
         }
 
@@ -79,11 +80,16 @@ class BrainActionValidator {
             return false
         }
 
-        if (action.actionType == BrainActionType.HUMAN_ONLY || action.riskLevel == BrainRiskLevel.BLOCKED) {
-            return !action.finalActionAllowed
+        // Phase 25/Fix: Planning/Drafting is always acceptable as it stops before execution
+        if (!action.finalActionAllowed) {
+            return true
         }
 
-        if (action.finalActionAllowed && isDangerousFinalAction(action)) {
+        if (action.actionType == BrainActionType.HUMAN_ONLY || action.riskLevel == BrainRiskLevel.BLOCKED) {
+            return false
+        }
+
+        if (isDangerousFinalAction(action)) {
             return false
         }
 
@@ -111,6 +117,8 @@ class BrainActionValidator {
             append(action.intent)
             append(' ')
             append(action.reply)
+            append(' ')
+            append(action.assistantReply)
             append(' ')
             append(action.nextQuestion.orEmpty())
             action.params.forEach { (key, value) ->
