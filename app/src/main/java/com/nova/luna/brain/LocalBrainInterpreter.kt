@@ -40,7 +40,7 @@ class LocalBrainInterpreter {
                 intent = "cab_session",
                 reply = "Continuing the cab flow.",
                 type = BrainActionType.EXTERNAL_ACTION,
-                risk = BrainRiskLevel.LOW,
+                risk = BrainRiskLevel.SAFE,
                 confirm = false,
                 finalAllowed = false
             )
@@ -52,7 +52,7 @@ class LocalBrainInterpreter {
                 intent = "grocery_session",
                 reply = "Continuing the grocery flow.",
                 type = BrainActionType.EXTERNAL_ACTION,
-                risk = BrainRiskLevel.LOW,
+                risk = BrainRiskLevel.SAFE,
                 confirm = false,
                 finalAllowed = false,
                 params = mapOf("activeGrocerySession" to "true")
@@ -65,7 +65,7 @@ class LocalBrainInterpreter {
                 intent = "food_session",
                 reply = "Continuing the food flow.",
                 type = BrainActionType.EXTERNAL_ACTION,
-                risk = BrainRiskLevel.LOW,
+                risk = BrainRiskLevel.SAFE,
                 confirm = false,
                 finalAllowed = false,
                 params = mapOf("activeFoodSession" to "true")
@@ -177,7 +177,7 @@ class LocalBrainInterpreter {
             intent = "food_order",
             reply = reply,
             type = BrainActionType.EXTERNAL_ACTION,
-            risk = BrainRiskLevel.LOW,
+            risk = BrainRiskLevel.SAFE,
             confirm = false,
             finalAllowed = false,
             params = params
@@ -190,7 +190,7 @@ class LocalBrainInterpreter {
             "send money", "payment", "pay now", "pay with", "complete payment",
             "banking", "bank transfer", "upi", "password", "otp", "one time password",
             "enter otp", "captcha", "solve captcha", "login", "sign in", "bypass login",
-            "place order without", "delete", "erase", "remove account"
+            "place final order", "place order without", "delete", "erase", "remove account"
         )
 
         if (Regex("""\bpay\b\s+\d+""").containsMatchIn(normalized) || blockedPatterns.any { containsPhrase(normalized, it) }) {
@@ -240,7 +240,7 @@ class LocalBrainInterpreter {
             intent = "cab_compare",
             reply = reply,
             type = BrainActionType.EXTERNAL_ACTION,
-            risk = BrainRiskLevel.LOW,
+            risk = BrainRiskLevel.SAFE,
             confirm = false,
             finalAllowed = false,
             params = mapOf(
@@ -270,7 +270,7 @@ class LocalBrainInterpreter {
             intent = "cab_booking",
             reply = reply,
             type = BrainActionType.EXTERNAL_ACTION,
-            risk = BrainRiskLevel.LOW,
+            risk = BrainRiskLevel.SAFE,
             confirm = false,
             finalAllowed = false,
             params = mapOf(
@@ -299,7 +299,7 @@ class LocalBrainInterpreter {
             intent = "grocery_booking",
             reply = reply,
             type = BrainActionType.EXTERNAL_ACTION,
-            risk = BrainRiskLevel.LOW,
+            risk = BrainRiskLevel.SAFE,
             confirm = false,
             finalAllowed = false,
             params = mapOf(
@@ -342,8 +342,8 @@ class LocalBrainInterpreter {
             rawText = rawText,
             intent = "prepare_message",
             reply = reply,
-            type = BrainActionType.PREPARE,
-            risk = BrainRiskLevel.MEDIUM,
+            type = BrainActionType.SEND_MESSAGE_DRAFT,
+            risk = BrainRiskLevel.CONFIRMATION_REQUIRED,
             confirm = false,
             finalAllowed = false,
             params = buildMap {
@@ -377,7 +377,7 @@ class LocalBrainInterpreter {
         val risk = when (intent.actionType) {
             ActionType.BLOCKED -> BrainRiskLevel.HUMAN_ONLY
             ActionType.UNKNOWN -> BrainRiskLevel.UNKNOWN
-            else -> BrainRiskLevel.LOW
+            else -> BrainRiskLevel.SAFE
         }
 
         return brainAction(
@@ -391,7 +391,7 @@ class LocalBrainInterpreter {
                 else -> BrainActionType.UNKNOWN
             },
             risk = risk,
-            confirm = risk == BrainRiskLevel.MEDIUM || risk == BrainRiskLevel.HUMAN_ONLY,
+            confirm = risk == BrainRiskLevel.MEDIUM || risk == BrainRiskLevel.HUMAN_ONLY || risk == BrainRiskLevel.CONFIRMATION_REQUIRED,
             params = intent.entities
         )
     }

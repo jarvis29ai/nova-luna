@@ -108,9 +108,9 @@ fun BrainAction.toCommandIntent(): CommandIntent {
     return CommandIntent(
         rawText = rawText,
         intentType = when (intent) {
-            "cab_booking", "cab_compare", "cab_session" -> IntentType.CAB_BOOKING
-            "food_order" -> IntentType.FOOD_ORDER
-            "grocery_booking", "grocery_compare", "grocery_session" -> IntentType.GROCERY_BOOKING
+            "cab_booking", "cab_compare", "cab_session", "cab_fare_check" -> IntentType.CAB_BOOKING
+            "food_order", "food_search" -> IntentType.FOOD_ORDER
+            "grocery_booking", "grocery_compare", "grocery_session", "grocery_search" -> IntentType.GROCERY_BOOKING
             "open_app" -> IntentType.OPEN_APP
             "go_home", "go_back", "open_recents", "open_notifications", "scroll_forward", "scroll_backward", "scroll_up", "scroll_down" -> IntentType.NAVIGATION
             "tap_text", "tap_description", "tap_node" -> IntentType.INTERACTION
@@ -118,30 +118,30 @@ fun BrainAction.toCommandIntent(): CommandIntent {
             "read_screen", "wait_for_text", "wait_for_app" -> IntentType.INTERACTION
             "read_notifications" -> IntentType.READ_NOTIFICATIONS
             "open_settings", "open_accessibility_settings", "open_usage_access_settings", "call_contact", "take_screenshot" -> IntentType.SENSITIVE
-            "stop_service" -> IntentType.CONTROL
+            "stop_service", "control_stop" -> IntentType.CONTROL
             "human_only" -> IntentType.BLOCKED
-            "prepare_message" -> IntentType.COMMUNICATION
-            "content_creation" -> IntentType.CONTENT_CREATION
+            "prepare_message", "draft_message" -> IntentType.COMMUNICATION
+            "content_creation", "create_content" -> IntentType.CONTENT_CREATION
             "shopping", "shopping_booking", "shopping_compare", "shopping_session" -> IntentType.SHOPPING
             "media_control" -> IntentType.MEDIA_CONTROL
-            "music", "music_play", "music_control", "music_session" -> IntentType.CONTROL
+            "music", "music_play", "music_control", "music_session", "play_music" -> IntentType.CONTROL
             else -> IntentType.UNKNOWN
         },
         actionType = when (intent) {
-            "cab_booking", "cab_compare", "cab_session" -> ActionType.CAB_BOOKING
-            "food_order" -> ActionType.FOOD_ORDER
-            "grocery_booking", "grocery_compare", "grocery_session" -> ActionType.GROCERY_BOOKING
+            "cab_booking", "cab_compare", "cab_session", "cab_fare_check" -> ActionType.CAB_BOOKING
+            "food_order", "food_search" -> ActionType.FOOD_ORDER
+            "grocery_booking", "grocery_compare", "grocery_session", "grocery_search" -> ActionType.GROCERY_BOOKING
             "open_app" -> ActionType.LAUNCH_APP
             "go_home" -> ActionType.GO_HOME
             "go_back" -> ActionType.GO_BACK
             "open_recents" -> ActionType.OPEN_RECENTS
             "open_notifications" -> ActionType.OPEN_NOTIFICATIONS
-            "scroll_forward", "scroll_down" -> ActionType.SCROLL_DOWN
-            "scroll_backward", "scroll_up" -> ActionType.SCROLL_UP
-            "tap_text" -> ActionType.TAP_TEXT
+            "scroll_forward", "scroll_down" -> ActionType.SCROLL_FORWARD
+            "scroll_backward", "scroll_up" -> ActionType.SCROLL_BACKWARD
+            "tap_text", "click" -> ActionType.CLICK_TEXT
             "tap_description" -> ActionType.TAP_DESCRIPTION
             "tap_node" -> ActionType.TAP_NODE
-            "type_text" -> ActionType.TYPE_TEXT
+            "type_text", "type" -> ActionType.TYPE_TEXT
             "read_screen" -> ActionType.READ_SCREEN
             "wait_for_text" -> ActionType.WAIT_FOR_TEXT
             "wait_for_app" -> ActionType.WAIT_FOR_APP
@@ -151,13 +151,13 @@ fun BrainAction.toCommandIntent(): CommandIntent {
             "open_usage_access_settings" -> ActionType.OPEN_USAGE_ACCESS_SETTINGS
             "call_contact" -> ActionType.CALL_CONTACT
             "take_screenshot" -> ActionType.TAKE_SCREENSHOT
-            "stop_service" -> ActionType.STOP_SERVICE
+            "stop_service", "control_stop" -> ActionType.STOP_SERVICE
             "human_only" -> ActionType.BLOCKED
-            "prepare_message" -> ActionType.COMMUNICATION
-            "content_creation" -> ActionType.CONTENT_CREATION
+            "prepare_message", "draft_message" -> ActionType.COMMUNICATION
+            "content_creation", "create_content" -> ActionType.CONTENT_CREATION
             "shopping", "shopping_booking", "shopping_compare", "shopping_session" -> ActionType.SHOPPING
             "media_control" -> ActionType.MEDIA_CONTROL
-            "music", "music_play", "music_control", "music_session" -> ActionType.MUSIC
+            "music", "music_play", "music_control", "music_session", "play_music" -> ActionType.MUSIC
             else -> ActionType.UNKNOWN
         },
         entities = params

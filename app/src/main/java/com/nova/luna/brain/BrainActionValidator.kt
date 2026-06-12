@@ -80,6 +80,14 @@ class BrainActionValidator {
             return false
         }
 
+        if (action.actionType == BrainActionType.ASK_CLARIFICATION) {
+            return true
+        }
+
+        if (action.actionType == BrainActionType.UNKNOWN || action.riskLevel == BrainRiskLevel.UNKNOWN) {
+            return false
+        }
+
         // Phase 25/Fix: Planning/Drafting is always acceptable as it stops before execution
         if (!action.finalActionAllowed) {
             return true

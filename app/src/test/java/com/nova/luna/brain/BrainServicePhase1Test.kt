@@ -19,7 +19,7 @@ class BrainServicePhase1Test {
 
         assertEquals("cab_booking", action.intent)
         assertEquals(BrainActionType.EXTERNAL_ACTION, action.actionType)
-        assertEquals(BrainRiskLevel.LOW, action.riskLevel)
+        assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
         assertFalse(action.requiresConfirmation)
         assertFalse(action.finalActionAllowed)
         assertEquals("DB Mall", action.params["dropLocation"])
@@ -34,7 +34,7 @@ class BrainServicePhase1Test {
 
         assertEquals("cab_compare", action.intent)
         assertEquals(BrainActionType.EXTERNAL_ACTION, action.actionType)
-        assertEquals(BrainRiskLevel.LOW, action.riskLevel)
+        assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
         assertEquals("OLA,RAPIDO", action.params["providers"])
         assertEquals("home", action.params["destination"])
         assertFalse(action.requiresConfirmation)
@@ -61,8 +61,8 @@ class BrainServicePhase1Test {
         val action = service.process("open WhatsApp and prepare message to mom")
 
         assertEquals("prepare_message", action.intent)
-        assertEquals(BrainActionType.PREPARE, action.actionType)
-        assertEquals(BrainRiskLevel.MEDIUM, action.riskLevel)
+        assertEquals(BrainActionType.SEND_MESSAGE_DRAFT, action.actionType)
+        assertEquals(BrainRiskLevel.CONFIRMATION_REQUIRED, action.riskLevel)
         assertEquals("whatsapp", action.params["appName"])
         assertEquals("mom", action.params["contact"])
         assertEquals("What should I say to Mom?", action.nextQuestion)
@@ -99,7 +99,7 @@ class BrainServicePhase1Test {
             intent = "open_app",
             reply = "Opening WhatsApp.",
             actionType = BrainActionType.EXTERNAL_ACTION,
-            riskLevel = BrainRiskLevel.LOW,
+            riskLevel = BrainRiskLevel.SAFE,
             requiresConfirmation = false,
             finalActionAllowed = true,
             params = mapOf(

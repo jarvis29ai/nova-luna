@@ -269,13 +269,58 @@ class CommandBrain(
             currentParsed = routeResult.commandIntent!!
         }
 
+        // 5. Safe continuation routes that do not execute phone actions yet
+        if (followUpResolution?.isSessionContinuation == true) {
+            routeFollowUp(rawText, currentParsed, followUpResolution)?.let {
+                return finish(it, sessionTypeHint = followUpResolution.sessionType)
+            }
+        }
+
+        if (activeSessionType != null && (currentParsed.intentType == IntentType.UNKNOWN || isBarePlaybackCommand(rawText))) {
+            when (activeSessionType) {
+                BrainSessionType.CAB -> return finish(router.routeCabConversation(rawText, currentParsed))
+                BrainSessionType.FOOD -> return finish(router.routeFoodConversation(rawText, currentParsed))
+                BrainSessionType.GROCERY -> return finish(router.routeGroceryConversation(rawText, currentParsed))
+                BrainSessionType.MUSIC -> return finish(router.routeMusicConversation(rawText, currentParsed))
+                BrainSessionType.MEDIA -> return finish(router.routeMediaConversation(rawText, currentParsed))
+                else -> {}
+            }
+        }
+
+        if (routeResult.status == RouteStatus.ROUTED &&
+            routeResult.routeDecision.selectedDomain == UnifiedDomain.FOOD &&
+            currentParsed.actionType == ActionType.FOOD_ORDER &&
+            !rawText.contains("now", ignoreCase = true) &&
+            !rawText.contains("final", ignoreCase = true) &&
+            !rawText.contains("checkout", ignoreCase = true) &&
+            !rawText.contains("pay", ignoreCase = true)
+        ) {
+            return finish(router.routeFoodConversation(rawText, currentParsed).copy(domain = UnifiedDomain.FOOD), BrainSessionType.FOOD)
+        }
+
         // 5. Mandatory Safety Check (Phase 6 stabilization)
         val safetyDecision = safetyGate.evaluate(intent = currentParsed)
         if (safetyDecision.status == SafetyStatus.BLOCKED) {
-            return finish(CommandResult.blocked(safetyDecision.reason))
+            return finish(
+                CommandResult.blocked(
+                    safetyDecision.reason,
+                    intentType = currentParsed.intentType,
+                    actionType = currentParsed.actionType,
+                    entities = currentParsed.entities,
+                    safetyDecision = safetyDecision
+                )
+            )
         }
         if (safetyDecision.status == SafetyStatus.CONFIRMATION_REQUIRED) {
-            return finish(CommandResult.confirmationRequired(safetyDecision.reason))
+            return finish(
+                CommandResult.confirmationRequired(
+                    safetyDecision.reason,
+                    intentType = currentParsed.intentType,
+                    actionType = currentParsed.actionType,
+                    entities = currentParsed.entities,
+                    safetyDecision = safetyDecision
+                )
+            )
         }
 
         // 6. Handle Stop/Cancel
@@ -290,13 +335,6 @@ class CommandBrain(
             )
         }
 
-        // 7. Follow Up / active session
-        if (followUpResolution?.isSessionContinuation == true) {
-            routeFollowUp(rawText, currentParsed, followUpResolution)?.let {
-                return finish(it, sessionTypeHint = followUpResolution.sessionType)
-            }
-        }
-
         // 8. Domain Specific Conversations
         if (routeResult.status == RouteStatus.ROUTED) {
             val domain = routeResult.routeDecision.selectedDomain
@@ -309,17 +347,6 @@ class CommandBrain(
                 UnifiedDomain.CONTENT -> return finish(router.routeContentCreationConversation(rawText, currentParsed).copy(domain = domain), BrainSessionType.CONTENT)
                 else -> {}
             }
-        }
-
-        if (activeSessionType != null && (currentParsed.intentType == IntentType.UNKNOWN || isBarePlaybackCommand(rawText))) {
-             when (activeSessionType) {
-                 BrainSessionType.CAB -> return finish(router.routeCabConversation(rawText, currentParsed))
-                 BrainSessionType.FOOD -> return finish(router.routeFoodConversation(rawText, currentParsed))
-                 BrainSessionType.GROCERY -> return finish(router.routeGroceryConversation(rawText, currentParsed))
-                 BrainSessionType.MUSIC -> return finish(router.routeMusicConversation(rawText, currentParsed))
-                 BrainSessionType.MEDIA -> return finish(router.routeMediaConversation(rawText, currentParsed))
-                 else -> {}
-             }
         }
 
         // 9. Agent Loop & Brain Service
@@ -338,7 +365,7 @@ class CommandBrain(
             return finish(loopResult.finalCommandResult, loopResult.state.domainSessionType ?: activeSessionType)
         }
 
-        if (shouldUseBrainService(currentParsed, rawText)) {
+        if (routeResult.status != RouteStatus.ROUTED && shouldUseBrainService(currentParsed, rawText)) {
             val brainAction = brainService.process(
                 rawText = rawText,
                 activeCabSession = router.hasActiveCabBookingSession(),
@@ -405,39 +432,7 @@ class CommandBrain(
                 isOnlineHelperHeuristic(rawText)
         }
 
-        return when {
-            parsed.actionType == ActionType.MUSIC ||
-                parsed.intentType == IntentType.MEDIA_CONTROL ||
-                parsed.intentType == IntentType.SHOPPING -> false
-
-            parsed.intentType == IntentType.COMMUNICATION ->
-                isCommunicationDraftingCommand(parsed.normalizedText)
-
-            parsed.intentType == IntentType.CONTENT_CREATION -> true
-
-            parsed.intentType == IntentType.CAB_BOOKING ||
-                parsed.intentType == IntentType.FOOD_ORDER ||
-                parsed.intentType == IntentType.GROCERY_BOOKING -> true
-
-            parsed.intentType == IntentType.OPEN_APP ||
-                parsed.intentType == IntentType.NAVIGATION ||
-                parsed.intentType == IntentType.INTERACTION ||
-                parsed.intentType == IntentType.TEXT_ENTRY ||
-                parsed.intentType == IntentType.READ_NOTIFICATIONS -> true
-
-            parsed.intentType == IntentType.SENSITIVE ->
-                parsed.actionType == ActionType.CALL_CONTACT ||
-                    parsed.actionType == ActionType.TAKE_SCREENSHOT ||
-                    parsed.actionType == ActionType.OPEN_SETTINGS ||
-                    parsed.actionType == ActionType.OPEN_ACCESSIBILITY_SETTINGS ||
-                    parsed.actionType == ActionType.OPEN_USAGE_ACCESS_SETTINGS
-
-            parsed.intentType == IntentType.CONTROL ->
-                parsed.actionType != ActionType.MUSIC &&
-                    parsed.actionType != ActionType.STOP_SERVICE
-
-            else -> false
-        }
+        return false
     }
 
     private fun shouldUseAgentLoop(
@@ -447,6 +442,10 @@ class CommandBrain(
         pendingConfirmation: PendingConfirmation?,
         memorySnapshot: com.nova.luna.memory.BrainMemorySnapshot
     ): Boolean {
+        if (parsed.actionType == ActionType.OPEN_USAGE_ACCESS_SETTINGS) {
+            return false
+        }
+
         val taskPlan = brainService.buildTaskPlan(
             rawText = rawText,
             commandIntent = parsed,

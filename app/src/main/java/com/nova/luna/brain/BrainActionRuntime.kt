@@ -95,22 +95,32 @@ class BrainActionRuntime(
         // ONLY IF ALLOWED
         return when (brainAction.actionType) {
             BrainActionType.EXTERNAL_ACTION -> {
-                val routedResult = commandRouter.route(brainAction)
-                routedResult.copy(
-                    safetyDecision = safetyDecision,
-                    memorySessionType = routedResult.memorySessionType ?: sessionType,
-                    pendingConfirmationType = routedResult.pendingConfirmationType ?: confirmationType,
-                    memoryMetadata = routedResult.memoryMetadata + memoryMetadata
-                )
-            }
-
-            BrainActionType.READ_ONLY,
-            BrainActionType.NONE -> {
-                // Check if it's a known phone action even if actionType is NONE (legacy/fallback)
                 if (phoneActionExecutor != null && isPhoneActionIntent(brainAction.intent)) {
                     executePhoneAction(brainAction, safetyDecision, sessionType, memoryMetadata)
                 } else {
-                    CommandResult.success(
+                    val routedResult = commandRouter.route(brainAction)
+                    routedResult.copy(
+                        safetyDecision = safetyDecision,
+                        memorySessionType = routedResult.memorySessionType ?: sessionType,
+                        pendingConfirmationType = routedResult.pendingConfirmationType ?: confirmationType,
+                        memoryMetadata = routedResult.memoryMetadata + memoryMetadata
+                    )
+                }
+            }
+
+            BrainActionType.READ_ONLY -> CommandResult.success(
+                message = brainAction.reply,
+                intentType = resultIntentType(brainAction),
+                actionType = resultActionType(brainAction),
+                entities = brainAction.params,
+                memorySessionType = sessionType,
+                memoryMetadata = memoryMetadata,
+                safetyDecision = safetyDecision
+            )
+
+            BrainActionType.NONE -> {
+                routeMappedCommandIfSupported(brainAction, safetyDecision, sessionType, confirmationType, memoryMetadata)
+                    ?: CommandResult.success(
                         message = brainAction.reply,
                         intentType = resultIntentType(brainAction),
                         actionType = resultActionType(brainAction),
@@ -119,9 +129,22 @@ class BrainActionRuntime(
                         memoryMetadata = memoryMetadata,
                         safetyDecision = safetyDecision
                     )
-                }
             }
 
+
+            BrainActionType.SET_DEVICE_SETTING,
+            BrainActionType.ASK_QUESTION -> {
+                routeMappedCommandIfSupported(brainAction, safetyDecision, sessionType, confirmationType, memoryMetadata)
+                    ?: CommandResult.success(
+                        message = brainAction.reply,
+                        intentType = resultIntentType(brainAction),
+                        actionType = resultActionType(brainAction),
+                        entities = brainAction.params,
+                        memorySessionType = sessionType,
+                        memoryMetadata = memoryMetadata,
+                        safetyDecision = safetyDecision
+                    )
+            }
 
             BrainActionType.PREPARE -> CommandResult.confirmationRequired(
                 message = brainAction.nextQuestion?.takeIf { it.isNotBlank() }
@@ -163,12 +186,34 @@ class BrainActionRuntime(
         }
     }
 
+    private fun routeMappedCommandIfSupported(
+        brainAction: BrainAction,
+        safetyDecision: SafetyDecision,
+        sessionType: BrainSessionType?,
+        confirmationType: com.nova.luna.memory.PendingConfirmationType?,
+        memoryMetadata: Map<String, String>
+    ): CommandResult? {
+        val mappedIntent = brainAction.toCommandIntent()
+        if (mappedIntent.actionType == ActionType.UNKNOWN) {
+            return null
+        }
+
+        val routedResult = commandRouter.route(mappedIntent)
+        return routedResult.copy(
+            safetyDecision = safetyDecision,
+            memorySessionType = routedResult.memorySessionType ?: sessionType,
+            pendingConfirmationType = routedResult.pendingConfirmationType ?: confirmationType,
+            memoryMetadata = routedResult.memoryMetadata + memoryMetadata
+        )
+    }
+
     private fun isPhoneActionIntent(intent: String): Boolean {
         val lower = intent.lowercase(Locale.US)
         return lower.contains("camera") || lower.contains("settings") || 
                lower.contains("flashlight") || lower.contains("search") || 
                lower.contains("back") || lower.contains("home") || 
-               lower.contains("recents") || lower.contains("notifications")
+               lower.contains("recents") || lower.contains("notifications") ||
+               lower.contains("open_app") || lower.contains("call_contact")
     }
 
     private fun isSupportedPhoneActionType(type: BrainActionType): Boolean {

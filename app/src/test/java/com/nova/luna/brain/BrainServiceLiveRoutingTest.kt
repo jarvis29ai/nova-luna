@@ -31,8 +31,8 @@ class BrainServiceLiveRoutingTest {
 
         assertEquals("prepare_message", action.intent)
         assertEquals(BrainActionType.SEND_MESSAGE_DRAFT, action.actionType)
-        assertEquals(BrainRiskLevel.MEDIUM, action.riskLevel)
-        assertTrue(action.requiresConfirmation)
+        assertEquals(BrainRiskLevel.CONFIRMATION_REQUIRED, action.riskLevel)
+        assertFalse(action.requiresConfirmation)
         assertFalse(action.finalActionAllowed)
         assertEquals("rahul", action.params["contact"])
     }

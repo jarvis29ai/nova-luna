@@ -42,9 +42,9 @@ class BrainActionJsonCodec {
 
         val intent = root.jsonString("intent") ?: return null
         val actionTypeStr = root.jsonString("actionType")
-        val actionType = BrainActionType.entries.find { it.name == actionTypeStr } ?: BrainActionType.UNKNOWN
+        val actionType = BrainActionType.fromWireValue(actionTypeStr) ?: BrainActionType.UNKNOWN
         val riskLevelStr = root.jsonString("riskLevel")
-        val riskLevel = BrainRiskLevel.entries.find { it.name == riskLevelStr } ?: BrainRiskLevel.UNKNOWN
+        val riskLevel = BrainRiskLevel.fromWireValue(riskLevelStr) ?: BrainRiskLevel.UNKNOWN
         val requiresConfirmation = root.jsonBoolean("requiresConfirmation", false)
         
         val params = mutableMapOf<String, String>()

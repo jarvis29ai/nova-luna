@@ -16,8 +16,8 @@ data class BrainAction(
     val normalizedCommand: String = "",
     val confidence: Double = 1.0,
     val language: String = "unknown",
-    val assistantReply: String = "",
-    val reason: String = "",
+    val assistantReply: String = reply,
+    val reason: String = nextQuestion ?: "",
     val errors: List<String> = emptyList()
 ) {
     fun withPhase23Metadata(
@@ -31,15 +31,17 @@ data class BrainAction(
         reason: String = this.reason,
         errors: List<String> = this.errors
     ): BrainAction {
+        val finalReply = if (this.reply.isNotBlank()) this.reply else assistantReply
         return copy(
+            reply = finalReply,
             schemaVersion = schemaVersion,
             source = source,
             rawCommand = rawCommand,
             normalizedCommand = normalizedCommand,
             confidence = confidence,
             language = language,
-            assistantReply = assistantReply,
-            reason = reason,
+            assistantReply = finalReply,
+            reason = reason.ifBlank { this.nextQuestion ?: "" },
             errors = errors
         )
     }

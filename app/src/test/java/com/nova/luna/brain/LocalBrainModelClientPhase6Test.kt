@@ -1,6 +1,7 @@
 package com.nova.luna.brain
 
 import com.nova.luna.model.BrainAction
+import com.nova.luna.model.BrainActionSource
 import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainModelRole
 import com.nova.luna.model.BrainRiskLevel
@@ -102,6 +103,12 @@ class LocalBrainModelClientPhase6Test {
             requiresConfirmation = false,
             finalActionAllowed = false,
             params = mapOf("rawText" to rawText)
+        ).withPhase23Metadata(
+            source = BrainActionSource.MODEL,
+            rawCommand = rawText,
+            normalizedCommand = rawText,
+            confidence = 1.0,
+            assistantReply = reply
         )
     }
 

@@ -37,9 +37,11 @@ class PhoneActionExecutorOpenAppTest {
     fun `open installed app succeeds`() {
         val appName = "YouTube"
         val packageName = "com.google.android.youtube"
+        val label = "YouTube"
         val launchIntent = Intent("launch")
+        val appInfo = AppInfo(packageName, label)
         
-        `when`(appResolver.resolvePackage(appName)).thenReturn(packageName)
+        `when`(appResolver.resolveAppInfo(appName)).thenReturn(appInfo)
         `when`(pm.getLaunchIntentForPackage(packageName)).thenReturn(launchIntent)
         
         val action = BrainAction(
@@ -55,6 +57,7 @@ class PhoneActionExecutorOpenAppTest {
         assertTrue(result.success)
         assertTrue(result.attempted)
         assertEquals(packageName, result.packageName)
+        assertEquals(label, result.label)
         verify(context).startActivity(launchIntent)
     }
 
@@ -62,7 +65,7 @@ class PhoneActionExecutorOpenAppTest {
     fun `open unknown app returns APP_NOT_FOUND`() {
         val appName = "NonExistentApp"
         
-        `when`(appResolver.resolvePackage(appName)).thenReturn(null)
+        `when`(appResolver.resolveAppInfo(appName)).thenReturn(null)
         
         val action = BrainAction(
             intent = "OPEN_APP",
@@ -83,8 +86,10 @@ class PhoneActionExecutorOpenAppTest {
     fun `missing launch intent returns LAUNCH_INTENT_NOT_FOUND`() {
         val appName = "YouTube"
         val packageName = "com.google.android.youtube"
+        val label = "YouTube"
+        val appInfo = AppInfo(packageName, label)
         
-        `when`(appResolver.resolvePackage(appName)).thenReturn(packageName)
+        `when`(appResolver.resolveAppInfo(appName)).thenReturn(appInfo)
         `when`(pm.getLaunchIntentForPackage(packageName)).thenReturn(null)
         
         val action = BrainAction(

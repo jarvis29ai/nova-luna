@@ -44,7 +44,7 @@ class BrainServicePhase2Test {
 
         assertEquals("open_app", action.intent)
         assertEquals("whatsapp", action.params["appName"])
-        assertEquals(BrainActionType.EXTERNAL_ACTION, action.actionType)
+        assertEquals(BrainActionType.OPEN_APP, action.actionType)
     }
 
     @Test

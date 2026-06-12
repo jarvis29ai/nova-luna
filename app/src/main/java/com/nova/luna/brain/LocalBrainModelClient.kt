@@ -14,6 +14,7 @@ class LocalBrainModelClient(
     private val manager: ModelRuntimeManager? = null,
     private val promptBuilder: LocalModelPromptBuilder = LocalModelPromptBuilder(),
     private val actionParser: BrainActionParser = BrainActionParser(),
+    private val validator: BrainActionValidator = BrainActionValidator(),
     private val catalog: BrainModelCatalog = BrainModelCatalog
 ) : PhoneBrainModel {
     override val available: Boolean
@@ -173,6 +174,28 @@ class LocalBrainModelClient(
                 nativeGenerationAvailable = true,
                 jsonParseAttempted = true,
                 jsonParseSuccess = false,
+                latencyMillis = generation.latencyMillis,
+                sessionTrace = sessionTrace
+            )
+        }
+
+        if (!validator.isAcceptable(parsedAction)) {
+            return BrainModelResult.unavailable(
+                role = role,
+                reason = "BrainActionValidator rejected the local candidate.",
+                rawResponse = generation.text,
+                safetyNotes = routeDecision.safetyNotes + listOf(
+                    "Downloaded local model output was rejected by the validator."
+                ),
+                localModelId = generation.modelId ?: localModelId(),
+                localModelDisplayName = generation.modelDisplayName ?: entry.displayName,
+                localModelStatus = PhoneLocalLlmStatus.VALIDATION_REJECTED,
+                promptBuilt = true,
+                jsonParsed = true,
+                realInference = true,
+                nativeGenerationAvailable = true,
+                jsonParseAttempted = true,
+                jsonParseSuccess = true,
                 latencyMillis = generation.latencyMillis,
                 sessionTrace = sessionTrace
             )

@@ -1299,14 +1299,16 @@ class BrainService(
         return BrainAction(
             intent = "local_model_unavailable",
             reply = assistantReplyText,
-            actionType = BrainActionType.UNKNOWN,
-            riskLevel = BrainRiskLevel.LOW,
+            actionType = BrainActionType.NONE,
+            riskLevel = BrainRiskLevel.SAFE,
             requiresConfirmation = false,
+            finalActionAllowed = false,
             params = buildMap {
                 put("routeRole", routeDecision.selectedRole.wireValue)
                 put("localModelStatus", localModelStatus.wireValue)
                 put("reason", reason)
-            }
+            },
+            nextQuestion = "Would you like me to try a simpler local command?"
         ).withPhase23Metadata(
             schemaVersion = 1,
             source = BrainActionSource.ERROR,
@@ -1330,16 +1332,18 @@ class BrainService(
             normalizedCommand = AssistantTextNormalizer.normalize(rawText),
             intent = "local_model_unavailable",
             reply = replyText,
-            actionType = BrainActionType.UNKNOWN,
-            riskLevel = BrainRiskLevel.LOW,
+            actionType = BrainActionType.NONE,
+            riskLevel = BrainRiskLevel.SAFE,
             requiresConfirmation = false,
+            finalActionAllowed = false,
             params = mapOf(
                 "reason" to reason,
                 "routeRole" to BrainModelRole.MOCK_FALLBACK.wireValue
             ),
             confidence = 0.0,
             assistantReply = replyText,
-            reason = reason
+            reason = reason,
+            nextQuestion = "Would you like to open model setup?"
         )
     }
 
@@ -1369,13 +1373,15 @@ class BrainService(
             normalizedCommand = AssistantTextNormalizer.normalize(rawText),
             intent = "internet_unavailable",
             reply = replyText,
-            actionType = BrainActionType.ASK_CLARIFICATION,
-            riskLevel = BrainRiskLevel.LOW,
+            actionType = BrainActionType.NONE,
+            riskLevel = BrainRiskLevel.SAFE,
             requiresConfirmation = false,
+            finalActionAllowed = false,
             params = mapOf("reason" to reason),
             confidence = 1.0,
             assistantReply = replyText,
-            reason = "Offline limitation: $reason"
+            reason = "Offline limitation: $reason",
+            nextQuestion = "Would you like an offline alternative?"
         )
     }
 
@@ -1423,13 +1429,14 @@ class BrainService(
             normalizedCommand = AssistantTextNormalizer.normalize(rawText),
             intent = "local_model_unavailable",
             reply = replyText,
-            actionType = BrainActionType.UNKNOWN,
-            riskLevel = BrainRiskLevel.UNKNOWN,
+            actionType = BrainActionType.NONE,
+            riskLevel = BrainRiskLevel.SAFE,
             requiresConfirmation = false,
             params = emptyMap(),
             confidence = 0.0,
             assistantReply = replyText,
-            reason = "Generic brain service fallback."
+            reason = "Generic brain service fallback.",
+            nextQuestion = "Would you like to try a simpler command?"
         )
     }
 

@@ -3,6 +3,7 @@ package com.nova.luna.brain
 import com.nova.luna.model.BrainAction
 import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainRiskLevel
+import com.nova.luna.model.SafetyStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -42,8 +43,9 @@ class BrainServicePhase3Test {
         assertEquals(BrainRiskLevel.SAFE, diagnostics.finalBrainAction.riskLevel)
         assertFalse(diagnostics.finalBrainAction.requiresConfirmation)
         assertFalse(diagnostics.finalBrainAction.finalActionAllowed)
-        assertFalse(diagnostics.finalSafetyDecision.requiresConfirmation)
-        assertTrue(diagnostics.finalSafetyDecision.allowed)
+        assertEquals(SafetyStatus.CONFIRMATION_REQUIRED, diagnostics.finalSafetyDecision.status)
+        assertTrue(diagnostics.finalSafetyDecision.requiresConfirmation)
+        assertFalse(diagnostics.finalSafetyDecision.allowed)
         assertNotNull(diagnostics.rawModelResponse)
     }
 
@@ -71,7 +73,7 @@ class BrainServicePhase3Test {
         val action = service.process("book cab from home")
 
         assertEquals("cab_booking", action.intent)
-        assertEquals("Where do you want to go?", action.nextQuestion)
+        assertEquals("Where should I pick you up from?", action.nextQuestion)
         assertEquals(BrainRiskLevel.SAFE, action.riskLevel)
         assertFalse(action.requiresConfirmation)
     }

@@ -75,7 +75,7 @@ class AppLauncher(private val context: Context) {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(launchIntent)
             CommandResult.success(
-                message = "Opening ${match.label}.",
+                message = "Opened ${match.label}.",
                 intentType = commandIntent.intentType,
                 actionType = commandIntent.actionType,
                 entities = commandIntent.entities + mapOf(
@@ -94,4 +94,3 @@ class AppLauncher(private val context: Context) {
         }
     }
 }
-

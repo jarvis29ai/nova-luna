@@ -30,7 +30,8 @@ class AndroidPhoneActionExecutor(
             BrainActionType.OPEN_APP -> openApp(action)
             BrainActionType.OPEN_CAMERA -> openCamera(action)
             BrainActionType.OPEN_SETTINGS -> openSettings(action)
-            BrainActionType.SEARCH_WEB, BrainActionType.EXTERNAL_ACTION -> {
+            BrainActionType.SEARCH_WEB -> searchWeb(action)
+            BrainActionType.EXTERNAL_ACTION -> {
                 if (action.intent.lowercase(Locale.US).contains("search") || action.intent.lowercase(Locale.US).contains("web")) {
                     searchWeb(action)
                 } else {
@@ -135,14 +136,18 @@ class AndroidPhoneActionExecutor(
     }
 
     private fun openSettings(action: BrainAction): PhoneActionResult {
-        val screen = action.params["screen"]?.lowercase(Locale.US) ?: ""
+        val screen = action.params["screen"]?.lowercase(Locale.US)
+            ?: action.params["value"]?.lowercase(Locale.US)
+            ?: ""
+
         val intent = when (screen) {
             "wifi" -> Intent(Settings.ACTION_WIFI_SETTINGS)
             "bluetooth" -> Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
-            "accessibility" -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            "accessibility", "open_accessibility_settings" -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
             "display" -> Intent(Settings.ACTION_DISPLAY_SETTINGS)
             "battery" -> Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)
             "apps" -> Intent(Settings.ACTION_APPLICATION_SETTINGS)
+            "open_usage_access_settings" -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
             else -> Intent(Settings.ACTION_SETTINGS)
         }
 
@@ -150,11 +155,19 @@ class AndroidPhoneActionExecutor(
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
             logSuccess("OPEN_SETTINGS", screen)
+
+            val reason = when (screen) {
+                "open_accessibility_settings" -> "Opening accessibility settings."
+                "open_usage_access_settings" -> "Opening usage access settings."
+                "", "open_settings" -> "Opening system settings."
+                else -> "Opened settings $screen."
+            }
+
             PhoneActionResult(
                 actionName = "OPEN_SETTINGS",
                 attempted = true,
                 success = true,
-                reason = "Opened settings $screen."
+                reason = reason
             )
         } catch (e: Exception) {
             logFailure("OPEN_SETTINGS", "SETTINGS_FAILED", screen)

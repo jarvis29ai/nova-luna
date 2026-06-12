@@ -16,7 +16,11 @@ class SystemHandler : DomainHandler {
         val isScroll = isScrollDownCommand(n) || isScrollUpCommand(n)
         val isInteraction = isTapCommand(n) || isTypeTextCommand(n)
         val isControl = isStopCommand(n)
-        val isSensitive = n == "take screenshot" || n.contains("settings") || n.startsWith("call ")
+        val isSensitive = n == "take screenshot" ||
+            n.contains("settings") ||
+            n.contains("usage permission") ||
+            n.contains("usage access") ||
+            n.startsWith("call ")
         val isAppLaunch = n.startsWith("open app ") || n.startsWith("open ") || n.startsWith("launch ") || n.startsWith("start ")
 
         if (isNav) signals.add("navigation")
@@ -61,11 +65,12 @@ class SystemHandler : DomainHandler {
             isTapCommand(n) -> interaction(command, ActionType.CLICK_TEXT, extractTapTarget(n))
             isTypeTextCommand(n) -> textEntry(command, extractTypeText(n))
             n == "take screenshot" -> sensitive(command, ActionType.TAKE_SCREENSHOT, "take_screenshot")
-            n.contains("settings") -> {
+            n.contains("settings") || n.contains("usage permission") || n.contains("usage access") -> {
                 when {
-                    n.contains("accessibility") -> sensitive(command, ActionType.OPEN_ACCESSIBILITY_SETTINGS, "accessibility")
-                    n.contains("usage") -> sensitive(command, ActionType.OPEN_USAGE_ACCESS_SETTINGS, "usage")
-                    else -> sensitive(command, ActionType.OPEN_SETTINGS, "settings")
+                    n.contains("accessibility") -> sensitive(command, ActionType.OPEN_ACCESSIBILITY_SETTINGS, "open_accessibility_settings")
+                    n.contains("usage") -> sensitive(command, ActionType.OPEN_USAGE_ACCESS_SETTINGS, "open_usage_access_settings")
+                    n.contains("permission") -> sensitive(command, ActionType.OPEN_USAGE_ACCESS_SETTINGS, "open_usage_access_settings")
+                    else -> sensitive(command, ActionType.OPEN_SETTINGS, "open_settings")
                 }
             }
             n.startsWith("open app ") || n.startsWith("open ") || n.startsWith("launch ") || n.startsWith("start ") -> 
@@ -121,6 +126,25 @@ class SystemHandler : DomainHandler {
     private fun isTypeTextCommand(n: String) = n.startsWith("type ") || n.startsWith("write ") || n.startsWith("input ")
 
     private fun extractTapTarget(n: String) = n.removePrefix("tap on ").removePrefix("tap ").removePrefix("click on ").removePrefix("click ").removePrefix("press on ").removePrefix("press ").trim()
-    private fun extractTypeText(n: String) = n.removePrefix("type ").removePrefix("write ").removePrefix("input ").trim()
+    private fun extractTypeText(n: String): String {
+        val prefixes = listOf(
+            "type message ",
+            "write message ",
+            "enter message ",
+            "input message ",
+            "type ",
+            "write ",
+            "enter ",
+            "input "
+        )
+
+        for (prefix in prefixes) {
+            if (n.startsWith(prefix)) {
+                return n.removePrefix(prefix).trim()
+            }
+        }
+
+        return n
+    }
     private fun extractAppName(n: String) = n.removePrefix("open app ").removePrefix("open ").removePrefix("launch ").removePrefix("start ").trim()
 }

@@ -19,12 +19,12 @@ class NavigationControllerTest {
     @Test
     fun `go home succeeds when accessibility ready`() {
         NovaAccessibilityService.setTestInstance(service)
-        `when`(service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)).thenReturn(true)
+        `when`(service.goHome()).thenReturn(true)
         
         val status = controller.goHome()
         
         assertEquals(NavigationController.NavigationStatus.SUCCESS, status)
-        verify(service).performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+        verify(service).goHome()
     }
 
     @Test

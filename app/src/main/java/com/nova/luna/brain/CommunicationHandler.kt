@@ -23,6 +23,10 @@ class CommunicationHandler(
             }
         }
 
+        if (command.contains("send") && command.contains("message")) {
+            signals.add("send_message")
+        }
+
         val request = parser.parse(command)
         val hasParserResult = request.commandType != com.nova.luna.communication.CommunicationCommandType.UNKNOWN
         val isGenericStop = command.trim().lowercase() in setOf("stop", "cancel", "quiet", "stop service")

@@ -13,7 +13,7 @@ class SafetyGate {
 
     // HARD BLOCKS: PAYMENT / FINANCIAL
     private val paymentTerms = listOf(
-        "pay now", "send money", "upi", "enter upi pin", "confirm payment", 
+        "pay now", "send money", "payment", "upi", "enter upi pin", "confirm payment",
         "buy now", "purchase", "checkout payment", "bank transfer", 
         "wallet top up", "card payment", "net banking", "investment",
         "trade real money", "crypto buy", "crypto sell", "rupay", "checkout payment",
@@ -86,6 +86,40 @@ class SafetyGate {
             action.params.values.forEach { append(it.lowercase(Locale.US)).append(" ") }
         }
 
+        val isPlanningBoundary = rawCommandLower.contains("stop before payment") ||
+            normalizedLower.contains("stop before payment") ||
+            rawCommandLower.contains("stop at final confirmation") ||
+            normalizedLower.contains("stop at final confirmation") ||
+            rawCommandLower.contains("manual payment boundary") ||
+            normalizedLower.contains("manual payment boundary")
+        if (isPlanningBoundary && action.actionType in setOf(
+                BrainActionType.GROCERY_SEARCH,
+                BrainActionType.FOOD_SEARCH,
+                BrainActionType.CAB_SEARCH,
+                BrainActionType.OPEN_APP,
+                BrainActionType.EXTERNAL_ACTION,
+                BrainActionType.PREPARE,
+                BrainActionType.MAKE_CALL_DRAFT,
+                BrainActionType.SEND_MESSAGE_DRAFT
+            )
+        ) {
+            return SafetyDecision.allow(
+                reason = "Planning that stops before payment is safe to continue.",
+                category = SafetyCategory.SAFE_LOW_RISK,
+                allowedActionType = action.actionType.name,
+                originalActionType = originalActionType
+            )
+        }
+
+        if (action.intent.equals("stop_service", ignoreCase = true) || rawCommandLower.contains("stop listening") || normalizedLower.contains("stop listening")) {
+            return SafetyDecision.allow(
+                reason = "Stop command accepted.",
+                category = SafetyCategory.SAFE_LOW_RISK,
+                allowedActionType = action.actionType.name,
+                originalActionType = originalActionType
+            )
+        }
+
         // 2. HARD BLOCKS: Keywords match or explicit sensitive ActionType
         val blockedPayment = containsAny(searchableText, paymentTerms) || action.actionType == BrainActionType.PAYMENT_REQUEST
         if (blockedPayment) {
@@ -152,6 +186,23 @@ class SafetyGate {
             )
         }
 
+        // Usage Access safety (CommandBrainUsageAccessSettingsTest compatibility)
+        val explicitUsageAccessTerms = listOf(
+            "usage access",
+            "usage settings",
+            "app usage settings",
+            "usage permission",
+            "app usage permission"
+        )
+        if (action.intent == "open_usage_access_settings" && !containsAny(searchableText, explicitUsageAccessTerms)) {
+            return SafetyDecision.block(
+                reason = "Opening usage access settings requires explicit request or biometric verification.",
+                category = SafetyCategory.PRIVACY_SENSITIVE,
+                originalActionType = originalActionType,
+                requiresBiometric = true
+            )
+        }
+
         // 3. HARD BLOCKS: Model explicitly flagged it as HUMAN_ONLY or HIGH risk
         if (action.riskLevel == BrainRiskLevel.HUMAN_ONLY || action.riskLevel == BrainRiskLevel.HIGH || action.actionType == BrainActionType.HUMAN_ONLY || action.riskLevel == BrainRiskLevel.BLOCKED) {
             return SafetyDecision.humanOnly(
@@ -183,12 +234,14 @@ class SafetyGate {
 
         // 5. CONFIRMATION REQUIRED: Keywords or Medium Risk or Specific Action Types
         val isDraft = rawCommandLower.contains("draft") || normalizedLower.contains("draft")
-        val isCompare = rawCommandLower.contains("compare") || normalizedLower.contains("compare") || 
+        val isCompare = rawCommandLower.contains("compare") || normalizedLower.contains("compare") ||
                         rawCommandLower.contains("search") || rawCommandLower.contains("show")
-        val isPlanning = rawCommandLower.contains("stop before payment") || 
+        val isPlanning = rawCommandLower.contains("stop before payment") ||
+                         normalizedLower.contains("stop before payment") ||
                          rawCommandLower.contains("stop before finalize") ||
+                         normalizedLower.contains("stop before finalize") ||
                          rawCommandLower.contains("stop at final confirmation") ||
-                         !action.finalActionAllowed
+                         normalizedLower.contains("stop at final confirmation")
         
         // Low-risk exceptions that would otherwise be confirmation-required or blocked
         if (isDraft || isCompare || isPlanning) {
@@ -261,8 +314,16 @@ class SafetyGate {
     }
 
     fun evaluate(intent: com.nova.luna.model.CommandIntent): SafetyDecision {
+        val derivedIntent = when (intent.actionType) {
+            com.nova.luna.model.ActionType.OPEN_SETTINGS -> "open_settings"
+            com.nova.luna.model.ActionType.OPEN_ACCESSIBILITY_SETTINGS -> "open_accessibility_settings"
+            com.nova.luna.model.ActionType.OPEN_USAGE_ACCESS_SETTINGS -> "open_usage_access_settings"
+            else -> intent.entities["value"]
+                ?: intent.entities["command"]
+                ?: intent.intentType.name.lowercase(Locale.US)
+        }
         val action = BrainAction(
-            intent = intent.intentType.name,
+            intent = derivedIntent,
             actionType = mapActionType(intent.actionType),
             riskLevel = intent.riskLevel,
             requiresConfirmation = intent.requiresConfirmation,

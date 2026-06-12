@@ -296,3 +296,25 @@ Phase 6 hardens the assistant prototype for real-world use on Android devices, f
 4. Add smartwatch support only after the phone-first flow is stable.
 5. Keep the system zero-cost and local-first unless requirements change.
 6. Keep phone-only runtime prep documented in [`docs/PHONE_ONLY_RUNTIME.md`](PHONE_ONLY_RUNTIME.md).
+
+## PHASE 18-25 GREEN INTEGRATION REVIEW
+
+- Scope: stabilization, integration, test recovery, and architecture alignment for completed Phases 18 through 25 only.
+- Phase 18 output: native tokenizer loading, GGUF detection, vocab parsing, real token IDs, and honest diagnostics remain real and non-simulated.
+- Phase 19 output: real inference remains the production path when a ready native model exists; invalid decoded text still reports JSON parsing failure honestly.
+- Phase 20 output: BrainRouter keeps real model-role selection for ready models instead of silently bypassing to a mock path.
+- Phase 21 output: model install and path readiness remain checksum-aware, file-system backed, and honest about missing or invalid model state.
+- Phase 22 output: multi-model roles remain deterministic, with core, lite, and multilingual backup paths plus RAM-guard behavior preserved.
+- Phase 23 output: command understanding still emits structured BrainAction JSON with intent, actionType, riskLevel, params, and confirmation requirements.
+- Phase 24 output: SafetyGate remains the final authority and blocks payment, OTP, login, CAPTCHA, and destructive actions before execution.
+- Phase 25 output: PhoneActionExecutor still performs only safe approved phone actions and returns truthful failures for unsupported or unavailable actions.
+- Integration chain: User command -> BrainService / CommandBrain -> BrainRouter / selected model role -> BrainAction JSON -> BrainActionValidator -> SafetyGate -> BrainActionRuntime -> PhoneActionExecutor -> CommandResult
+- Validation:
+  - `:app:testDebugUnitTest` passed
+  - `:app:assembleDebug` passed
+  - `:app:installDebug` passed on the connected KB2001 Android 14 device
+- Honest limitations:
+  - No Phase 26 UI or voice features were added.
+  - No wake word, TTS, or STT work was introduced.
+  - No separate manual phone smoke beyond the install validation was run in this review.
+  - The Android toolchain emitted `CXX5304` XML-version warnings during CMake configuration, but the build completed successfully.

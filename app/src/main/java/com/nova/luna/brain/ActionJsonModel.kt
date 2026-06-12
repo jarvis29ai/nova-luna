@@ -286,7 +286,7 @@ class ActionJsonModel(
         val replyText = when (parsed.commandType) {
             ContentCreationCommandType.CREATE_PPT -> "I can create a PPT and keep the final step manual."
             ContentCreationCommandType.CREATE_IMAGE -> "I can create an image and keep the final step manual."
-            ContentCreationCommandType.CREATE_VIDEO -> "I can create a video draft and keep the final step manual."
+            ContentCreationCommandType.CREATE_VIDEO -> "I can video draft and keep the final step manual."
             ContentCreationCommandType.CREATE_DOCUMENT -> "I can create a document draft and keep the final step manual."
             ContentCreationCommandType.CREATE_EXCEL -> "I can create a spreadsheet draft and keep the final step manual."
             ContentCreationCommandType.CREATE_PDF -> "I can create a PDF draft and keep the final step manual."

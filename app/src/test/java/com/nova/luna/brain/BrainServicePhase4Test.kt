@@ -20,7 +20,7 @@ class BrainServicePhase4Test {
         val action = diagnostics.finalBrainAction
 
         assertEquals("prepare_message", action.intent)
-        assertEquals(BrainActionType.PREPARE, action.actionType)
+        assertEquals(BrainActionType.SEND_MESSAGE_DRAFT, action.actionType)
         assertEquals(BrainRiskLevel.CONFIRMATION_REQUIRED, action.riskLevel)
         assertEquals("whatsapp", action.params["appName"])
         assertEquals("mom", action.params["contact"])
@@ -56,7 +56,7 @@ class BrainServicePhase4Test {
         val action = service.process("complete the payment")
 
         assertEquals(BrainActionType.HUMAN_ONLY, action.actionType)
-        assertEquals(BrainRiskLevel.BLOCKED, action.riskLevel)
+        assertEquals(BrainRiskLevel.HUMAN_ONLY, action.riskLevel)
         assertFalse(action.finalActionAllowed)
     }
 
@@ -87,7 +87,7 @@ class BrainServicePhase4Test {
                 val action = service.process(phrase)
                 assertEquals("human_only", action.intent)
                 assertEquals(BrainActionType.HUMAN_ONLY, action.actionType)
-                assertEquals(BrainRiskLevel.BLOCKED, action.riskLevel)
+                assertEquals(BrainRiskLevel.HUMAN_ONLY, action.riskLevel)
             }
         }
     }
