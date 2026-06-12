@@ -2,6 +2,12 @@ package com.nova.luna.ui
 
 import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.CommandResult
+import com.nova.luna.voice.VoiceInputState
+
+enum class AssistantPersonality {
+    LUNA,
+    NOVA
+}
 
 enum class AssistantUiStatus {
     IDLE,
@@ -9,7 +15,11 @@ enum class AssistantUiStatus {
     COMPLETED,
     BLOCKED,
     NEEDS_CONFIRMATION,
-    FAILED
+    FAILED,
+    LISTENING,
+    PROCESSING_VOICE,
+    SPEAKING,
+    PERMISSION_REQUIRED
 }
 
 data class AssistantUiState(
@@ -17,7 +27,12 @@ data class AssistantUiState(
     val status: AssistantUiStatus = AssistantUiStatus.IDLE,
     val progressMessage: String? = null,
     val lastCommand: String? = null,
-    val lastResult: AssistantUiResult? = null
+    val lastResult: AssistantUiResult? = null,
+    val partialTranscript: String? = null,
+    val isVoiceAvailable: Boolean = true,
+    val isListening: Boolean = false,
+    val isSpeaking: Boolean = false,
+    val voiceError: String? = null
 )
 
 data class AssistantUiResult(

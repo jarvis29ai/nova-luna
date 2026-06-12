@@ -4,11 +4,6 @@ import com.nova.luna.model.ActionType
 import com.nova.luna.model.ActionResultStatus
 import com.nova.luna.model.BrainRiskLevel
 
-enum class AssistantPersonality {
-    LUNA,
-    NOVA
-}
-
 enum class AssistantPopupState {
     IDLE,
     WAKE_DETECTED,

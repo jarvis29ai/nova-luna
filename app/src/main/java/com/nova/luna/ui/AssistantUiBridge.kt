@@ -4,14 +4,14 @@ import android.content.Context
 import com.nova.luna.brain.AssistantSession
 import com.nova.luna.brain.CommandSource
 import com.nova.luna.model.CommandResult
-import com.nova.luna.voice.VoiceInputState
+import com.nova.luna.voice.*
 import org.json.JSONObject
 import java.util.UUID
 
 class AssistantUiBridge(
     private val context: Context,
     private val assistantSession: AssistantSession
-) : AssistantSession.SessionListener {
+) : AssistantSession.SessionListener, VoiceCommandOrchestrator.Listener {
 
     private var currentPersonality = AssistantPersonality.LUNA
     private var currentState = AssistantUiState(personality = currentPersonality)
@@ -23,6 +23,46 @@ class AssistantUiBridge(
 
     init {
         assistantSession.addSessionListener(this)
+    }
+
+    fun startVoiceListening() {
+        // Handled via Orchestrator
+    }
+
+    fun stopVoiceListening() {
+        // Handled via Orchestrator
+    }
+
+    override fun onVoiceStateChanged(state: VoiceState) {
+        val uiStatus = when (state) {
+            VoiceState.LISTENING -> AssistantUiStatus.LISTENING
+            VoiceState.PROCESSING -> AssistantUiStatus.PROCESSING_VOICE
+            VoiceState.RECOGNIZED -> AssistantUiStatus.PROCESSING_VOICE
+            VoiceState.COMMAND_RUNNING -> AssistantUiStatus.RUNNING
+            VoiceState.SPEAKING -> AssistantUiStatus.SPEAKING
+            VoiceState.PERMISSION_REQUIRED -> AssistantUiStatus.PERMISSION_REQUIRED
+            VoiceState.ERROR -> AssistantUiStatus.FAILED
+            VoiceState.IDLE -> AssistantUiStatus.IDLE
+            else -> currentState.status
+        }
+        updateState(currentState.copy(
+            status = uiStatus,
+            isListening = state == VoiceState.LISTENING,
+            isSpeaking = state == VoiceState.SPEAKING,
+            voiceError = if (state == VoiceState.ERROR) "Voice error occurred" else null
+        ))
+    }
+
+    override fun onPartialText(text: String) {
+        updateState(currentState.copy(partialTranscript = text))
+    }
+
+    override fun onFinalText(text: String) {
+        updateState(currentState.copy(lastCommand = text, partialTranscript = null))
+    }
+
+    override fun onVoiceError(error: VoiceError, message: String) {
+        updateState(currentState.copy(status = AssistantUiStatus.FAILED, voiceError = message))
     }
 
     fun submitTextCommand(command: String, personalityStr: String): String {
@@ -131,15 +171,29 @@ class AssistantUiBridge(
     }
 
     override fun onVoiceInputStateChanged(state: VoiceInputState) {
-        // Not used for text commands, but could update UI status
+        val uiStatus = when (state) {
+            VoiceInputState.LISTENING -> AssistantUiStatus.LISTENING
+            VoiceInputState.PROCESSING -> AssistantUiStatus.PROCESSING_VOICE
+            VoiceInputState.ERROR -> AssistantUiStatus.FAILED
+            VoiceInputState.CANCELLED -> AssistantUiStatus.IDLE
+            VoiceInputState.IDLE -> AssistantUiStatus.IDLE
+            else -> currentState.status
+        }
+        updateState(currentState.copy(status = uiStatus))
     }
 
     override fun onPartialTranscriptReceived(transcript: String) {
-        // Not used for text commands
+        updateState(currentState.copy(partialTranscript = transcript))
     }
 
-    override fun onSpeakingStateChanged(isSpeaking: Boolean) {}
-    override fun onVoiceResponseRequested(message: String) {}
+    override fun onSpeakingStateChanged(isSpeaking: Boolean) {
+        val uiStatus = if (isSpeaking) AssistantUiStatus.SPEAKING else AssistantUiStatus.IDLE
+        updateState(currentState.copy(status = uiStatus, partialTranscript = null))
+    }
+
+    override fun onVoiceResponseRequested(message: String) {
+        updateState(currentState.copy(progressMessage = message))
+    }
     override fun onDomainRouted(domain: com.nova.luna.brain.UnifiedDomain) {}
     override fun onMemoryOperationComplete(result: com.nova.luna.memory.MemoryOperationResult) {}
 }

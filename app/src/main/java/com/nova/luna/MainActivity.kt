@@ -46,11 +46,13 @@ import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListener, AssistantSession.SessionListener {
+class MainActivity : AppCompatActivity(), AssistantSession.SessionListener {
     private lateinit var preferencesManager: PreferencesManager
     
     // Logic Controllers
     lateinit var voiceInputController: VoiceInputController
+    lateinit var voiceOutputController: VoiceOutputController
+    lateinit var voiceCommandOrchestrator: VoiceCommandOrchestrator
     lateinit var assistantSession: AssistantSession
     lateinit var voiceResponseManager: VoiceResponseManager
     lateinit var popupController: AssistantPopupController
@@ -84,8 +86,10 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
         
         // Initialize Logic
         voiceResponseManager = VoiceResponseManager(this)
-        voiceInputController = VoiceInputController(this)
-        voiceInputController.setVoiceInputListener(this)
+        
+        // Phase 27: Voice Flow initialization
+        voiceInputController = AndroidSpeechRecognizerVoiceInputController(this)
+        voiceOutputController = AndroidTextToSpeechVoiceOutputController(this)
 
         val personalMemoryStore = com.nova.luna.memory.LocalPersonalMemoryStore(this)
         val personalMemoryManager = com.nova.luna.memory.PersonalMemoryManager(personalMemoryStore)
@@ -96,6 +100,12 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
         )
         assistantSession.addSessionListener(this)
 
+        voiceCommandOrchestrator = VoiceCommandOrchestrator(
+            voiceInput = voiceInputController,
+            voiceOutput = voiceOutputController,
+            assistantSession = assistantSession
+        )
+
         readinessChecker = PrototypeReadinessChecker(this)
         healthMonitor = RuntimeHealthMonitor(this)
         onboardingController = OnboardingController(this)
@@ -105,7 +115,11 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
 
         popupController = AssistantPopupController(findViewById(R.id.popupContainer), assistantSession) { event ->
             when (event) {
-                AssistantPopupEvent.MIC_TAPPED -> voiceInputController.startListening()
+                AssistantPopupEvent.MIC_TAPPED -> {
+                    val personality = assistantUiBridge.getAssistantState().personality
+                    val mapped = if (personality == AssistantPersonality.LUNA) AssistantPersonality.LUNA else com.nova.luna.ui.AssistantPersonality.NOVA
+                    voiceCommandOrchestrator.startListening(mapped)
+                }
                 AssistantPopupEvent.CONTINUE_TAPPED -> assistantSession.confirmPendingAction()
                 else -> {}
             }
@@ -114,6 +128,7 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
 
         // Phase 26 Bridge Initialization
         assistantUiBridge = AssistantUiBridge(this, assistantSession)
+        voiceCommandOrchestrator.setListener(assistantUiBridge)
         setupFlutter()
 
         setupNavigation()
@@ -139,6 +154,20 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
                     val personality = call.argument<String>("personality") ?: "LUNA"
                     val requestId = assistantUiBridge.submitTextCommand(command, personality)
                     result.success(requestId)
+                }
+                "startVoiceListening" -> {
+                    val personalityStr = call.argument<String>("personality") ?: "LUNA"
+                    val personality = if (personalityStr.uppercase() == "LUNA") AssistantPersonality.LUNA else com.nova.luna.ui.AssistantPersonality.NOVA
+                    voiceCommandOrchestrator.startListening(personality)
+                    result.success(null)
+                }
+                "stopVoiceListening" -> {
+                    voiceCommandOrchestrator.stopListening()
+                    result.success(null)
+                }
+                "cancelVoiceListening" -> {
+                    voiceCommandOrchestrator.cancelListening()
+                    result.success(null)
                 }
                 "getAssistantState" -> {
                     val state = assistantUiBridge.getAssistantState()
@@ -178,7 +207,11 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
             "status" to state.status.name,
             "progressMessage" to state.progressMessage,
             "lastCommand" to state.lastCommand,
-            "lastResult" to state.lastResult?.let { resultToMap(it) }
+            "lastResult" to state.lastResult?.let { resultToMap(it) },
+            "partialTranscript" to state.partialTranscript,
+            "isListening" to state.isListening,
+            "isSpeaking" to state.isSpeaking,
+            "voiceError" to state.voiceError
         )
     }
 
@@ -239,25 +272,6 @@ class MainActivity : AppCompatActivity(), VoiceInputController.VoiceInputListene
         voiceInputController.destroy()
         voiceResponseManager.release()
         super.onDestroy()
-    }
-
-    override fun onStateChanged(state: VoiceInputState) {
-        assistantSession.notifyVoiceInputStateChanged(state)
-        // Fragments will observe this via MainActivity or AssistantSession
-    }
-
-    override fun onPartialTranscript(text: String) {
-        assistantSession.notifyPartialTranscriptReceived(text)
-    }
-
-    override fun onFinalResult(result: VoiceInputResult) {
-        if (result.shouldSendToBrain) {
-            assistantSession.executeCommand(result.cleanedCommand, CommandSource.VOICE)
-        }
-    }
-
-    override fun onError(error: VoiceInputError, message: String) {
-        runOnUiThread { Toast.makeText(this, message, Toast.LENGTH_SHORT).show() }
     }
 
     override fun onCommandResult(result: CommandResult, source: CommandSource) {
