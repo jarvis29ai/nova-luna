@@ -35,7 +35,11 @@ class Phase8ModelRuntimeIntegrationTest {
         val context = mock(android.content.Context::class.java)
         val pathResolver = ModelPathResolver(context, storage, stateStore)
         val verifier = ModelInstallVerifier()
-        val specRegistry = ModelInstallSpecRegistry()
+        val liteSpec = ModelInstallSpecRegistry().LITE_FALLBACK.copy(
+            expectedSha256 = null,
+            minimumBytes = 1
+        )
+        val specRegistry = ModelInstallSpecRegistry(customSpecs = listOf(liteSpec))
         
         modelInstallService = ModelInstallService(
             specRegistry = specRegistry,

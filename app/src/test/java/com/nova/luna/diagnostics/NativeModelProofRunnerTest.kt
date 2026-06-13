@@ -145,7 +145,10 @@ class NativeModelProofRunnerTest {
     }
 
     private fun createServiceWithLiteSpec(): ModelInstallService {
-        val spec = defaultLiteSpec().copy(minimumBytes = 1)
+        val spec = defaultLiteSpec().copy(
+            minimumBytes = 1,
+            expectedSha256 = null
+        )
         val registry = ModelInstallSpecRegistry(customSpecs = listOf(spec))
         return ModelInstallService(
             specRegistry = registry,

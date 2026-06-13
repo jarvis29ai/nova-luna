@@ -23,18 +23,24 @@ class NativeModelProofRunner(
     ): NativeTokenizerProof {
         val state = modelInstallService.getInstallState(modelId, debugOverridePath)
         val expectedPath = expectedModelPath(state.modelId, state.expectedFileName)
+        val modelRole = state.role
+        val modelSha256 = state.sha256Actual ?: state.sha256Expected
 
         if (!state.exists) {
             return NativeTokenizerProof(
                 status = NativeProofStatus.MODEL_MISSING,
                 modelFound = false,
                 modelPath = expectedPath.absolutePath,
+                modelRole = modelRole,
+                modelSha256 = modelSha256,
                 tokenizerLoaded = false,
                 vocabSize = 0,
                 sampleText = sampleText,
                 sampleTokenIds = emptyList(),
                 tokenizerError = null,
-                instructionsForUser = missingModelInstructions(expectedPath, state.reason)
+                instructionsForUser = missingModelInstructions(expectedPath, state.reason),
+                proofSource = "NONE",
+                simulation = false
             )
         }
 
@@ -43,6 +49,8 @@ class NativeModelProofRunner(
                 status = NativeProofStatus.PARTIAL,
                 modelFound = true,
                 modelPath = state.resolvedPath ?: expectedPath.absolutePath,
+                modelRole = modelRole,
+                modelSha256 = modelSha256,
                 tokenizerLoaded = false,
                 vocabSize = 0,
                 sampleText = sampleText,
@@ -54,7 +62,9 @@ class NativeModelProofRunner(
                     append(". Verify the GGUF file at ")
                     append(expectedPath.absolutePath)
                     append(".")
-                }
+                },
+                proofSource = "NONE",
+                simulation = false
             )
         }
 
@@ -68,12 +78,16 @@ class NativeModelProofRunner(
                     status = NativeProofStatus.ERROR,
                     modelFound = true,
                     modelPath = modelFile.absolutePath,
+                    modelRole = modelRole,
+                    modelSha256 = modelSha256,
                     tokenizerLoaded = false,
                     vocabSize = 0,
                     sampleText = sampleText,
                     sampleTokenIds = emptyList(),
                     tokenizerError = error,
-                    instructionsForUser = buildTokenizerFailureInstructions(modelFile, error)
+                    instructionsForUser = buildTokenizerFailureInstructions(modelFile, error),
+                    proofSource = "NONE",
+                    simulation = false
                 )
             } else {
                 val nativeResult = runtime.generate(sampleText, DEFAULT_TIMEOUT_MS)
@@ -88,12 +102,16 @@ class NativeModelProofRunner(
                     status = status,
                     modelFound = true,
                     modelPath = modelFile.absolutePath,
+                    modelRole = modelRole,
+                    modelSha256 = modelSha256,
                     tokenizerLoaded = tokenizerLoaded,
                     vocabSize = nativeResult.vocabSize,
                     sampleText = sampleText,
                     sampleTokenIds = sampleTokenIds,
                     tokenizerError = nativeResult.lastError ?: nativeResult.errorCode,
-                    instructionsForUser = if (status == NativeProofStatus.READY) null else buildTokenizerFailureInstructions(modelFile, nativeResult.lastError ?: nativeResult.errorCode ?: nativeResult.message ?: "UNKNOWN_ERROR")
+                    instructionsForUser = if (status == NativeProofStatus.READY) null else buildTokenizerFailureInstructions(modelFile, nativeResult.lastError ?: nativeResult.errorCode ?: nativeResult.message ?: "UNKNOWN_ERROR"),
+                    proofSource = if (status == NativeProofStatus.READY) "REAL_DEVICE_GGUF" else "NONE",
+                    simulation = false
                 )
             }
         } catch (throwable: Throwable) {
@@ -101,12 +119,16 @@ class NativeModelProofRunner(
                 status = NativeProofStatus.ERROR,
                 modelFound = true,
                 modelPath = modelFile.absolutePath,
+                modelRole = modelRole,
+                modelSha256 = modelSha256,
                 tokenizerLoaded = false,
                 vocabSize = 0,
                 sampleText = sampleText,
                 sampleTokenIds = emptyList(),
                 tokenizerError = throwable.message ?: throwable::class.java.simpleName,
-                instructionsForUser = buildTokenizerFailureInstructions(modelFile, throwable.message ?: throwable::class.java.simpleName)
+                instructionsForUser = buildTokenizerFailureInstructions(modelFile, throwable.message ?: throwable::class.java.simpleName),
+                proofSource = "NONE",
+                simulation = false
             )
         } finally {
             runCatching { runtime.unload() }
@@ -120,12 +142,17 @@ class NativeModelProofRunner(
     ): NativeInferenceProof {
         val state = modelInstallService.getInstallState(modelId, debugOverridePath)
         val expectedPath = expectedModelPath(state.modelId, state.expectedFileName)
+        val modelRole = state.role
+        val modelSha256 = state.sha256Actual ?: state.sha256Expected
 
         if (!state.exists) {
             return NativeInferenceProof(
                 status = NativeProofStatus.MODEL_MISSING,
                 modelFound = false,
                 modelPath = expectedPath.absolutePath,
+                modelRole = modelRole,
+                modelSha256 = modelSha256,
+                modelLoaded = false,
                 realInference = false,
                 generatedTokenCount = 0,
                 decodedText = null,
@@ -133,7 +160,8 @@ class NativeModelProofRunner(
                 simulation = false,
                 inferenceError = null,
                 instructionsForUser = missingModelInstructions(expectedPath, state.reason),
-                promptText = promptText
+                promptText = promptText,
+                proofSource = "NONE"
             )
         }
 
@@ -142,6 +170,9 @@ class NativeModelProofRunner(
                 status = NativeProofStatus.PARTIAL,
                 modelFound = true,
                 modelPath = state.resolvedPath ?: expectedPath.absolutePath,
+                modelRole = modelRole,
+                modelSha256 = modelSha256,
+                modelLoaded = false,
                 realInference = false,
                 generatedTokenCount = 0,
                 decodedText = null,
@@ -155,7 +186,8 @@ class NativeModelProofRunner(
                     append(expectedPath.absolutePath)
                     append(".")
                 },
-                promptText = promptText
+                promptText = promptText,
+                proofSource = "NONE"
             )
         }
 
@@ -169,6 +201,9 @@ class NativeModelProofRunner(
                     status = NativeProofStatus.ERROR,
                     modelFound = true,
                     modelPath = modelFile.absolutePath,
+                    modelRole = modelRole,
+                    modelSha256 = modelSha256,
+                    modelLoaded = false,
                     realInference = false,
                     generatedTokenCount = 0,
                     decodedText = null,
@@ -176,14 +211,15 @@ class NativeModelProofRunner(
                     simulation = false,
                     inferenceError = error,
                     instructionsForUser = buildInferenceFailureInstructions(modelFile, error),
-                    promptText = promptText
+                    promptText = promptText,
+                    proofSource = "NONE"
                 )
             } else {
                 val nativeResult = runtime.generate(promptText, DEFAULT_TIMEOUT_MS)
                 val decodedText = nativeResult.decodedText?.trim()?.takeIf { it.isNotBlank() }
                     ?: nativeResult.text?.trim()?.takeIf { it.isNotBlank() }
-                val realInference = nativeResult.success &&
-                    nativeResult.realInference &&
+                val modelLoaded = nativeResult.modelLoaded || runtime.isLoaded()
+                val realInference = modelLoaded &&
                     nativeResult.nativeGenerationAvailable &&
                     nativeResult.tokensGenerated > 0 &&
                     !decodedText.isNullOrBlank() &&
@@ -198,16 +234,20 @@ class NativeModelProofRunner(
                     status = status,
                     modelFound = true,
                     modelPath = modelFile.absolutePath,
+                    modelRole = modelRole,
+                    modelSha256 = modelSha256,
+                    modelLoaded = modelLoaded,
                     realInference = realInference,
                     generatedTokenCount = nativeResult.tokensGenerated,
                     decodedText = decodedText,
                     outputSource = if (realInference) "NATIVE_GGUF" else "NATIVE_GGUF",
                     simulation = nativeResult.simulation,
-                    inferenceError = nativeResult.lastError ?: nativeResult.errorCode,
+                    inferenceError = if (realInference) null else nativeResult.lastError ?: nativeResult.errorCode,
                     instructionsForUser = if (status == NativeProofStatus.READY) null else buildInferenceFailureInstructions(modelFile, nativeResult.lastError ?: nativeResult.errorCode ?: nativeResult.message ?: "UNKNOWN_ERROR"),
                     promptText = nativeResult.promptText ?: promptText,
                     promptTokenIds = nativeResult.promptTokenIdsSample,
-                    generatedTokenIds = generatedTokenIds
+                    generatedTokenIds = generatedTokenIds,
+                    proofSource = if (realInference) "REAL_DEVICE_GGUF" else "NONE"
                 )
             }
         } catch (throwable: Throwable) {
@@ -215,6 +255,9 @@ class NativeModelProofRunner(
                 status = NativeProofStatus.ERROR,
                 modelFound = true,
                 modelPath = modelFile.absolutePath,
+                modelRole = modelRole,
+                modelSha256 = modelSha256,
+                modelLoaded = false,
                 realInference = false,
                 generatedTokenCount = 0,
                 decodedText = null,
@@ -222,7 +265,8 @@ class NativeModelProofRunner(
                 simulation = false,
                 inferenceError = throwable.message ?: throwable::class.java.simpleName,
                 instructionsForUser = buildInferenceFailureInstructions(modelFile, throwable.message ?: throwable::class.java.simpleName),
-                promptText = promptText
+                promptText = promptText,
+                proofSource = "NONE"
             )
         } finally {
             runCatching { runtime.unload() }

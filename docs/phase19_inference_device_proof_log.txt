@@ -1,0 +1,14 @@
+
+I/NovaLunaDiagnostic(11125): Received diagnostic request: open camera, mode: inference
+I/NovaLunaDiagnostic(11125): --- NOVA/LUNA PHASE 18/19 MODEL PROOF ---
+I/NovaLunaDiagnostic(11125): Input: open camera
+I/NovaLunaDiagnostic(11125): Mode: inference
+I/NovaLunaDiagnostic(11125): Model Role: lite
+I/NovaLunaDiagnostic(11125): MODEL_INSTALL_STATE | model_found=true, model_path="/data/user/0/com.nova.luna.debug/files/model_install/models/lite/qwen2.5-0.5b-instruct-q4_k_m.gguf", model_sha256="74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db", role="LITE_FALLBACK", status="READY", ready=true
+I/NovaLunaDiagnostic(11125): PHASE_18_TOKENIZER_PROOF | skipped=true
+I/NovaLunaDiagnostic(11125): PHASE_19_INFERENCE_PROOF | status="READY", model_found=true, model_path="/data/user/0/com.nova.luna.debug/files/model_install/models/lite/qwen2.5-0.5b-instruct-q4_k_m.gguf", model_role="LITE_FALLBACK", model_sha256="74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db", model_loaded=true, real_inference=true, generated_token_count=16, decoded_text="!!!!!!!!!!!!!!!!", output_source="NATIVE_GGUF", simulation=false, inference_error=null, instructions_for_user=null, prompt_text="Return JSON only: {"actionType":"OPEN_CAMERA","riskLevel":"LOW"}", prompt_token_ids=[151643, 5598, 4718, 1172, 25, 5212, 1311, 929, 3252, 30933, 58379, 2198], generated_token_ids=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], proof_source="REAL_DEVICE_GGUF"
+I/NovaLunaDiagnostic(11125): PHASE_19_PARSED_ACTION | json_parse_success=false
+I/NovaLunaDiagnostic(11125): Model Install Storage: downloads=/data/user/0/com.nova.luna.debug/files/model_install/model_downloads/lite, models=/data/user/0/com.nova.luna.debug/files/model_install/models/lite, manifest=/data/user/0/com.nova.luna.debug/files/model_install/models/lite/manifest.json
+I/NovaLunaDiagnostic(11125): Runtime State Store: /data/user/0/com.nova.luna.debug/files/model_install/models/lite
+I/NovaLunaDiagnostic(11125): ------------------------------------------------
+

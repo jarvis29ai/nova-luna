@@ -1,5 +1,6 @@
 package com.nova.luna.modelinstall
 
+import com.nova.luna.BuildConfig
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -181,7 +182,7 @@ class ModelInstallSpecRegistry(
         displayName = "Lightweight Fallback",
         role = "LITE_FALLBACK",
         expectedFileName = "qwen2.5-0.5b-instruct-q4_k_m.gguf",
-        expectedSha256 = null,
+        expectedSha256 = BuildConfig.NOVA_LUNA_LIGHTWEIGHT_MODEL_SHA256,
         minimumBytes = 100_000_000,
         preferredInstallDirName = "lite",
         allowedExtensions = listOf(".gguf", ".bin")

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Environment
 import android.util.Log
+import com.nova.luna.model.BrainModelCatalog
 import com.nova.luna.model.BrainModelRole
 import java.io.File
 
@@ -32,6 +33,7 @@ class ModelImportReceiver : BroadcastReceiver() {
 
                 results.forEach { result ->
                     logResult(result)
+                    logImportProof(appContext, result)
                 }
 
                 writeReport(appContext, results)
@@ -105,6 +107,54 @@ class ModelImportReceiver : BroadcastReceiver() {
             TAG,
             "installStatus=${result.installStatus.runtimeStatus.name}, ready=${result.installStatus.ready}, path=${result.installStatus.runtimeState.modelRootPath.orEmpty()}"
         )
+    }
+
+    private fun logImportProof(context: Context, result: ModelImportResult) {
+        val sourcePath = result.sourcePaths.firstOrNull()
+        val internalPath = result.installStatus.runtimeState.modelRootPath
+            ?: result.installStatus.runtimeState.loadedModelPath
+            ?: storagePath(result)
+        val importedFile = result.installStatus.installedFileKeys.firstOrNull()?.let { fileKey ->
+            val root = internalPath?.let { File(it) } ?: return@let null
+            val candidate = if (root.isDirectory) File(root, fileKey) else root
+            candidate.takeIf { it.exists() && it.isFile }
+        }
+        val verifiedSha = importedFile?.let { Sha256ModelVerifier().digestHex(it) }
+        val role = BrainModelCatalog.entryForPackWireValue(result.packId.wireValue)?.role?.name
+            ?: result.packId.name
+
+        Log.i(
+            TAG,
+            "MODEL_IMPORT_PROOF | ${formatMap(linkedMapOf(
+                "import_success" to result.ready,
+                "model_found" to (importedFile?.exists() == true),
+                "source_path" to sourcePath,
+                "internal_path" to internalPath,
+                "sha256" to verifiedSha,
+                "model_role" to role,
+                "model_status" to result.installStatus.runtimeState.installState.name,
+                "error" to if (result.ready) null else result.message
+            ))}"
+        )
+    }
+
+    private fun formatMap(values: Map<String, Any?>): String {
+        return values.entries.joinToString(", ") { (key, value) ->
+            "$key=${formatValue(value)}"
+        }
+    }
+
+    private fun formatValue(value: Any?): String {
+        return when (value) {
+            null -> "null"
+            is String -> "\"$value\""
+            is Boolean, is Number -> value.toString()
+            else -> "\"${value.toString()}\""
+        }
+    }
+
+    private fun storagePath(result: ModelImportResult): String? {
+        return result.installStatus.runtimeState.modelRootPath
     }
 
     private fun writeReport(context: Context, results: List<ModelImportResult>) {

@@ -61,6 +61,7 @@ class DiagnosticBroadcastReceiver : BroadcastReceiver() {
             storage = storage
         )
         val proofRunner = NativeModelProofRunner(storage, modelInstallService)
+        val installState = modelInstallService.getInstallState(DEFAULT_MODEL_ID)
         val normalizedMode = mode.trim().lowercase()
         val runTokenizer = normalizedMode in setOf("all", "tokenizer", "phase18")
         val runInference = normalizedMode in setOf("all", "inference", "phase19")
@@ -91,6 +92,14 @@ class DiagnosticBroadcastReceiver : BroadcastReceiver() {
         Log.i(TAG, "Input: $requestText")
         Log.i(TAG, "Mode: $mode")
         Log.i(TAG, "Model Role: $DEFAULT_MODEL_ID")
+        Log.i(TAG, "MODEL_INSTALL_STATE | ${formatMap(buildMap {
+            put("model_found", installState.exists)
+            put("model_path", installState.resolvedPath ?: installState.modelId)
+            put("model_sha256", installState.sha256Actual ?: installState.sha256Expected)
+            put("role", installState.role)
+            put("status", if (installState.ready) "READY" else installState.reason)
+            put("ready", installState.ready)
+        })}")
 
         tokenizerProof?.let { proof ->
             Log.i(TAG, "PHASE_18_TOKENIZER_PROOF | ${formatMap(proof.asMap())}")
