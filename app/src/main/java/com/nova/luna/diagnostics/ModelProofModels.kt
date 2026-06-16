@@ -58,7 +58,25 @@ data class NativeInferenceProof(
     val promptText: String? = null,
     val promptTokenIds: List<Int> = emptyList(),
     val generatedTokenIds: List<Int> = emptyList(),
-    val proofSource: String = "NONE"
+    val proofSource: String = "NONE",
+    val realForwardPass: Boolean = false,
+    val nativeForwardPassCount: Int = 0,
+    val logitsComputed: Boolean = false,
+    val sampledFromModelLogits: Boolean = false,
+    val usableOutput: Boolean = false,
+    val nativeEngineStatus: String = "unknown",
+    val usableBrainStatus: String = "unknown",
+    val jsonParseSuccess: Boolean = false,
+    val parsedActionType: String? = null,
+    val parsedRiskLevel: String? = null,
+    val chatTemplateApplied: Boolean = false,
+    val chatTemplateSource: String? = null,
+    val stopReason: String? = null,
+    val repetitionDetected: Boolean = false,
+    val nativeError: String? = null,
+    val confirmationRequired: Boolean = false,
+    val inferenceDurationMs: Long? = null,
+    val tokensPerSecond: Double? = null
 ) {
     fun asMap(): Map<String, Any?> {
         return linkedMapOf(
@@ -78,7 +96,25 @@ data class NativeInferenceProof(
             "prompt_text" to promptText,
             "prompt_token_ids" to promptTokenIds,
             "generated_token_ids" to generatedTokenIds,
-            "proof_source" to proofSource
+            "proof_source" to proofSource,
+            "real_forward_pass" to realForwardPass,
+            "native_forward_pass_count" to nativeForwardPassCount,
+            "logits_computed" to logitsComputed,
+            "sampled_from_model_logits" to sampledFromModelLogits,
+            "usable_output" to usableOutput,
+            "native_engine_status" to nativeEngineStatus,
+            "usable_brain_status" to usableBrainStatus,
+            "json_parse_success" to jsonParseSuccess,
+            "parsed_action_type" to parsedActionType,
+            "parsed_risk_level" to parsedRiskLevel,
+            "chat_template_applied" to chatTemplateApplied,
+            "chat_template_source" to chatTemplateSource,
+            "stop_reason" to stopReason,
+            "repetition_detected" to repetitionDetected,
+            "native_error" to nativeError,
+            "confirmation_required" to confirmationRequired,
+            "inference_duration_ms" to inferenceDurationMs,
+            "tokens_per_second" to tokensPerSecond
         )
     }
 }

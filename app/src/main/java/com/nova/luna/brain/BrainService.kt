@@ -30,7 +30,7 @@ import java.util.Locale
 
 class BrainService(
     private val provider: BrainProvider? = null,
-    private val fallbackProvider: BrainProvider = LocalMockBrainProvider(),
+    private val fallbackProvider: BrainProvider = LocalDeterministicBrainProvider(),
     private val codec: BrainActionJsonCodec = BrainActionJsonCodec(),
     private val validator: BrainActionValidator = BrainActionValidator(),
     private val safetyGate: SafetyGate = SafetyGate(),
@@ -1225,7 +1225,9 @@ class BrainService(
 
             fallbackUsed ->
                 buildString {
-                    append("Primary provider response was rejected, so the local mock fallback was used.")
+                    append("Primary provider response was rejected, so the ")
+                    append(providerName(fallbackProvider))
+                    append(" fallback was used.")
                     modelReason?.takeIf { it.isNotBlank() }?.let {
                         append(' ')
                         append(it)
@@ -1395,7 +1397,7 @@ class BrainService(
             BrainModelRole.LITE_COMMAND -> "Lite Command"
             BrainModelRole.SCREEN_UNDERSTANDING -> "Screen Understanding"
             BrainModelRole.ONLINE_AI_HELPER -> "Online AI Helper"
-            BrainModelRole.MOCK_FALLBACK -> "AI brain"
+            BrainModelRole.MOCK_FALLBACK -> "Deterministic Fallback"
         }
     }
 

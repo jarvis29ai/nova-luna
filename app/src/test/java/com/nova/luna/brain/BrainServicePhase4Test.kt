@@ -26,7 +26,7 @@ class BrainServicePhase4Test {
         assertEquals("mom", action.params["contact"])
         assertNotNull(diagnostics.runtimeStatus)
         assertEquals(BrainCapabilityMode.OFFLINE_ONLY, diagnostics.runtimeStatus?.capabilityMode)
-        assertEquals("LocalMockBrainProvider", diagnostics.runtimeStatus?.selectedProvider)
+        assertEquals(LocalDeterministicBrainProvider::class.java.simpleName, diagnostics.runtimeStatus?.selectedProvider)
         assertTrue(diagnostics.runtimeStatus?.fallbackActive == true)
         assertTrue(diagnostics.runtimeStatus?.safetyChainActive == true)
     }

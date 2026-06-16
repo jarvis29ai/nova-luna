@@ -27,6 +27,14 @@ class PhoneLocalLlmOutputParser(
             )
         }
 
+        qualityFailure(trimmed)?.let { reason ->
+            return failure(
+                rawOutput = output,
+                status = PhoneLocalLlmStatus.OUTPUT_PARSE_FAILED,
+                reason = reason
+            )
+        }
+
         val extractedJson = extractStrictJson(trimmed)
             ?: return failure(
                 rawOutput = output,
@@ -69,6 +77,47 @@ class PhoneLocalLlmOutputParser(
             status = PhoneLocalLlmStatus.READY,
             reason = "Strict BrainAction JSON parsed successfully."
         )
+    }
+
+    private fun qualityFailure(text: String): String? {
+        val compact = text.filterNot { it.isWhitespace() }
+        if (compact.isEmpty()) {
+            return "Model output did not contain any visible content."
+        }
+
+        val alnumCount = compact.count { it.isLetterOrDigit() }
+        if (alnumCount == 0) {
+            return "Model output contained only punctuation."
+        }
+
+        if (looksLikeRepeatedPunctuation(compact)) {
+            return "Model output was repeated punctuation."
+        }
+
+        if (looksLikeRepeatedToken(text)) {
+            return "Model output was repeated token garbage."
+        }
+
+        return null
+    }
+
+    private fun looksLikeRepeatedPunctuation(compact: String): Boolean {
+        if (compact.length < 6) return false
+        val first = compact.first()
+        if (!first.isLetterOrDigit()) {
+            return compact.all { it == first }
+        }
+        return false
+    }
+
+    private fun looksLikeRepeatedToken(text: String): Boolean {
+        val tokens = text
+            .split(Regex("\\s+"))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        if (tokens.size < 4) return false
+        val normalized = tokens.map { it.lowercase() }
+        return normalized.distinct().size == 1
     }
 
     private fun extractStrictJson(value: String): String? {

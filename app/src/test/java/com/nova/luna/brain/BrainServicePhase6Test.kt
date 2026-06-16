@@ -19,7 +19,7 @@ class BrainServicePhase6Test {
     private val codec = BrainActionJsonCodec()
 
     @Test
-    fun `gemma config disabled falls back to local mock provider`() {
+    fun `gemma config disabled falls back to deterministic provider`() {
         val service = serviceFor(
             config = gemmaConfig(
                 gemmaEnabled = false,
@@ -35,7 +35,7 @@ class BrainServicePhase6Test {
 
         assertEquals(BrainModelRole.GEMMA_REASONING, diagnostics.selectedRole)
         assertTrue(diagnostics.fallbackUsed)
-        assertEquals("LocalMockBrainProvider", diagnostics.finalProvider)
+        assertEquals(LocalDeterministicBrainProvider::class.java.simpleName, diagnostics.finalProvider)
         assertNotNull(diagnostics.runtimeStatus)
         assertEquals(BrainModelRole.GEMMA_REASONING, diagnostics.runtimeStatus?.selectedBrainRole)
         assertFalse(diagnostics.runtimeStatus?.runtimeAvailable ?: true)
@@ -46,7 +46,7 @@ class BrainServicePhase6Test {
     }
 
     @Test
-    fun `missing model path falls back to local mock provider`() {
+    fun `missing model path falls back to deterministic provider`() {
         val service = serviceFor(
             config = gemmaConfig(
                 gemmaEnabled = true,
@@ -59,7 +59,7 @@ class BrainServicePhase6Test {
 
         assertEquals(BrainModelRole.GEMMA_REASONING, diagnostics.selectedRole)
         assertTrue(diagnostics.fallbackUsed)
-        assertEquals("LocalMockBrainProvider", diagnostics.finalProvider)
+        assertEquals(LocalDeterministicBrainProvider::class.java.simpleName, diagnostics.finalProvider)
         assertNotNull(diagnostics.runtimeStatus)
         assertEquals(BrainModelRole.GEMMA_REASONING, diagnostics.runtimeStatus?.selectedBrainRole)
         assertFalse(diagnostics.runtimeStatus?.modelPathConfigured ?: true)
@@ -70,7 +70,7 @@ class BrainServicePhase6Test {
     }
 
     @Test
-    fun `gemma runtime unavailable falls back to local mock provider`() {
+    fun `gemma runtime unavailable falls back to deterministic provider`() {
         val service = serviceFor(
             config = gemmaConfig(
                 gemmaEnabled = true,
@@ -83,7 +83,7 @@ class BrainServicePhase6Test {
 
         assertEquals(BrainModelRole.GEMMA_REASONING, diagnostics.selectedRole)
         assertTrue(diagnostics.fallbackUsed)
-        assertEquals("LocalMockBrainProvider", diagnostics.finalProvider)
+        assertEquals(LocalDeterministicBrainProvider::class.java.simpleName, diagnostics.finalProvider)
         assertNotNull(diagnostics.runtimeStatus)
         assertEquals(BrainModelRole.GEMMA_REASONING, diagnostics.runtimeStatus?.selectedBrainRole)
         assertTrue(diagnostics.runtimeStatus?.modelPathConfigured == true)
@@ -110,7 +110,7 @@ class BrainServicePhase6Test {
         assertTrue(diagnostics.parsedBrainAction?.finalActionAllowed == true)
         assertFalse(diagnostics.validatorResult)
         assertTrue(diagnostics.fallbackUsed)
-        assertEquals("LocalMockBrainProvider", diagnostics.finalProvider)
+        assertEquals(LocalDeterministicBrainProvider::class.java.simpleName, diagnostics.finalProvider)
         assertTrue(diagnostics.runtimeStatus?.runtimeAvailable == true)
         assertTrue(diagnostics.runtimeStatus?.modelLoaded == true)
         assertTrue(diagnostics.runtimeStatus?.fallbackActive == true)

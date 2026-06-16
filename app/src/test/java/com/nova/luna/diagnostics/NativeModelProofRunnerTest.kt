@@ -135,6 +135,10 @@ class NativeModelProofRunnerTest {
 
         assertEquals(NativeProofStatus.READY, inferenceProof.status)
         assertTrue(inferenceProof.realInference)
+        assertTrue(inferenceProof.realForwardPass)
+        assertTrue(inferenceProof.nativeForwardPassCount > 0)
+        assertTrue(inferenceProof.logitsComputed)
+        assertTrue(inferenceProof.sampledFromModelLogits)
         assertTrue(inferenceProof.generatedTokenCount > 0)
         assertNotNull(inferenceProof.decodedText)
         assertTrue(inferenceProof.decodedText!!.isNotBlank())
@@ -237,8 +241,22 @@ class NativeModelProofRunnerTest {
             generatedTokenIdsSample = listOf(101, 102, 103, 104),
             jsonParseAttempted = true,
             jsonParseSuccess = true,
+            realForwardPass = true,
+            nativeForwardPassCount = 5,
+            logitsComputed = true,
+            sampledFromModelLogits = true,
             parsedIntent = "open_camera",
             parsedRiskLevel = "low",
+            parsedActionType = "OPEN_CAMERA",
+            usableOutput = true,
+            nativeEngineStatus = "PASS",
+            usableBrainStatus = "PASS",
+            chatTemplateApplied = true,
+            chatTemplateSource = "QWEN2.5_CHATML",
+            stopReason = "json_complete",
+            repetitionDetected = false,
+            nativeError = null,
+            confirmationRequired = false,
             finishReason = "stop"
         )
     }

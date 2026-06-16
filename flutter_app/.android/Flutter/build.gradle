@@ -1,10 +1,12 @@
+// Generated file. Do not edit.
+
 plugins {
     id "com.android.library"
     id "dev.flutter.flutter-gradle-plugin"
 }
 
 def localProperties = new Properties()
-def localPropertiesFile = new File(buildscript.sourceFile.parentFile.parentFile.parentFile, "android/local.properties")
+def localPropertiesFile = new File(buildscript.sourceFile.parentFile.parentFile, "local.properties")
 if (localPropertiesFile.exists()) {
     localPropertiesFile.withReader("UTF-8") { reader ->
         localProperties.load(reader)
@@ -21,11 +23,11 @@ if (flutterVersionName == null) {
     flutterVersionName = "1.0"
 }
 
-group = "com.example.luna_nova_mvp"
+group = "com.nova.luna.luna_nova_mvp"
 version = "1.0"
 
 android {
-    namespace = "com.example.luna_nova_mvp"
+    namespace = "com.nova.luna.luna_nova_mvp"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -41,6 +43,7 @@ android {
         versionName = flutterVersionName
     }
 }
+
 
 flutter {
     source = "../.."

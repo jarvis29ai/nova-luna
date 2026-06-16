@@ -1,31 +1,75 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-project("nova-luna-native")
+project("nova-luna-native" C CXX)
 
-# Compiler Flags for Performance on Android arm64-v8a
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DGGML_USE_CPU")
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Include directories
-include_directories(third_party/llama.cpp)
+# Keep the Android build small and CPU-only. The upstream llama.cpp tree is
+# vendored under third_party/llama_upstream and built as a static dependency.
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(LLAMA_USE_SYSTEM_GGML OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_COMMON OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_UI OFF CACHE BOOL "" FORCE)
+set(LLAMA_USE_PREBUILT_UI OFF CACHE BOOL "" FORCE)
+set(LLAMA_OPENSSL OFF CACHE BOOL "" FORCE)
+set(LLAMA_LLGUIDANCE OFF CACHE BOOL "" FORCE)
 
-# Define the JNI library
+set(GGML_CPU ON CACHE BOOL "" FORCE)
+set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
+set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
+set(GGML_LLAMAFILE OFF CACHE BOOL "" FORCE)
+set(GGML_LTO OFF CACHE BOOL "" FORCE)
+set(GGML_BLAS OFF CACHE BOOL "" FORCE)
+set(GGML_ACCELERATE OFF CACHE BOOL "" FORCE)
+set(GGML_CPU_ALL_VARIANTS OFF CACHE BOOL "" FORCE)
+set(GGML_CPU_KLEIDIAI OFF CACHE BOOL "" FORCE)
+set(GGML_LASX OFF CACHE BOOL "" FORCE)
+set(GGML_LSX OFF CACHE BOOL "" FORCE)
+set(GGML_RVV OFF CACHE BOOL "" FORCE)
+set(GGML_RV_ZFH OFF CACHE BOOL "" FORCE)
+set(GGML_RV_ZVFH OFF CACHE BOOL "" FORCE)
+set(GGML_RV_ZICBOP OFF CACHE BOOL "" FORCE)
+set(GGML_RV_ZIHINTPAUSE OFF CACHE BOOL "" FORCE)
+set(GGML_RV_ZVFBFWMA OFF CACHE BOOL "" FORCE)
+set(GGML_XTHEADVECTOR OFF CACHE BOOL "" FORCE)
+set(GGML_VXE OFF CACHE BOOL "" FORCE)
+set(GGML_CUDA OFF CACHE BOOL "" FORCE)
+set(GGML_HIP OFF CACHE BOOL "" FORCE)
+set(GGML_MUSA OFF CACHE BOOL "" FORCE)
+set(GGML_METAL OFF CACHE BOOL "" FORCE)
+set(GGML_OPENCL OFF CACHE BOOL "" FORCE)
+set(GGML_OPENVINO OFF CACHE BOOL "" FORCE)
+set(GGML_RPC OFF CACHE BOOL "" FORCE)
+set(GGML_SYCL OFF CACHE BOOL "" FORCE)
+set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
+set(GGML_WEBGPU OFF CACHE BOOL "" FORCE)
+set(GGML_VIRTGPU OFF CACHE BOOL "" FORCE)
+set(GGML_ZDNN OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(third_party/llama_upstream)
+
 add_library(${CMAKE_PROJECT_NAME} SHARED
         llama-jni.cpp
-        third_party/llama.cpp/llama.cpp
-        third_party/llama.cpp/ggml.c
-        third_party/llama.cpp/ggml-alloc.c
-        third_party/llama.cpp/ggml-backend.c
-        third_party/llama.cpp/ggml-quants.c
-        third_party/llama.cpp/ggml-cpu.c
-        third_party/llama.cpp/unicode.cpp
 )
 
-# Find and link necessary Android libraries
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+        third_party/llama_upstream/include
+        third_party/llama_upstream/ggml/include
+)
+
 find_library(log-lib log)
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
+        PRIVATE
+        llama
         ${log-lib}
 )
 
-# Set library name to match System.loadLibrary("llama-jni")
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME "llama-jni")

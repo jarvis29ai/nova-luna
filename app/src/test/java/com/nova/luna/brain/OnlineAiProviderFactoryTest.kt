@@ -7,7 +7,7 @@ import org.junit.Test
 
 class OnlineAiProviderFactoryTest {
     @Test
-    fun `fake provider is created when the helper is enabled for local testing`() {
+    fun `fake provider type is treated as unavailable by the production factory`() {
         val provider = OnlineAiProviderFactory.create(
             onlineAiConfig(
                 enabled = true,
@@ -15,8 +15,8 @@ class OnlineAiProviderFactoryTest {
             )
         )
 
-        assertTrue(provider is FakeOnlineAiProvider)
-        assertTrue(provider.available)
+        assertTrue(provider is UnavailableOnlineAiProvider)
+        assertFalse(provider.available)
         assertEquals(OnlineAiProviderType.FAKE, provider.providerType)
     }
 

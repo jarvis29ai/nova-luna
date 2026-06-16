@@ -240,7 +240,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             }
             ActionType.READ_NOTIFICATIONS -> notificationReader.readNotifications(commandIntent)
             ActionType.TAKE_SCREENSHOT -> CommandResult.failure(
-                "Screenshot is scaffolded but not implemented in this starter.",
+                "Screenshot capture is not implemented yet.",
                 status = ActionResultStatus.UNSUPPORTED,
                 intentType = commandIntent.intentType,
                 actionType = commandIntent.actionType,
@@ -252,7 +252,7 @@ class ActionExecutor(context: Context) : ActionExecutorGateway {
             ActionType.OPEN_CAMERA -> CommandResult.success("Handled by PhoneActionExecutor", actionType = commandIntent.actionType).withMemoryContext(BrainSessionType.BASIC_CONTROL)
             ActionType.OPEN_YOUTUBE -> CommandResult.success("Handled by PhoneActionExecutor", actionType = commandIntent.actionType).withMemoryContext(BrainSessionType.BASIC_CONTROL)
             ActionType.BROWSER_SEARCH -> CommandResult.success("Handled by PhoneActionExecutor", actionType = commandIntent.actionType).withMemoryContext(BrainSessionType.BASIC_CONTROL)
-            ActionType.TAP_NODE -> CommandResult.failure("Not implemented", status = ActionResultStatus.FAILED)
+            ActionType.TAP_NODE -> tapExecutor.tap(commandIntent)
             ActionType.CALL_CONTACT -> {
                 val phoneRequest = phoneParser.parse(commandIntent.rawText)
                 phoneOrchestrator.start(phoneRequest).toPhoneCommandResult(commandIntent).withMemoryContext(BrainSessionType.PHONE)

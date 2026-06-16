@@ -37,7 +37,8 @@ class PhoneLocalLlmPromptBuilderTest {
 
         assertTrue(prompt.contains("strict JSON only", ignoreCase = true))
         assertTrue(prompt.contains("Hinglish", ignoreCase = true))
-        assertTrue(prompt.contains("\"nextQuestion\""))
+        assertTrue(prompt.contains("schemaVersion or schema_version"))
+        assertTrue(prompt.contains("nextQuestion or next_question"))
         assertTrue(prompt.contains("selectedRole: gemma_reasoning"))
         assertTrue(prompt.contains("userText: please help me rewrite this note"))
     }

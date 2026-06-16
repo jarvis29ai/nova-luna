@@ -1,6 +1,6 @@
 package com.nova.luna.brain
 
-class LocalMockBrainProvider(
+open class LocalDeterministicBrainProvider(
     private val interpreter: LocalBrainInterpreter = LocalBrainInterpreter(),
     private val codec: BrainActionJsonCodec = BrainActionJsonCodec()
 ) : BrainProvider, BrainProviderDiagnostics {
@@ -19,3 +19,8 @@ class LocalMockBrainProvider(
         )
     }
 }
+
+class LocalMockBrainProvider(
+    interpreter: LocalBrainInterpreter = LocalBrainInterpreter(),
+    codec: BrainActionJsonCodec = BrainActionJsonCodec()
+) : LocalDeterministicBrainProvider(interpreter, codec)

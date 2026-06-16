@@ -55,7 +55,11 @@ class CommandBrain(
         modelInstallService = modelInstallService,
         liteRealInferenceEnabled = runtimeConfig.liteRealInferenceEnabled
     )
-    private val bridge = com.nova.luna.modelinstall.ModelInstallBrainRouterBridge(modelInstallService)
+    private val gemmaRuntime = PhoneGemmaRuntime()
+    private val bridge = com.nova.luna.modelinstall.ModelInstallBrainRouterBridge(
+        modelInstallService,
+        coreRuntimeAvailable = { gemmaRuntime.isReady() }
+    )
 
     private val coreModel = LocalBrainModelClient(
         role = com.nova.luna.model.BrainModelRole.CORE_BRAIN,
@@ -80,7 +84,8 @@ class CommandBrain(
         multilingualBackupModelOverride = fullModel,
         liteFallbackModelOverride = liteModel,
         modelInstallService = modelInstallService,
-        modelRuntimeManager = modelRuntimeManager
+        modelRuntimeManager = modelRuntimeManager,
+        gemmaRuntime = gemmaRuntime
     )
 
     private val parser = RuleBasedCommandParser()

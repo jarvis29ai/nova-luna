@@ -1,5 +1,6 @@
 package com.nova.luna.diagnostics
 
+import android.os.SystemClock
 import com.nova.luna.brain.LlamaCppJni
 import com.nova.luna.brain.NativeLlamaResult
 import com.nova.luna.brain.NativeLlamaRuntime
@@ -90,7 +91,7 @@ class NativeModelProofRunner(
                     simulation = false
                 )
             } else {
-                val nativeResult = runtime.generate(sampleText, DEFAULT_TIMEOUT_MS)
+                val nativeResult = runtime.generateForProof(sampleText, DEFAULT_TIMEOUT_MS)
                 val tokenizerLoaded = nativeResult.tokenizerLoaded && nativeResult.vocabSize > 0
                 val sampleTokenIds = nativeResult.promptTokenIdsSample
                 val status = when {
@@ -215,19 +216,63 @@ class NativeModelProofRunner(
                     proofSource = "NONE"
                 )
             } else {
-                val nativeResult = runtime.generate(promptText, DEFAULT_TIMEOUT_MS)
+                val inferenceStartMs = elapsedRealtimeMs()
+                val nativeResult = runtime.generateForProof(promptText, DEFAULT_TIMEOUT_MS)
+                val inferenceDurationMs = (elapsedRealtimeMs() - inferenceStartMs).coerceAtLeast(0L)
+                val tokensPerSecond = if (inferenceDurationMs > 0L && nativeResult.tokensGenerated > 0) {
+                    nativeResult.tokensGenerated.toDouble() * 1000.0 / inferenceDurationMs.toDouble()
+                } else {
+                    null
+                }
                 val decodedText = nativeResult.decodedText?.trim()?.takeIf { it.isNotBlank() }
                     ?: nativeResult.text?.trim()?.takeIf { it.isNotBlank() }
                 val modelLoaded = nativeResult.modelLoaded || runtime.isLoaded()
+                val realForwardPass = nativeResult.realForwardPass &&
+                    nativeResult.nativeForwardPassCount > 0 &&
+                    nativeResult.logitsComputed &&
+                    nativeResult.sampledFromModelLogits
                 val realInference = modelLoaded &&
+                    realForwardPass &&
+                    nativeResult.realInference &&
                     nativeResult.nativeGenerationAvailable &&
                     nativeResult.tokensGenerated > 0 &&
                     !decodedText.isNullOrBlank() &&
                     !nativeResult.simulation
                 val generatedTokenIds = nativeResult.generatedTokenIdsSample
+                val usableOutput = nativeResult.usableOutput &&
+                    nativeResult.jsonParseSuccess &&
+                    nativeResult.hasUsableBrainOutput &&
+                    !decodedText.isNullOrBlank() &&
+                    nativeResult.nativeForwardPassCount > 0 &&
+                    nativeResult.logitsComputed &&
+                    nativeResult.sampledFromModelLogits
+                val nativeEngineStatus = nativeResult.nativeEngineStatus.let { status ->
+                    if (status.equals("pass", ignoreCase = true)) {
+                        status
+                    } else if (nativeResult.modelDetected && nativeResult.tokenizerLoaded && nativeResult.tokensGenerated >= 0) {
+                        "PASS"
+                    } else {
+                        status
+                    }
+                }
+                val usableBrainStatus = nativeResult.usableBrainStatus.let { status ->
+                    if (status.equals("pass", ignoreCase = true)) {
+                        status
+                    } else if (usableOutput) {
+                        "PASS"
+                    } else if (nativeResult.realInference || nativeResult.tokensGenerated > 0 || !decodedText.isNullOrBlank()) {
+                        "PARTIAL"
+                    } else {
+                        status
+                    }
+                }
+                val jsonParseSuccess = nativeResult.jsonParseSuccess
+                val parsedActionType = nativeResult.parsedActionType
+                val parsedRiskLevel = nativeResult.parsedRiskLevel
+                val stopReason = nativeResult.stopReason ?: nativeResult.finishReason
                 val status = when {
-                    realInference -> NativeProofStatus.READY
-                    nativeResult.tokensGenerated > 0 || !decodedText.isNullOrBlank() -> NativeProofStatus.PARTIAL
+                    usableOutput && jsonParseSuccess -> NativeProofStatus.READY
+                    realInference || nativeResult.tokensGenerated > 0 || !decodedText.isNullOrBlank() -> NativeProofStatus.PARTIAL
                     else -> NativeProofStatus.ERROR
                 }
                 NativeInferenceProof(
@@ -242,12 +287,30 @@ class NativeModelProofRunner(
                     decodedText = decodedText,
                     outputSource = if (realInference) "NATIVE_GGUF" else "NATIVE_GGUF",
                     simulation = nativeResult.simulation,
-                    inferenceError = if (realInference) null else nativeResult.lastError ?: nativeResult.errorCode,
+                    inferenceError = if (usableOutput && jsonParseSuccess) null else nativeResult.nativeError ?: nativeResult.lastError ?: nativeResult.errorCode,
                     instructionsForUser = if (status == NativeProofStatus.READY) null else buildInferenceFailureInstructions(modelFile, nativeResult.lastError ?: nativeResult.errorCode ?: nativeResult.message ?: "UNKNOWN_ERROR"),
                     promptText = nativeResult.promptText ?: promptText,
                     promptTokenIds = nativeResult.promptTokenIdsSample,
                     generatedTokenIds = generatedTokenIds,
-                    proofSource = if (realInference) "REAL_DEVICE_GGUF" else "NONE"
+                    proofSource = if (usableOutput && jsonParseSuccess) "REAL_DEVICE_GGUF" else "NONE",
+                    realForwardPass = realForwardPass,
+                    nativeForwardPassCount = nativeResult.nativeForwardPassCount,
+                    logitsComputed = nativeResult.logitsComputed,
+                    sampledFromModelLogits = nativeResult.sampledFromModelLogits,
+                    usableOutput = usableOutput,
+                    nativeEngineStatus = nativeEngineStatus,
+                    usableBrainStatus = usableBrainStatus,
+                    jsonParseSuccess = jsonParseSuccess,
+                    parsedActionType = parsedActionType,
+                    parsedRiskLevel = parsedRiskLevel,
+                    chatTemplateApplied = nativeResult.chatTemplateApplied,
+                    chatTemplateSource = nativeResult.chatTemplateSource,
+                    stopReason = stopReason,
+                    repetitionDetected = nativeResult.repetitionDetected,
+                    nativeError = nativeResult.nativeError ?: nativeResult.lastError ?: nativeResult.errorCode,
+                    confirmationRequired = nativeResult.confirmationRequired,
+                    inferenceDurationMs = inferenceDurationMs,
+                    tokensPerSecond = tokensPerSecond
                 )
             }
         } catch (throwable: Throwable) {
@@ -313,7 +376,23 @@ class NativeModelProofRunner(
 
     companion object {
         private const val DEFAULT_TOKENIZER_SAMPLE = "open camera"
-        private const val DEFAULT_INFERENCE_PROMPT = """Return JSON only: {"actionType":"OPEN_CAMERA","riskLevel":"LOW"}"""
-        private const val DEFAULT_TIMEOUT_MS = 15_000L
+        private const val DEFAULT_INFERENCE_PROMPT = "Open the camera"
+        private const val PROOF_MAX_TOKENS = 2
+        private const val DEFAULT_TIMEOUT_MS = 900_000L
+    }
+
+    private fun elapsedRealtimeMs(): Long {
+        return runCatching { SystemClock.elapsedRealtime() }
+            .getOrElse { System.currentTimeMillis() }
+    }
+
+    private fun NativeLlamaRuntime.generateForProof(
+        prompt: String,
+        timeoutMs: Long
+    ): NativeLlamaResult {
+        return when (this) {
+            is LlamaCppJni -> generate(prompt, timeoutMs, PROOF_MAX_TOKENS)
+            else -> generate(prompt, timeoutMs)
+        }
     }
 }

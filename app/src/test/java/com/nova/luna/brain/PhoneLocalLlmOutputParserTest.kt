@@ -51,4 +51,30 @@ class PhoneLocalLlmOutputParserTest {
         assertEquals(action, parseResult.candidateAction)
         assertTrue(parseResult.reason.contains("rejected", ignoreCase = true))
     }
+
+    @Test
+    fun `decodes confirmationRequired alias and non-string params`() {
+        val json = """{"intent":"open_camera","reply":"Opening camera.","actionType":"OPEN_CAMERA","riskLevel":"LOW","confirmationRequired":false,"finalActionAllowed":true,"params":{"attempts":2,"safe":true}}"""
+
+        val action = codec.decode(json)
+
+        assertTrue(action != null)
+        assertEquals(false, action!!.requiresConfirmation)
+        assertEquals("2", action.params["attempts"])
+        assertEquals("true", action.params["safe"])
+    }
+
+    @Test
+    fun `rejects repeated punctuation and repeated token garbage`() {
+        val punctuation = parser.parse("!!!!!!!!!!!!")
+        val repeatedTokens = parser.parse("open open open open")
+
+        assertFalse(punctuation.accepted)
+        assertEquals(PhoneLocalLlmStatus.OUTPUT_PARSE_FAILED, punctuation.status)
+        assertTrue(punctuation.reason.contains("punctuation", ignoreCase = true))
+
+        assertFalse(repeatedTokens.accepted)
+        assertEquals(PhoneLocalLlmStatus.OUTPUT_PARSE_FAILED, repeatedTokens.status)
+        assertTrue(repeatedTokens.reason.contains("repeated token", ignoreCase = true))
+    }
 }

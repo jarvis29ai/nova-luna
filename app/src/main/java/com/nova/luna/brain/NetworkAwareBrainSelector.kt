@@ -10,7 +10,7 @@ class NetworkAwareBrainSelector {
         localModelAvailable: Boolean = false,
         phoneBrainProvider: PhoneBrainProvider,
         localLlmProvider: PhoneBrainProvider?,
-        fallbackProvider: BrainProvider = LocalMockBrainProvider()
+        fallbackProvider: BrainProvider = LocalDeterministicBrainProvider()
     ): BrainRuntimeSelection {
         return when (capabilityMode) {
             BrainCapabilityMode.OFFLINE_ONLY -> {
@@ -34,7 +34,7 @@ class NetworkAwareBrainSelector {
                         internetAvailable = internetAvailable,
                         localModelAvailable = false,
                         fallbackActive = true,
-                        reason = "Offline-only mode has no phone-local model yet, so LocalMockBrainProvider is the guaranteed fallback."
+                        reason = "Offline-only mode has no phone-local model yet, so ${providerName(fallbackProvider)} is the guaranteed fallback."
                     )
                 }
             }
@@ -61,9 +61,9 @@ class NetworkAwareBrainSelector {
                         localModelAvailable = false,
                         fallbackActive = true,
                         reason = if (internetAvailable) {
-                            "Online-assisted mode is enabled, but the phone-local model is unavailable, so LocalMockBrainProvider is used."
+                            "Online-assisted mode is enabled, but the phone-local model is unavailable, so ${providerName(fallbackProvider)} is used."
                         } else {
-                            "No internet is available and the phone-local model is unavailable, so LocalMockBrainProvider is used."
+                            "No internet is available and the phone-local model is unavailable, so ${providerName(fallbackProvider)} is used."
                         }
                     )
                 }
@@ -86,7 +86,7 @@ class NetworkAwareBrainSelector {
                         internetAvailable = internetAvailable,
                         localModelAvailable = false,
                         fallbackActive = true,
-                        reason = "Phone-local LLM mode is requested, but no local model is available, so LocalMockBrainProvider is used."
+                        reason = "Phone-local LLM mode is requested, but no local model is available, so ${providerName(fallbackProvider)} is used."
                     )
                 }
             }

@@ -9,37 +9,19 @@ class PhoneLocalLlmPromptBuilder {
         model: PhoneLocalLlmModelConfig,
         readiness: PhoneLocalLlmReadiness? = null
     ): String {
-        return buildString {
-            appendLine("You are Nova/Luna's local brain.")
+        val systemPrompt = buildString {
             appendLine("You are Nova/Luna's local phone brain.")
-            appendLine("You must preserve the user's language, including mixed Hindi-English or Hinglish when applicable.")
-            appendLine("You cannot control the phone directly.")
-            appendLine("You must output strict JSON only when asked for BrainAction.")
-            appendLine("Never output markdown, code fences, or explanation outside the JSON object.")
-            appendLine("SafetyGate must still block risky final actions.")
-            appendLine("Never enter OTP, PIN, CVV, password, passcode, CAPTCHA, biometric, payment, send money, login-bypass, delete-account, share, follow, subscribe, or post actions directly.")
-            appendLine("You cannot complete payment or send money.")
-            appendLine("You cannot place a final booking, order, send, share, follow, subscribe, or post without confirmation.")
-            appendLine("You must ask the user when unsure.")
-            appendLine("You must use installed or user-approved apps only.")
-            appendLine("You must keep final execution local and safety-gated.")
-            appendLine("You must return human_only/manual_handoff or blocked for sensitive actions.")
-            appendLine("You may produce safe summarize, draft, rewrite, explain, or planning BrainAction JSON when the request is non-sensitive.")
-            appendLine()
-            appendLine("Required JSON schema:")
-            appendLine("{")
-            appendLine("""  "intent": "string",""")
-            appendLine("""  "reply": "string",""")
-            appendLine("""  "actionType": "none|read_only|prepare|external_action|human_only",""")
-            appendLine("""  "riskLevel": "safe|confirmation_required|blocked",""")
-            appendLine("""  "requiresConfirmation": true|false,""")
-            appendLine("""  "finalActionAllowed": true|false,""")
-            appendLine("""  "params": { "any_key": "string" },""")
-            appendLine("  \"nextQuestion\": \"string or null\"")
-            appendLine("}")
-            appendLine()
-            appendLine("Reply in the same language as the user whenever possible.")
-            appendLine("When a final step is risky, keep finalActionAllowed false and ask for confirmation.")
+            appendLine("Return exactly one JSON object and nothing else.")
+            appendLine("Return candidate JSON only.")
+            appendLine("Never use markdown, code fences, or prose outside the JSON object.")
+            appendLine("Preserve the user's language when possible, including Hindi, Hinglish, and regional language when applicable.")
+            appendLine("Use safe, local, safety-gated action planning only.")
+            appendLine("SafetyGate still decides whether any candidate may execute.")
+            appendLine("Examples of risky actions include send money, OTP, login, CAPTCHA, and delete.")
+            appendLine("Do not claim execution success for payments, OTP, login, CAPTCHA, or destructive actions.")
+            appendLine("For risky requests, set confirmationRequired true and keep the action manual.")
+            appendLine("Required fields: schemaVersion or schema_version, intent, actionType or action_type, riskLevel or risk_level, params, confirmationRequired or requires_confirmation.")
+            appendLine("Recommended fields: reply, assistantReply or assistant_reply, reason, confidence, finalActionAllowed or final_action_allowed, source, nextQuestion or next_question.")
             appendLine()
             appendLine("Request context:")
             appendLine("- selectedRole: ${routeDecision.selectedRole.wireValue}")
@@ -60,12 +42,25 @@ class PhoneLocalLlmPromptBuilder {
             appendLine("- activeCabSession: ${request.activeCabSession}")
             appendLine("- activeFoodSession: ${request.activeFoodSession}")
             appendLine("- activeGrocerySession: ${request.activeGrocerySession}")
-            appendLine("- userText: ${request.rawText}")
+            appendLine("- userText: ${request.rawText.trim()}")
+            if (routeDecision.safetyNotes.isNotEmpty()) {
+                appendLine("- safetyNotes: ${routeDecision.safetyNotes.joinToString(" | ")}")
+            }
             request.screenState?.let { screenState ->
                 appendLine("- screenSummary: ${screenState.summarizedState}")
                 appendLine("- foregroundPackage: ${screenState.packageName}")
             }
-        }.trimIndent()
+        }.trimEnd()
+
+        return buildString {
+            appendLine("<|im_start|>system")
+            appendLine(systemPrompt)
+            appendLine("<|im_end|>")
+            appendLine("<|im_start|>user")
+            appendLine(request.rawText.trim())
+            appendLine("<|im_end|>")
+            appendLine("<|im_start|>assistant")
+        }.trimEnd()
     }
 
     fun buildSafeTextPrompt(
@@ -74,14 +69,14 @@ class PhoneLocalLlmPromptBuilder {
         model: PhoneLocalLlmModelConfig,
         readiness: PhoneLocalLlmReadiness? = null
     ): String {
-        return buildString {
+        val systemPrompt = buildString {
             appendLine("You are Nova/Luna's local phone brain.")
-            appendLine("Respond in the user's language and keep the reply safe, short, and local.")
+            appendLine("Respond safely, briefly, and locally.")
             appendLine("Do not mention hidden reasoning.")
             appendLine("Do not use internet, backend, cloud, or paid APIs.")
             appendLine("Do not control the phone directly.")
             appendLine("Do not enter OTP, PIN, CVV, password, CAPTCHA, biometric, or payment secrets.")
-            appendLine("If the user asks for a risky action, ask for manual confirmation or say it must stay manual.")
+            appendLine("If the user asks for a risky action, explain that it must stay manual.")
             appendLine("If the request is safe, reply clearly and helpfully.")
             appendLine()
             appendLine("Context:")
@@ -90,7 +85,16 @@ class PhoneLocalLlmPromptBuilder {
             readiness?.let {
                 appendLine("- readiness: ${it.status.wireValue}")
             }
-            appendLine("- userText: ${request.rawText}")
-        }.trimIndent()
+        }.trimEnd()
+
+        return buildString {
+            appendLine("<|im_start|>system")
+            appendLine(systemPrompt)
+            appendLine("<|im_end|>")
+            appendLine("<|im_start|>user")
+            appendLine(request.rawText.trim())
+            appendLine("<|im_end|>")
+            appendLine("<|im_start|>assistant")
+        }.trimEnd()
     }
 }

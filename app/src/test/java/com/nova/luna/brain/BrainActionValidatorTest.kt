@@ -4,6 +4,7 @@ import com.nova.luna.model.BrainAction
 import com.nova.luna.model.BrainActionType
 import com.nova.luna.model.BrainRiskLevel
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BrainActionValidatorTest {
@@ -80,5 +81,24 @@ class BrainActionValidatorTest {
         cases.forEach { action ->
             assertFalse(validator.isAcceptable(action))
         }
+    }
+
+    @Test
+    fun `schema version and confidence must be valid`() {
+        val base = BrainAction(
+            intent = "explain",
+            reply = "A safe explanation.",
+            actionType = BrainActionType.READ_ONLY,
+            riskLevel = BrainRiskLevel.SAFE,
+            requiresConfirmation = false,
+            finalActionAllowed = false,
+            params = mapOf("rawText" to "please explain this"),
+            confidence = 0.75
+        )
+
+        assertTrue(validator.isAcceptable(base))
+        assertFalse(validator.isAcceptable(base.copy(schemaVersion = 2)))
+        assertFalse(validator.isAcceptable(base.copy(confidence = 1.2)))
+        assertFalse(validator.isAcceptable(base.copy(confidence = -0.1)))
     }
 }

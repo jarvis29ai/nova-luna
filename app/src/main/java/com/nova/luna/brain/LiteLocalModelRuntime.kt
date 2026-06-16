@@ -76,8 +76,22 @@ class LiteLocalModelRuntime(
     private var generatedTokenIdsSample: String? = null
     private var jsonParseAttempted = false
     private var jsonParseSuccess = false
+    private var realForwardPass = false
+    private var nativeForwardPassCount = 0
+    private var logitsComputed = false
+    private var sampledFromModelLogits = false
+    private var usableOutput = false
+    private var nativeEngineStatus = "unknown"
+    private var usableBrainStatus = "unknown"
+    private var chatTemplateApplied = false
+    private var chatTemplateSource: String? = null
+    private var stopReason: String? = null
+    private var repetitionDetected = false
+    private var nativeError: String? = null
     private var parsedIntent: String? = null
     private var parsedRiskLevel: String? = null
+    private var parsedActionType: String? = null
+    private var confirmationRequired = false
     private var finishReason: String? = null
 
     override fun available(): Boolean {
@@ -172,7 +186,7 @@ class LiteLocalModelRuntime(
         val outputText = result.decodedText?.trim()?.takeIf { it.isNotBlank() }
             ?: result.text?.trim()?.takeIf { it.isNotBlank() }
 
-        if (result.success && result.hasUsableGeneratedText && outputText != null) {
+        if (result.success && result.hasUsableBrainOutput && outputText != null) {
             lastFailureReason = normalizeNativeNote(result.message ?: result.lastFailure ?: result.errorMessage)
                 ?: "Real native generation succeeded."
             lastErrorReason = null
@@ -183,7 +197,7 @@ class LiteLocalModelRuntime(
                 modelId = modelId,
                 modelDisplayName = modelDisplayName(),
                 latencyMillis = result.latencyMillis.takeIf { it > 0 } ?: (result.loadMs + result.promptEvalMs + result.generationMs).takeIf { it > 0 },
-                jsonOnly = result.jsonParseAttempted || outputText.trim().startsWith("{")
+                jsonOnly = result.jsonParseSuccess || outputText.trim().startsWith("{")
             )
         }
 
@@ -204,7 +218,7 @@ class LiteLocalModelRuntime(
             modelId = modelId,
             modelDisplayName = modelDisplayName(),
             latencyMillis = result.latencyMillis.takeIf { it > 0 } ?: (result.loadMs + result.promptEvalMs + result.generationMs).takeIf { it > 0 },
-            jsonOnly = result.jsonParseAttempted || outputText?.trim()?.startsWith("{") == true
+            jsonOnly = result.jsonParseSuccess || outputText?.trim()?.startsWith("{") == true
         )
     }
 
@@ -271,8 +285,22 @@ class LiteLocalModelRuntime(
         modelReused = result.modelReused || modelReused
         jsonParseAttempted = result.jsonParseAttempted
         jsonParseSuccess = result.jsonParseSuccess
+        realForwardPass = result.realForwardPass
+        nativeForwardPassCount = result.nativeForwardPassCount
+        logitsComputed = result.logitsComputed
+        sampledFromModelLogits = result.sampledFromModelLogits
+        usableOutput = result.usableOutput
+        nativeEngineStatus = result.nativeEngineStatus
+        usableBrainStatus = result.usableBrainStatus
+        chatTemplateApplied = result.chatTemplateApplied
+        chatTemplateSource = result.chatTemplateSource
+        stopReason = result.stopReason
+        repetitionDetected = result.repetitionDetected
+        nativeError = result.nativeError
         parsedIntent = result.parsedIntent
         parsedRiskLevel = result.parsedRiskLevel
+        parsedActionType = result.parsedActionType
+        confirmationRequired = result.confirmationRequired
         finishReason = result.finishReason
         lastErrorReason = normalizeNativeNote(result.errorCode ?: result.lastError ?: result.errorMessage)
         lastFailureReason = normalizeNativeNote(result.message ?: result.lastFailure ?: result.errorMessage)
@@ -285,7 +313,7 @@ class LiteLocalModelRuntime(
 
         return when (errorCode) {
             "PROMPT_TOO_LONG", "PROMPT_TOO_LARGE" -> PhoneLocalLlmStatus.PROMPT_TOO_LARGE
-            "DECODE_FAILED", "GENERATED_EOS_BEFORE_TEXT", "GENERATED_TOKEN_DECODED_EMPTY", "GENERATED_TOKENS_DECODED_EMPTY", "JSON_PARSE_FAILED" -> PhoneLocalLlmStatus.OUTPUT_PARSE_FAILED
+            "DECODE_FAILED", "GENERATED_EOS_BEFORE_TEXT", "GENERATED_TOKEN_DECODED_EMPTY", "GENERATED_TOKENS_DECODED_EMPTY", "JSON_PARSE_FAILED", "NATIVE_OUTPUT_TOKENIZATION_FAILED" -> PhoneLocalLlmStatus.OUTPUT_PARSE_FAILED
             "REAL_NATIVE_INFERENCE_NOT_IMPLEMENTED" -> PhoneLocalLlmStatus.REAL_NATIVE_INFERENCE_NOT_IMPLEMENTED
             "MODEL_RUNTIME_NOT_AVAILABLE",
             "MODEL_PATH_MISSING",
@@ -379,8 +407,18 @@ class LiteLocalModelRuntime(
         generatedTokenIdsSample = null
         jsonParseAttempted = false
         jsonParseSuccess = false
+        usableOutput = false
+        nativeEngineStatus = "unknown"
+        usableBrainStatus = "unknown"
+        chatTemplateApplied = false
+        chatTemplateSource = null
+        stopReason = null
+        repetitionDetected = false
+        nativeError = null
         parsedIntent = null
         parsedRiskLevel = null
+        parsedActionType = null
+        confirmationRequired = false
         finishReason = null
         realInference = false
         modelReused = false
@@ -434,6 +472,18 @@ class LiteLocalModelRuntime(
             append("generated_token_ids_sample=${generatedTokenIdsSample ?: "none"}, ")
             append("json_parse_attempted=$jsonParseAttempted, ")
             append("json_parse_success=$jsonParseSuccess, ")
+            append("real_forward_pass=$realForwardPass, ")
+            append("native_forward_pass_count=$nativeForwardPassCount, ")
+            append("logits_computed=$logitsComputed, ")
+            append("sampled_from_model_logits=$sampledFromModelLogits, ")
+            append("usable_output=$usableOutput, ")
+            append("native_engine_status=$nativeEngineStatus, ")
+            append("usable_brain_status=$usableBrainStatus, ")
+            append("chat_template_applied=$chatTemplateApplied, ")
+            append("chat_template_source=${chatTemplateSource ?: "none"}, ")
+            append("stop_reason=${stopReason ?: "none"}, ")
+            append("repetition_detected=$repetitionDetected, ")
+            append("native_error=${nativeError ?: "none"}, ")
             append("model_load_count=$modelLoadCount, ")
             append("generation_call_count=$generationCallCount, ")
             append("model_reused=$modelReused, ")
@@ -474,6 +524,11 @@ class LiteLocalModelRuntime(
             append("tps=$tpsStr, ")
             append("context_size=$contextSize, ")
             append("threads=$threadsUsed, ")
+            append("parsed_intent=${parsedIntent ?: "none"}, ")
+            append("parsed_risk_level=${parsedRiskLevel ?: "none"}, ")
+            append("parsed_action_type=${parsedActionType ?: "none"}, ")
+            append("confirmation_required=$confirmationRequired, ")
+            append("finish_reason=${finishReason ?: "none"}, ")
             append("native_diagnostics=[$nativeDiag]")
         }
     }

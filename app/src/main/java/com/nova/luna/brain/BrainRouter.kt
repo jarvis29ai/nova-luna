@@ -33,7 +33,7 @@ class BrainRouter(
                 reason = "Empty input stays on the guaranteed fallback path.",
                 safetyNotes = listOf(
                     "No model should execute actions directly.",
-                    "LocalMockBrainProvider remains the guaranteed fallback."
+                    "The deterministic local fallback provider remains the guaranteed fallback."
                 )
             )
         }
@@ -65,7 +65,7 @@ class BrainRouter(
             return decision(
                 role = BrainModelRole.MOCK_FALLBACK,
                 reason = "No ready local model was available, so the ambiguous compare request stays on the guaranteed fallback path.",
-                safetyNotes = listOf("LocalMockBrainProvider handles ambiguous compare requests when no local model is ready.")
+                safetyNotes = listOf("The deterministic local fallback provider handles ambiguous compare requests when no local model is ready.")
             )
         }
 
@@ -295,7 +295,7 @@ class BrainRouter(
             requiresInternet = internetPermissionPolicy.classify(request.rawText).category == InternetPermissionCategory.INTERNET_REQUIRED_FOR_INFO,
             safetyNotes = listOf(
                 "Unknown requests stay on the guaranteed fallback path.",
-                "LocalMockBrainProvider keeps offline behavior available."
+                "The deterministic local fallback provider keeps offline behavior available."
             )
         )
     }

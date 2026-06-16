@@ -11,7 +11,11 @@ object OnlineAiProviderFactory {
         }
 
         return when (sanitized.providerType) {
-            OnlineAiProviderType.FAKE -> FakeOnlineAiProvider()
+            OnlineAiProviderType.FAKE ->
+                UnavailableOnlineAiProvider(
+                    reason = "Legacy fake online AI provider is disabled in production.",
+                    providerType = sanitized.providerType
+                )
             OnlineAiProviderType.CHATGPT ->
                 UnavailableOnlineAiProvider(
                     reason = "ChatGPT integration is disabled or pending.",

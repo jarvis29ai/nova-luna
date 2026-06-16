@@ -14,7 +14,7 @@ class BrainServicePhase3Test {
     private val codec = BrainActionJsonCodec()
 
     @Test
-    fun `dangerous model output is rejected and falls back to mock provider`() {
+    fun `dangerous model output is rejected and falls back to deterministic provider`() {
         val dangerousAction = BrainAction(
             intent = "cab_booking",
             reply = "Book and pay now.",
@@ -37,7 +37,7 @@ class BrainServicePhase3Test {
 
         assertFalse(diagnostics.validatorResult)
         assertTrue(diagnostics.fallbackUsed)
-        assertEquals("LocalMockBrainProvider", diagnostics.finalProvider)
+        assertEquals(LocalDeterministicBrainProvider::class.java.simpleName, diagnostics.finalProvider)
         assertEquals("cab_booking", diagnostics.finalBrainAction.intent)
         assertEquals(BrainActionType.EXTERNAL_ACTION, diagnostics.finalBrainAction.actionType)
         assertEquals(BrainRiskLevel.SAFE, diagnostics.finalBrainAction.riskLevel)
@@ -50,7 +50,7 @@ class BrainServicePhase3Test {
     }
 
     @Test
-    fun `missing required fields fall back to mock provider`() {
+    fun `missing required fields fall back to deterministic provider`() {
         val service = BrainService(
             provider = StaticBrainProvider(
                 """{"intent":"prepare_message","reply":"I can help with that."}"""

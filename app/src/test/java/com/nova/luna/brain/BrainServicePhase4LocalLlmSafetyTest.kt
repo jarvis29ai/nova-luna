@@ -29,7 +29,7 @@ class BrainServicePhase4LocalLlmSafetyTest {
         assertNotNull(diagnostics.parsedBrainAction)
         assertFalse(diagnostics.validatorResult)
         assertTrue(diagnostics.fallbackUsed)
-        assertEquals("LocalMockBrainProvider", diagnostics.finalProvider)
+        assertEquals(LocalDeterministicBrainProvider::class.java.simpleName, diagnostics.finalProvider)
         assertEquals("local_model_unavailable", diagnostics.finalBrainAction.intent)
         assertFalse(diagnostics.finalBrainAction.finalActionAllowed)
         assertTrue(diagnostics.finalSafetyDecision.allowed)

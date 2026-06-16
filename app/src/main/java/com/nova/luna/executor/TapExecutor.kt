@@ -8,7 +8,15 @@ import com.nova.luna.service.NovaAccessibilityService
 
 class TapExecutor {
     fun tap(commandIntent: CommandIntent): CommandResult {
-        val query = commandIntent.entities["text"].orEmpty()
+        val query = listOf(
+            commandIntent.entities["text"],
+            commandIntent.entities["query"],
+            commandIntent.entities["description"],
+            commandIntent.entities["contentDescription"],
+            commandIntent.entities["nodeText"],
+            commandIntent.entities["label"],
+            commandIntent.entities["title"]
+        ).firstOrNull { !it.isNullOrBlank() }.orEmpty()
         if (query.isBlank()) {
             return CommandResult.failure(
                 message = "No tap target was provided.",
@@ -38,4 +46,3 @@ class TapExecutor {
         }
     }
 }
-

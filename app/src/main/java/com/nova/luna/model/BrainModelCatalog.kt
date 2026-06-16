@@ -134,7 +134,7 @@ object BrainModelCatalog {
             expectedByteCount = BuildConfig.NOVA_LUNA_LIGHTWEIGHT_MODEL_BYTES.takeIf { it > 0L },
             minimumRamMb = 2048,
             minimumFreeStorageMb = 1024,
-            sourceEnabled = BuildConfig.NOVA_LUNA_LIGHTWEIGHT_MODEL_ENABLED
+            sourceEnabled = BuildConfig.NOVA_LUNA_LITE_MODEL_ENABLED
         )
     ).map { it.normalized() }
 

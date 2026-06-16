@@ -37,7 +37,7 @@ object BrainProviderFactory {
             localModelAvailable = localLlmProvider?.available == true,
             phoneBrainProvider = phoneBrainProvider,
             localLlmProvider = localLlmProvider,
-            fallbackProvider = LocalMockBrainProvider()
+            fallbackProvider = LocalDeterministicBrainProvider()
         )
     }
 }

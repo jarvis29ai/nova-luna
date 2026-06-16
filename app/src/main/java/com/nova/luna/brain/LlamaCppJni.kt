@@ -1,6 +1,7 @@
 package com.nova.luna.brain
 
 import com.nova.luna.modelinstall.SimpleJson
+import com.nova.luna.diagnostics.NativeProofStage
 import java.io.File
 import android.util.Log
 
@@ -82,7 +83,111 @@ class LlamaCppJni : NativeLlamaRuntime {
         }
     }
 
+    fun runProofStage(
+        stage: NativeProofStage,
+        modelFile: File,
+        prompt: String,
+        timeoutMs: Long,
+        maxTokens: Int = 1
+    ): NativeLlamaResult {
+        if (!libraryLoaded) {
+            return NativeLlamaResult(
+                text = null,
+                success = false,
+                errorMessage = "Native library 'llama-jni' not loaded.",
+                backendType = "failed_native",
+                backend = "failed_native",
+                errorCode = "NATIVE_LIBRARY_NOT_LOADED",
+                message = "Native library 'llama-jni' not loaded.",
+                modelLoaded = false,
+                finishReason = "error"
+            ).also {
+                lastParsedResult = it
+                lastError = it.lastError
+                lastFailure = it.lastFailure
+            }
+        }
+
+        if (modelFile.path.isBlank()) {
+            return NativeLlamaResult(
+                text = null,
+                success = false,
+                errorMessage = "Model path was blank.",
+                backendType = "failed_native",
+                backend = "failed_native",
+                errorCode = "MODEL_PATH_MISSING",
+                message = "Model path was blank.",
+                modelLoaded = false,
+                finishReason = "error"
+            ).also {
+                lastParsedResult = it
+                lastError = it.lastError
+                lastFailure = it.lastFailure
+            }
+        }
+
+        val rawJson = try {
+            nativeRunProofStage(
+                stage.name,
+                modelFile.absolutePath,
+                prompt.trim(),
+                maxTokens.coerceAtLeast(1),
+                timeoutMs.coerceAtLeast(0L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            )
+        } catch (e: Throwable) {
+            logE(TAG, "Critical JNI abort/crash during proof stage ${stage.name}", e)
+            null
+        }
+
+        if (rawJson == null) {
+            return NativeLlamaResult(
+                text = null,
+                success = false,
+                errorMessage = "Native proof stage returned null or aborted.",
+                backendType = "failed_native",
+                backend = "failed_native",
+                errorCode = "NATIVE_JNI_CALL_FAILED",
+                message = "Native proof stage returned null or aborted.",
+                modelLoaded = false,
+                finishReason = "error"
+            ).also {
+                lastParsedResult = it
+                lastError = it.lastError
+                lastFailure = it.lastFailure
+            }
+        }
+
+        return try {
+            parseNativeJson(rawJson).also { parsed ->
+                lastParsedResult = parsed
+                lastError = parsed.lastError ?: parsed.errorMessage
+                lastFailure = parsed.lastFailure ?: parsed.lastError ?: parsed.errorMessage
+            }
+        } catch (e: Throwable) {
+            logE(TAG, "Failed to parse native proof JSON: $rawJson", e)
+            NativeLlamaResult(
+                text = null,
+                success = false,
+                errorMessage = "Malformed native proof JSON: ${e.message}",
+                backendType = "failed_native",
+                backend = "failed_native",
+                errorCode = "NATIVE_JSON_PARSE_FAILED",
+                message = "Malformed native proof JSON: ${e.message}",
+                modelLoaded = false,
+                finishReason = "error"
+            ).also {
+                lastParsedResult = it
+                lastError = it.lastError
+                lastFailure = it.lastFailure
+            }
+        }
+    }
+
     override fun generate(prompt: String, timeoutMs: Long): NativeLlamaResult {
+        return generate(prompt, timeoutMs, DEFAULT_MAX_TOKENS)
+    }
+
+    fun generate(prompt: String, timeoutMs: Long, maxTokens: Int): NativeLlamaResult {
         generationCallCount += 1
         modelReused = modelLoadCount > 0 && generationCallCount > 1 && modelLoaded
 
@@ -165,7 +270,7 @@ class LlamaCppJni : NativeLlamaRuntime {
         val rawJson = try {
             nativeGenerate(
                 trimmedPrompt,
-                DEFAULT_MAX_TOKENS,
+                maxTokens,
                 DEFAULT_TEMPERATURE,
                 DEFAULT_TOP_K,
                 DEFAULT_TOP_P,
@@ -356,7 +461,27 @@ class LlamaCppJni : NativeLlamaRuntime {
         val promptText = normalize(stringAny("prompt_text", "promptText"))
         val parsedIntent = normalize(stringAny("parsed_intent", "parsedIntent"))
         val parsedRiskLevel = normalize(stringAny("parsed_risk_level", "parsedRiskLevel"))
+        val parsedActionType = normalize(stringAny("parsed_action_type", "parsedActionType"))
         val finishReason = normalize(stringAny("finish_reason", "finishReason"))
+        val realForwardPass = boolAny("real_forward_pass", "realForwardPass")
+        val nativeForwardPassCount = intAny("native_forward_pass_count", "nativeForwardPassCount", "total_decode_calls", "totalDecodeCalls")
+        val logitsComputed = boolAny("logits_computed", "logitsComputed", "logits_available", "logitsAvailable")
+        val logitsFinite = boolAny("logits_finite", "logitsFinite")
+        val logitsPreview = normalize(stringAny("logits_preview", "logitsPreview"))
+        val sampledFromModelLogits = boolAny("sampled_from_model_logits", "sampledFromModelLogits")
+        val usableOutput = boolAny("usable_output", "usableOutput")
+        val nativeEngineStatus = normalize(stringAny("native_engine_status", "nativeEngineStatus")) ?: "unknown"
+        val usableBrainStatus = normalize(stringAny("usable_brain_status", "usableBrainStatus")) ?: "unknown"
+        val chatTemplateApplied = boolAny("chat_template_applied", "chatTemplateApplied")
+        val chatTemplateSource = normalize(stringAny("chat_template_source", "chatTemplateSource"))
+        val proofStage = normalize(stringAny("proof_stage", "proofStage"))
+        val proofStageReached = normalize(
+            stringAny("proof_stage_reached", "proofStageReached", "stage_reached", "stageReached")
+        )
+        val stopReason = normalize(stringAny("stop_reason", "stopReason"))
+        val repetitionDetected = boolAny("repetition_detected", "repetitionDetected")
+        val nativeError = normalize(stringAny("native_error", "nativeError"))
+        val confirmationRequired = boolAny("confirmationRequired", "confirmation_required")
         val loadMs = longAny("load_ms", "loadMs", "modelLoadMs", "model_load_ms")
         val modelLoadMs = longAny("modelLoadMs", "model_load_ms", "load_ms", "loadMs")
         val generationMs = longAny("generation_ms", "generationMs")
@@ -384,10 +509,11 @@ class LlamaCppJni : NativeLlamaRuntime {
             promptEvalMs = longAny("promptEvalMs", "prompt_eval_ms"),
             generationMs = generationMs,
             contextSize = intAny("contextSize", "context_size"),
-            threadsUsed = intAny("threadsUsed", "threads_used"),
+            batchSize = intAny("batch_size", "batchSize"),
+            threadsUsed = intAny("threadsUsed", "threads_used", "thread_count", "threadCount"),
             backendType = backend,
             backend = backend,
-            modelArch = normalize(stringAny("modelArch")),
+            modelArch = normalize(stringAny("modelArch", "model_arch")),
             vocabSize = intAny("vocab_size", "vocabSize"),
             tensorsLoaded = intAny("tensorsLoaded", "tensors_loaded"),
             modelDetected = modelDetected,
@@ -437,9 +563,29 @@ class LlamaCppJni : NativeLlamaRuntime {
             generatedTokenIdsSample = generatedTokenIdsSample,
             jsonParseAttempted = jsonParseAttempted,
             jsonParseSuccess = jsonParseSuccess,
+            realForwardPass = realForwardPass,
+            nativeForwardPassCount = nativeForwardPassCount,
+            logitsComputed = logitsComputed,
+            logitsFinite = logitsFinite,
+            logitsPreview = logitsPreview,
+            sampledFromModelLogits = sampledFromModelLogits,
             parsedIntent = parsedIntent,
             parsedRiskLevel = parsedRiskLevel,
+            parsedActionType = parsedActionType,
             finishReason = finishReason
+                ?: stopReason
+                ?: if (jsonParseSuccess) "json_complete" else null,
+            usableOutput = usableOutput,
+            nativeEngineStatus = nativeEngineStatus,
+            usableBrainStatus = usableBrainStatus,
+            chatTemplateApplied = chatTemplateApplied,
+            chatTemplateSource = chatTemplateSource,
+            proofStage = proofStage,
+            proofStageReached = proofStageReached,
+            stopReason = stopReason,
+            repetitionDetected = repetitionDetected,
+            nativeError = nativeError,
+            confirmationRequired = confirmationRequired
         )
     }
 
@@ -484,6 +630,7 @@ class LlamaCppJni : NativeLlamaRuntime {
                 append("model_detected=${result.modelDetected}, ")
                 append("tokenizer_loaded=${result.tokenizerLoaded}, ")
                 append("vocab_size=${result.vocabSize}, ")
+                append("batch_size=${result.batchSize}, ")
                 append("tokenization_ok=${result.tokenizationOk}, ")
                 append("prompt_tokens=${result.promptTokens}, ")
                 append("real_token_ids=${result.realTokenIds}, ")
@@ -499,12 +646,16 @@ class LlamaCppJni : NativeLlamaRuntime {
                 append("json_parse_success=${result.jsonParseSuccess}, ")
                 append("real_inference=${result.realInference}, ")
                 append("tokens_generated=${result.tokensGenerated}, ")
+                append("logits_finite=${result.logitsFinite}, ")
+                append("logits_preview=${result.logitsPreview ?: "none"}, ")
                 append("load_ms=${result.loadMs}, ")
                 append("generation_ms=${result.generationMs}, ")
                 append("model_loaded=${result.modelLoaded}, ")
                 append("model_reused=${result.modelReused}, ")
                 append("model_load_count=${result.modelLoadCount}, ")
                 append("generation_call_count=${result.generationCallCount}, ")
+                append("proof_stage=${result.proofStage ?: "none"}, ")
+                append("proof_stage_reached=${result.proofStageReached ?: "none"}, ")
                 append("finish_reason=${result.finishReason ?: "none"}, ")
                 append("parsed_intent=${result.parsedIntent ?: "none"}, ")
                 append("parsed_risk_level=${result.parsedRiskLevel ?: "none"}")
@@ -530,7 +681,7 @@ class LlamaCppJni : NativeLlamaRuntime {
 
     companion object {
         private const val TAG = "LlamaCppJni"
-        private const val DEFAULT_MAX_TOKENS = 16
+        private const val DEFAULT_MAX_TOKENS = 6
         private const val DEFAULT_TEMPERATURE = 0.0f
         private const val DEFAULT_TOP_K = 1
         private const val DEFAULT_TOP_P = 1.0f
@@ -557,6 +708,15 @@ class LlamaCppJni : NativeLlamaRuntime {
             temperature: Float,
             topK: Int,
             topP: Float,
+            timeoutMs: Int
+        ): String?
+
+        @JvmStatic
+        private external fun nativeRunProofStage(
+            stage: String,
+            modelPath: String,
+            prompt: String,
+            maxTokens: Int,
             timeoutMs: Int
         ): String?
 

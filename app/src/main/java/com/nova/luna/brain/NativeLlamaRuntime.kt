@@ -25,6 +25,7 @@ data class NativeLlamaResult(
     val promptEvalMs: Long = 0,
     val generationMs: Long = 0,
     val contextSize: Int = 0,
+    val batchSize: Int = 0,
     val threadsUsed: Int = 0,
     val backendType: String = "native",
     val backend: String = backendType,
@@ -78,8 +79,26 @@ data class NativeLlamaResult(
     val generatedTokenIdsSample: List<Int> = emptyList(),
     val jsonParseAttempted: Boolean = false,
     val jsonParseSuccess: Boolean = false,
+    val realForwardPass: Boolean = false,
+    val nativeForwardPassCount: Int = 0,
+    val logitsComputed: Boolean = false,
+    val logitsFinite: Boolean = false,
+    val logitsPreview: String? = null,
+    val sampledFromModelLogits: Boolean = false,
+    val usableOutput: Boolean = false,
+    val nativeEngineStatus: String = "unknown",
+    val usableBrainStatus: String = "unknown",
+    val chatTemplateApplied: Boolean = false,
+    val chatTemplateSource: String? = null,
+    val proofStage: String? = null,
+    val proofStageReached: String? = null,
+    val stopReason: String? = null,
+    val repetitionDetected: Boolean = false,
+    val nativeError: String? = null,
     val parsedIntent: String? = null,
     val parsedRiskLevel: String? = null,
+    val parsedActionType: String? = null,
+    val confirmationRequired: Boolean = false,
     val finishReason: String? = null
 ) {
     val decodedTextLength: Int
@@ -91,8 +110,22 @@ data class NativeLlamaResult(
             tokenizerLoaded &&
             realTokenIds &&
             realInference &&
+            realForwardPass &&
+            nativeForwardPassCount > 0 &&
+            logitsComputed &&
+            sampledFromModelLogits &&
             !simulation &&
             nativeGenerationAvailable &&
             tokensGenerated > 0 &&
             !(decodedText ?: text).isNullOrBlank()
+
+    val hasUsableBrainOutput: Boolean
+        get() = hasUsableGeneratedText &&
+            jsonParseSuccess &&
+            usableOutput &&
+            !parsedIntent.isNullOrBlank() &&
+            !parsedActionType.isNullOrBlank() &&
+            !parsedRiskLevel.isNullOrBlank() &&
+            !repetitionDetected &&
+            nativeError.isNullOrBlank()
 }

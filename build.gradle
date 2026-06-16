@@ -22,10 +22,9 @@ plugins {
 
 subprojects {
     afterEvaluate { project ->
-        if (project.hasProperty('android')) {
-            project.android {
-                ndkVersion = '26.1.10909125'
-            }
+        def androidExtension = project.extensions.findByName('android')
+        if (androidExtension != null) {
+            androidExtension.ndkVersion = '26.1.10909125'
         }
     }
 }

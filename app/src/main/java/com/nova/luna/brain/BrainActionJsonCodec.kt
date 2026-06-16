@@ -41,30 +41,42 @@ class BrainActionJsonCodec {
         val root = parser.parseObject() ?: return null
 
         val intent = root.jsonString("intent") ?: return null
-        val actionTypeStr = root.jsonString("actionType")
+        val actionTypeStr = root.jsonString("actionType") ?: root.jsonString("action_type")
         val actionType = BrainActionType.fromWireValue(actionTypeStr) ?: BrainActionType.UNKNOWN
-        val riskLevelStr = root.jsonString("riskLevel")
+        val riskLevelStr = root.jsonString("riskLevel") ?: root.jsonString("risk_level")
         val riskLevel = BrainRiskLevel.fromWireValue(riskLevelStr) ?: BrainRiskLevel.UNKNOWN
-        val requiresConfirmation = root.jsonBoolean("requiresConfirmation", false)
+        val requiresConfirmation = root.jsonBoolean("requiresConfirmation", false) ||
+            root.jsonBoolean("confirmationRequired", false) ||
+            root.jsonBoolean("requires_confirmation", false)
         
         val params = mutableMapOf<String, String>()
         val paramsObj = root["params"] as? Map<*, *>
         paramsObj?.forEach { (k, v) ->
-            if (k is String && v is String) params[k] = v
+            if (k is String && v != null) {
+                params[k] = when (v) {
+                    is String -> v
+                    is Number, is Boolean -> v.toString()
+                    else -> v.toString()
+                }
+            }
         }
 
         val confidence = root.jsonDouble("confidence", 0.0)
         val reply = root.jsonString("reply") ?: ""
-        val assistantReply = root.jsonString("assistantReply") ?: ""
-        val reason = root.jsonString("reason") ?: ""
+        val assistantReply = root.jsonString("assistantReply") ?: root.jsonString("assistant_reply") ?: ""
+        val reason = root.jsonString("reason") ?: root.jsonString("assistant_reason") ?: ""
         val language = root.jsonString("language") ?: "unknown"
         val sourceStr = root.jsonString("source")
         val source = runCatching { BrainActionSource.valueOf(sourceStr ?: "MODEL") }.getOrDefault(BrainActionSource.MODEL)
-        val rawCommand = root.jsonString("rawCommand") ?: ""
-        val normalizedCommand = root.jsonString("normalizedCommand") ?: ""
-        val schemaVersion = root.jsonInt("schemaVersion", 1)
-        val nextQuestion = root.jsonString("nextQuestion")
-        val finalActionAllowed = root.jsonBoolean("finalActionAllowed", !requiresConfirmation)
+        val rawCommand = root.jsonString("rawCommand") ?: root.jsonString("raw_command") ?: ""
+        val normalizedCommand = root.jsonString("normalizedCommand") ?: root.jsonString("normalized_command") ?: ""
+        val schemaVersion = root.jsonInt("schemaVersion", -1).takeIf { it >= 0 }
+            ?: root.jsonInt("schema_version", 1)
+        val nextQuestion = root.jsonString("nextQuestion") ?: root.jsonString("next_question")
+        val finalActionAllowed = root.jsonBoolean(
+            "finalActionAllowed",
+            root.jsonBoolean("final_action_allowed", !requiresConfirmation)
+        )
         
         val errors = mutableListOf<String>()
         val errorsList = root["errors"] as? List<*>

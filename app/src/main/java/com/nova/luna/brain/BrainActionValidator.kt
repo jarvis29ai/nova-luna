@@ -76,6 +76,14 @@ class BrainActionValidator {
             return false
         }
 
+        if (action.schemaVersion != 1) {
+            return false
+        }
+
+        if (!action.confidence.isFinite() || action.confidence !in 0.0..1.0) {
+            return false
+        }
+
         if (containsDirectExecutionHint(action)) {
             return false
         }

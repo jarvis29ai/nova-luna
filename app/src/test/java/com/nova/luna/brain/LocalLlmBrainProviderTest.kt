@@ -11,7 +11,7 @@ class LocalLlmBrainProviderTest {
     private val codec = BrainActionJsonCodec()
 
     @Test
-    fun `mock config selects local mock provider without calling ollama`() {
+    fun `mock config selects deterministic fallback provider without calling ollama`() {
         val client = RecordingOllamaClient(responseBody = """{"response":"{}","done":true}""")
 
         val provider = BrainProviderFactory.create(
@@ -24,7 +24,7 @@ class LocalLlmBrainProviderTest {
             client = client
         )
 
-        assertTrue(provider is LocalMockBrainProvider)
+        assertTrue(provider is LocalDeterministicBrainProvider)
         assertEquals(null, client.lastPrompt)
     }
 
@@ -96,7 +96,7 @@ class LocalLlmBrainProviderTest {
 
         assertEquals(innerJson, result)
         assertEquals("qwen2.5:3b", client.lastModel)
-        assertTrue(prompt.contains("You are Nova/Luna's local brain."))
+        assertTrue(prompt.contains("You are Nova/Luna's local phone brain."))
         assertTrue(prompt.contains("SafetyGate"))
         assertTrue(prompt.contains("send money"))
     }

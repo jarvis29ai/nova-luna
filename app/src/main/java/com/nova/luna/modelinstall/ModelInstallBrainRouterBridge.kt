@@ -12,7 +12,8 @@ import com.nova.luna.model.BrainRouteDecision
 class ModelInstallBrainRouterBridge(
     private val modelInstallService: ModelInstallService,
     private val catalog: BrainModelCatalog = BrainModelCatalog,
-    private val failureTracker: ModelRuntimeFailureTracker = ModelRuntimeFailureTracker()
+    private val failureTracker: ModelRuntimeFailureTracker = ModelRuntimeFailureTracker(),
+    private val coreRuntimeAvailable: (() -> Boolean)? = null
 ) : BrainRouterBridge, BrainRoleReadinessProvider {
     private val roleSelector = MultiModelRoleSelector(
         catalog = catalog,
@@ -25,7 +26,15 @@ class ModelInstallBrainRouterBridge(
             return false
         }
 
-        return modelInstallService.getReadyModelPath(modelId) != null
+        val installedAndVerified = modelInstallService.getReadyModelPath(modelId) != null
+        if (!installedAndVerified) {
+            return false
+        }
+
+        return when (role) {
+            BrainModelRole.CORE_BRAIN -> coreRuntimeAvailable?.invoke() ?: true
+            else -> true
+        }
     }
 
     override fun selectLocalRoute(
