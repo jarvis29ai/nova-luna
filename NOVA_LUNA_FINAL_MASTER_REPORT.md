@@ -22,9 +22,8 @@ Current honest status:
 - SafetyGate exists and blocks sensitive actions.
 - Accessibility execution exists for legitimate user-controlled UI automation.
 - Local model installation and storage are implemented.
-- Real native GGUF inference has device proof for the 1.5B Qwen path.
+- Real native GGUF inference has device proof for both 1.5B and 0.5B Qwen paths (Phase 33).
 - Gemma 3n LiteRT real inference remains unverified in this cleanup-only pass.
-- Qwen 0.5B fallback inference remains unverified separately.
 - Full multi-model automatic switching is not fully proven end-to-end.
 - Screen understanding is currently deterministic / rule-based unless a neural screen model is separately proven.
 - The repo is not production-ready and not OEM-ready.
@@ -68,8 +67,8 @@ Non-goals:
 | Accessibility service | IMPLEMENTED | NOT VERIFIED in this pass | Real node finding, scrolling, tapping, typing, and global actions exist |
 | Screen understanding | IMPLEMENTED | PARTIAL | Rule-based verifier exists; neural screen model not proven |
 | Model installation | IMPLEMENTED | PASS | App-private install path and checksum-based verification exist |
-| Qwen 1.5B native GGUF inference | IMPLEMENTED | PASS | Existing device proof showed `OK (7 tests)` for the real native inference test suite |
-| Qwen 0.5B fallback inference | IMPLEMENTED | NOT VERIFIED | File exists and is routed, but separate live inference proof was not established here |
+| Qwen 1.5B native GGUF inference | IMPLEMENTED | PASS | Reproved in Phase 33; see docs/proof/phase33_qwen15b_proof_log.txt |
+| Qwen 0.5B fallback inference | IMPLEMENTED | PASS | Proved in Phase 33; see docs/proof/phase33_qwen05b_proof_log.txt |
 | Gemma 3n core model | IMPLEMENTED | NOT VERIFIED | Model asset exists; mainline phone Gemma backend is still scaffolded/unavailable |
 | OEM readiness | NOT IMPLEMENTED | BLOCKED | Not enough proof for production/OEM distribution |
 
@@ -246,8 +245,8 @@ flowchart TD
 | Role | File | Format | Size | SHA-256 | Storage | Activation state | Proof status |
 | --- | --- | --- | ---: | --- | --- | --- | --- |
 | CORE_BRAIN | `models/core/gemma-3n-E2B-it-int4.litertlm` | LiteRT LM | 3,655,827,456 | `2ED7BC3A0026C93D5B8A4544B352D9D00CD66FF0BAC3EF6A20AC3D2CBA4010D6` | `models/core/` | Installed | NOT VERIFIED for live inference here |
-| MULTILINGUAL_BACKUP | `models/multilingual/qwen2.5-1.5b-instruct-q4_k_m.gguf` | GGUF | 1,117,320,736 | `6A1A2EB6D15622BF3C96857206351BA97E1AF16C30D7A74EE38970E434E9407E` | `models/multilingual/` | Installed | PASS, real device proof exists |
-| LITE_FALLBACK | `models/lite/qwen2.5-0.5b-instruct-q4_k_m.gguf` | GGUF | 491,400,032 | `74A4DA8C9FDBCD15BD1F6D01D621410D31C6FC00986F5EB687824E7B93D7A9DB` | `models/lite/` | Installed | NOT VERIFIED separately |
+| MULTILINGUAL_BACKUP | `models/multilingual/qwen2.5-1.5b-instruct-q4_k_m.gguf` | GGUF | 1,117,320,736 | `6A1A2EB6D15622BF3C96857206351BA97E1AF16C30D7A74EE38970E434E9407E` | `models/multilingual/` | Installed | PASS, Phase 33 proof on OnePlus 8T |
+| LITE_FALLBACK | `models/lite/qwen2.5-0.5b-instruct-q4_k_m.gguf` | GGUF | 491,400,032 | `74A4DA8C9FDBCD15BD1F6D01D621410D31C6FC00986F5EB687824E7B93D7A9DB` | `models/lite/` | Installed | PASS, Phase 33 proof on OnePlus 8T |
 
 Provenance metadata is preserved in `models/manifests/`.
 
