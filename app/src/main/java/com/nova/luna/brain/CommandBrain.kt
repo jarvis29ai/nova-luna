@@ -55,7 +55,14 @@ class CommandBrain(
         modelInstallService = modelInstallService,
         liteRealInferenceEnabled = runtimeConfig.liteRealInferenceEnabled
     )
-    private val gemmaRuntime = PhoneGemmaRuntime()
+    private val gemmaRuntime = PhoneGemmaRuntime(
+        config = GemmaPhoneConfig.fromBuildConfig(),
+        backend = if (com.nova.luna.BuildConfig.GEMMA_REAL_INFERENCE_ENABLED) {
+            LiteRTGemmaRuntimeBackend(context)
+        } else {
+            UnavailablePhoneGemmaRuntimeBackend()
+        }
+    )
     private val bridge = com.nova.luna.modelinstall.ModelInstallBrainRouterBridge(
         modelInstallService,
         coreRuntimeAvailable = { gemmaRuntime.isReady() }

@@ -48,6 +48,7 @@ android {
         def llmEnabled = (project.findProperty('llm_enabled') ?: 'false').toString().toBoolean()
         def brainCapabilityMode = (project.findProperty('brain_capability_mode') ?: 'offline_only').toString()
         def gemmaEnabled = (project.findProperty('gemma_enabled') ?: 'false').toString().toBoolean()
+        def gemmaRealInferenceEnabled = (project.findProperty('gemma_real_inference_enabled') ?: 'false').toString().toBoolean()
         def gemmaModelAssetPath = (project.findProperty('gemma_model_asset_path') ?: '').toString()
         def gemmaMaxTokens = (project.findProperty('gemma_max_tokens') ?: '512').toString().toInteger()
         def gemmaTemperature = (project.findProperty('gemma_temperature') ?: '0.2').toString().toDouble()
@@ -89,6 +90,7 @@ android {
         buildConfigField "boolean", "LLM_ENABLED", "${llmEnabled}"
         buildConfigField "String", "BRAIN_CAPABILITY_MODE", "\"${brainCapabilityMode.replace("\\", "\\\\").replace("\"", "\\\"")}\""
         buildConfigField "boolean", "GEMMA_ENABLED", "${gemmaEnabled}"
+        buildConfigField "boolean", "GEMMA_REAL_INFERENCE_ENABLED", "${gemmaRealInferenceEnabled}"
         buildConfigField "String", "GEMMA_MODEL_ASSET_PATH", "\"${gemmaModelAssetPath.replace("\\", "\\\\").replace("\"", "\\\"")}\""
         buildConfigField "int", "GEMMA_MAX_TOKENS", "${gemmaMaxTokens}"
         buildConfigField "double", "GEMMA_TEMPERATURE", "${gemmaTemperature}"
@@ -188,6 +190,7 @@ dependencies {
     implementation 'androidx.room:room-runtime:2.6.1'
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+    implementation 'com.google.mediapipe:tasks-genai:0.10.35'
 
     kapt 'androidx.room:room-compiler:2.6.1'
 

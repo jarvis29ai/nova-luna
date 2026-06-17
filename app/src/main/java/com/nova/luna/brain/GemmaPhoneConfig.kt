@@ -4,6 +4,7 @@ import com.nova.luna.BuildConfig
 
 data class GemmaPhoneConfig(
     val gemmaEnabled: Boolean,
+    val gemmaRealInferenceEnabled: Boolean,
     val gemmaModelAssetPath: String,
     val gemmaMaxTokens: Int,
     val gemmaTemperature: Double,
@@ -98,6 +99,7 @@ data class GemmaPhoneConfig(
         fun fromBuildConfig(): GemmaPhoneConfig {
             return GemmaPhoneConfig(
                 gemmaEnabled = BuildConfig.GEMMA_ENABLED,
+                gemmaRealInferenceEnabled = BuildConfig.GEMMA_REAL_INFERENCE_ENABLED,
                 gemmaModelAssetPath = BuildConfig.GEMMA_MODEL_ASSET_PATH,
                 gemmaMaxTokens = BuildConfig.GEMMA_MAX_TOKENS,
                 gemmaTemperature = BuildConfig.GEMMA_TEMPERATURE,
