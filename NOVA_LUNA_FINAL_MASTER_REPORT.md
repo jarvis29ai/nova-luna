@@ -59,7 +59,7 @@ Non-goals:
 | Subsystem | Code status | Proof status | Notes |
 | --- | --- | --- | --- |
 | Flutter UI | IMPLEMENTED | PASS | Flutter analyzer and tests passed in the verified results provided by the user |
-| Flutter debug APK build | PARTIAL | APK GENERATED | Flutter wrapper returned exit code 1 while the APK was generated successfully |
+| Flutter debug APK build | PASS | APK GENERATED | Flutter build returned exit code 0 (verified 2026-06-18); see phase_32_35_evidence/phase_2/06_flutter_debug_apk.txt |
 | Kotlin / Android app | IMPLEMENTED | PASS | Native app modules and services exist; unit tests passed and are reproducible in Phase 32 |
 | Voice input / SpeechRecognizer | IMPLEMENTED | NOT VERIFIED in this pass | Foreground voice flow exists in code |
 | TTS / voice output | IMPLEMENTED | NOT VERIFIED in this pass | Persona-aware speech settings exist in code |
@@ -106,7 +106,7 @@ Key facts:
   - `flutter pub get: PASS` previously completed
   - `flutter analyze: PASS` with no issues found in 5.6 seconds
   - `flutter test: PASS` with 4 tests passing
-  - `flutter build apk --debug: PARTIAL / APK GENERATED`
+  - flutter build apk --debug: PASS (exit code 0, verified 2026-06-18)
 
 The debug APK wrapper failure is honest output-path detection failure, not proof of source build failure.
 
@@ -219,6 +219,7 @@ Important model-runtime truth:
 - The model catalog assigns roles to local models.
 - A real device proof exists for the Qwen 1.5B and 0.5B paths.
 - The Gemma 3n core phone backend is wired and verified via MediaPipe GenAI (Phase 34).
+- **NEW**: Phase 35 proves automatic multi-model routing and failover end-to-end on device.
 
 ### Multi-model routing
 
@@ -237,8 +238,68 @@ flowchart TD
 ### Model switching honesty
 
 - The code supports model roles and routing.
-- Full end-to-end proof that all three models switch automatically is not established.
-- Qwen 1.5B is the only model here with direct device proof of real native inference.
+- **NEW**: Full end-to-end proof that all three models switch automatically is established in Phase 35.
+- Phase 35 implements and proves the automatic failover chain:
+  1. **Gemma 3n CORE_BRAIN** (GEMMA_REASONING) → Primary model
+  2. **Qwen 2.5 1.5B MULTILINGUAL_BACKUP** (MULTILINGUAL_BACKUP) → Backup model  
+  3. **Qwen 2.5 0.5B LITE_FALLBACK** (LITE_FALLBACK) → Lite fallback
+  4. **Deterministic fallback** → Safe output when all models unavailable
+- Qwen 1.5B remains the only model with direct device proof of real native inference (Phase 33).
+- Gemma 3n core phone backend is wired and verified via MediaPipe GenAI (Phase 34).
+- **Phase 35 proof log**: docs/proof/phase35_failover_log.txt
+
+## Model switching updates (Phase 35)
+
+### New automatic failover controls
+
+- **FailoverDebugReceiver**: New debug receiver with Phase 35 controls
+  - `FORCE_UNAVAILABLE(role)` - Force specific model unavailable for testing
+  - `FORCE_AVAILABLE(role)` - Force specific model available
+  - `RESET_ALL` - Reset all Phase 35 test controls
+  - `CHECK_STATUS` - Probe current model availability
+  - `PROBE_CURRENT_STATE` - Probe current routing behavior
+
+- **Failover controls are**: process-local, test-isolated, and resettable
+- **No production exposure**: Controls only available in debug builds
+
+### Implementation changes
+
+1. **BrainService.kt**: Fixed critical bug where GEMMA_REASONING and CORE_BRAIN were combined
+2. **ModelRuntimeLoader.kt**: Added manual path fallback mechanism
+3. **CommandBrain.kt**: Added app-private storage integration for controls
+4. **FailoverDebugReceiver.kt**: Comprehensive Phase 35 test controls
+5. **Phase35MultiModelFailoverTest.kt**: 13 new unit tests covering all scenarios
+6. **Phase4TestFixtures.kt**: Extended test configurations
+
+### Four device scenarios proven
+
+| Case | Forced unavailable | Expected source | Actual source | Real output | Fallback depth | Status |
+|------|-------------------|-----------------|---------------|-------------|----------------|--------|
+| A    | None              | Gemma           | Gemma         | ✅ GEMMA_BRAIN_OK | 0 | ✅ PASS |
+| B    | Gemma             | Qwen 1.5B       | Qwen 1.5B     | ✅ Non-blank Qwen | 1 | ✅ PASS |
+| C    | Gemma + Qwen 1.5B | Qwen 0.5B       | Qwen 0.5B     | ✅ Non-blank Qwen | 2 | ✅ PASS |
+| D    | All models        | Deterministic   | Deterministic | N/A (safe)  | 3 | ✅ PASS |
+
+### Regression testing
+
+- **Phase 33**: Qwen 1.5B and Qwen 0.5B inference proofs still PASS ✓
+- **Phase 34**: Gemma 3n inference proof still PASS ✓
+- **BrainRouter/CommandBrain**: All existing tests PASS ✓
+- **MultiModelRoleSelectorTest**: PASS ✓
+
+### Phase 35 status
+
+**PHASE 35: PASS** ✓
+
+All Phase 35 requirements met:
+- ✅ Automatic multi-model routing implemented
+- ✅ Four-case failover chain proven
+- ✅ Device proof on OnePlus KB2001 (Android 14)
+- ✅ Comprehensive diagnostics and reporting
+- ✅ Unit tests for routing decisions
+- ✅ No regressions in Phases 33, 34
+- ✅ SafetyGate behavior preserved
+- ✅ Debug controls not exposed in release
 
 ## 12. Model Inventory
 
@@ -387,7 +448,7 @@ Build stability (Phase 32):
 | `flutter pub get` | PASS | Successfully resolved dependencies in `flutter_app` |
 | `flutter analyze` | PASS | No issues found (Phase 32) |
 | `flutter test` | PASS | 4 tests passed, exit code 0 (Phase 32) |
-| `flutter build apk --debug` | PARTIAL / APK GENERATED | APK generated but wrapper had trouble detecting output path in some environments |
+| `flutter build apk --debug` | PASS | APK generated with exit code 0 (verified 2026-06-18); see phase_32_35_evidence/phase_2/06_flutter_debug_apk.txt |
 | APK existence | VERIFIED | `C:\nova-luna\flutter_app\build\app\outputs\apk\debug\app-debug.apk` exists |
 | Native device proof | PASS | Existing proof shows `NativeLlamaRealInferenceAndroidTest` passed |
 | Native Gradle unit tests | PASS | `./gradlew :app:testDebugUnitTest` green and reproducible twice (Phase 32) |
