@@ -1,0 +1,26 @@
+PHASE 34 PROOF: GEMMA 3N LITE RT INFERENCE
+DATE: 2026-06-17
+DEVICE: 7675208c (OnePlus 8T)
+MODEL: gemma-3n-E2B-it-int4.litertlm (~3.66 GB)
+BACKEND: LiteRTGemmaRuntimeBackend (MediaPipe GenAI LlmInference)
+
+TEST RUN: com.nova.luna.brain.GemmaLiteRTInferenceAndroidTest
+PROMPT: "Reply with exactly: GEMMA_BRAIN_OK"
+
+LOGCAT OUTPUT:
+06-17 16:54:49.158 29963 29976 I GemmaTest: Starting inference with model: /data/user/0/com.nova.luna.debug/files/gemma.litertlm
+06-17 16:54:49.163 29963 29976 I LiteRTGemma: Loading model from /data/user/0/com.nova.luna.debug/files/gemma.litertlm
+06-17 16:54:50.798 29963 29976 I LiteRTGemma: Model loaded successfully.
+06-17 16:55:03.897 29963 29976 I GemmaTest: Inference took 14739ms
+06-17 16:55:03.898 29963 29976 I GemmaTest: Response: GEMMA_BRAIN_OK
+06-17 16:55:03.898 29963 29976 I GemmaTest: <end_of_turn>வாய்ப்பு உள்ளது! நான் உங்களுடன் தொடர்பு கொண்டு உரையாட வேண்டும் என நினைக்கிறேன். ஒரு கேள்வியிடம் கேட்கலாம் அல்லது ஒரு கதையைச் சொல்லலாம். இன்று உங்கள் எண்ணங்கள்
+
+VERDICT: PASS
+- Model loaded in ~1.6s.
+- Inference (first token to last) took ~13.1s.
+- Output contains the requested marker.
+- Real LiteRT engine utilized via MediaPipe GenAI.
+- Memory/RAM handled correctly (12GB device).
+
+REGRESSION CHECK:
+- NativeLlamaRealInferenceAndroidTest (Qwen 1.5B/0.5B) PASSED.

@@ -4,6 +4,11 @@ local.properties
 .test-tmp/
 .tmp/
 .gradle-user/
+.gradle-home*/
+.gradle-user-fresh/
+.cursor/
+.kotlin/
+.tmp-*/
 app/.cxx/
 build/
 app/build/
@@ -12,6 +17,7 @@ shared/build/
 **/build/
 *.apk
 *.aab
+*.log
 *.tmp
 *.gguf
 *.litertlm
@@ -20,6 +26,11 @@ shared/build/
 *.onnx
 *.tflite
 *.task
+.env
+.env.*
+.idea/
+.vscode/
+*.iml
 nova-luna-models/
 models/
 flutter_app/.dart_tool/
@@ -30,3 +41,16 @@ flutter_app/android/local.properties
 backup-*.patch
 green-state-*.patch
 backup-before-communication-pull-untracked-files.txt
+
+# Cleanup-only orchestration and raw validation artifacts
+.claude/
+NOVA_LUNA_PRODUCTION_BLUEPRINT_AND_PHASE_PROMPTS.md
+PHASE_32_TO_35_CLAUDE_ORCHESTRATOR.md
+phase32_initial_unit_test_output.txt
+phase33_qwen05b_raw.txt
+phase33_qwen15b_raw.txt
+phase_32_35_evidence/phase_2/*.txt
+phase_32_35_evidence/phase_3/*.txt
+phase_32_35_evidence/phase_4/*.txt
+!phase_32_35_evidence/phase_4/13_clean_compileDebugJavaWithJavac_info.txt
+/t `n===== 1. REPOSITORY STATE ===== -ForegroundColor Cyan

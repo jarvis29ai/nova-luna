@@ -241,30 +241,89 @@ class NativeLlamaRealInferenceAndroidTest {
         assertTrue("Controlled hang must identify the isolated service process", result.servicePid > 0)
     }
 
+    @Test
+    fun liteModelCompletesFirstForwardPass() {
+        val fixture = loadLiteModelFixture()
+        val result = runProof(
+            stage = NativeProofStage.DECODE_ONE_PROMPT_TOKEN,
+            modelId = MODEL_ID_LITE,
+            modelFile = fixture.file,
+            modelSha256 = fixture.sha256,
+            prompt = "a",
+            maxTokens = 1
+        )
+
+        assertSuccessfulStage(
+            label = "liteModelCompletesFirstForwardPass",
+            result = result,
+            fixture = fixture
+        )
+        assertEquals("prompt_decode_complete", result.stageReached)
+        assertTrue("Prompt tokens must be present", result.promptTokenIds.isNotEmpty())
+        assertTrue("Prompt logits must be computed", result.logitsComputed)
+        assertTrue("Prompt logits must be finite", result.logitsFinite)
+        assertNotNull("Prompt logits preview must be present", result.logitsPreview)
+        assertTrue("Prompt forward pass must execute", result.nativeForwardPassCount > 0)
+        assertTokenIdsWithinVocab("liteModelCompletesFirstForwardPass", result)
+    }
+
+    @Test
+    fun liteModelGeneratesRealTokens() {
+        val fixture = loadLiteModelFixture()
+        val result = runProof(
+            stage = NativeProofStage.READABLE_OUTPUT,
+            modelId = MODEL_ID_LITE,
+            modelFile = fixture.file,
+            modelSha256 = fixture.sha256,
+            prompt = "Write three common fruit names.",
+            maxTokens = 12
+        )
+
+        assertSuccessfulStage(
+            label = "liteModelGeneratesRealTokens",
+            result = result,
+            fixture = fixture
+        )
+        assertEquals("generation_complete", result.stageReached)
+        assertTrue("Lite generation must produce at least three tokens", result.tokensGenerated >= 3)
+        assertTrue("Lite generation must return decoded text", !result.decodedText.isNullOrBlank())
+        assertTokenIdsWithinVocab("liteModelGeneratesRealTokens", result)
+    }
+
     private fun loadFullModelFixture(): ModelFixture {
         val modelFile = File(context.filesDir, "model_install/models/full/qwen2.5-1.5b-instruct-q4_k_m.gguf")
-        logStage("fullModelFixture", "model path verification", "begin", modelFile.absolutePath)
+        return loadModelFixture("fullModelFixture", modelFile, EXPECTED_FULL_SHA256)
+    }
+
+    private fun loadLiteModelFixture(): ModelFixture {
+        val modelFile = File(context.filesDir, "model_install/models/lite/qwen2.5-0.5b-instruct-q4_k_m.gguf")
+        return loadModelFixture("liteModelFixture", modelFile, EXPECTED_LITE_SHA256)
+    }
+
+    private fun loadModelFixture(label: String, modelFile: File, expectedSha256: String): ModelFixture {
+        logStage(label, "model path verification", "begin", modelFile.absolutePath)
         assertTrue("Missing model file: ${modelFile.absolutePath}", modelFile.exists())
         assertTrue("Unreadable model file: ${modelFile.absolutePath}", modelFile.canRead())
         val sha256 = Sha256ModelVerifier().digestHex(modelFile)
-        assertEquals(EXPECTED_FULL_SHA256, sha256)
-        logStage("fullModelFixture", "model path verification", "end", modelFile.absolutePath)
-        logStage("fullModelFixture", "model sha256", "end", sha256)
+        assertEquals("SHA256 mismatch for $label", expectedSha256.lowercase(), sha256.lowercase())
+        logStage(label, "model path verification", "end", modelFile.absolutePath)
+        logStage(label, "model sha256", "end", sha256)
         return ModelFixture(modelFile, sha256)
     }
 
     private fun runProof(
         stage: NativeProofStage,
+        modelId: String = MODEL_ID_FULL,
         modelFile: File,
         modelSha256: String,
         prompt: String,
         maxTokens: Int,
         timeoutMs: Long = DEFAULT_STAGE_TIMEOUT_MS
     ): NativeProofStageResult {
-        logStage(stage.name, "controller", "begin", "prompt=${prompt.take(64)}")
+        logStage(stage.name, "controller", "begin", "modelId=$modelId, prompt=${prompt.take(64)}")
         val result = controller.runStage(
             stage = stage,
-            modelId = MODEL_ID_FULL,
+            modelId = modelId,
             debugOverridePath = modelFile.absolutePath,
             modelSha256 = modelSha256,
             prompt = prompt,
@@ -344,7 +403,9 @@ class NativeLlamaRealInferenceAndroidTest {
     private companion object {
         private const val TAG = "NativeLlamaProof"
         private const val MODEL_ID_FULL = "full"
+        private const val MODEL_ID_LITE = "lite"
         private const val EXPECTED_FULL_SHA256 = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
+        private const val EXPECTED_LITE_SHA256 = "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db"
         private const val DEFAULT_STAGE_TIMEOUT_MS = 120_000L
     }
 }

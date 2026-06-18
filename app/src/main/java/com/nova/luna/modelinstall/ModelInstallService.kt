@@ -182,7 +182,7 @@ class ModelInstallSpecRegistry(
         displayName = "Lightweight Fallback",
         role = "LITE_FALLBACK",
         expectedFileName = "qwen2.5-0.5b-instruct-q4_k_m.gguf",
-        expectedSha256 = BuildConfig.NOVA_LUNA_LIGHTWEIGHT_MODEL_SHA256,
+        expectedSha256 = BuildConfig.NOVA_LUNA_LIGHTWEIGHT_MODEL_SHA256.takeIf { it.isNotBlank() },
         minimumBytes = 100_000_000,
         preferredInstallDirName = "lite",
         allowedExtensions = listOf(".gguf", ".bin")

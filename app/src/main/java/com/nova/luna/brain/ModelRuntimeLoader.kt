@@ -25,7 +25,9 @@ class ModelRuntimeLoader(
             else -> null
         } ?: return UnavailablePhoneLocalLlmEngine()
 
-        val verifiedPath = modelInstallService.getReadyModelPath(installModelId) ?: return UnavailablePhoneLocalLlmEngine()
+        val verifiedPath = modelInstallService.getReadyModelPath(installModelId)
+            ?: modelInstallService.repairModelPath(installModelId).let { if (it.ready) it.resolvedPath else null }
+            ?: return UnavailablePhoneLocalLlmEngine()
 
         val modelFile = java.io.File(verifiedPath)
         val modelEnum = modelIdForRole(role) ?: return UnavailablePhoneLocalLlmEngine()

@@ -53,14 +53,14 @@ The receiver copies a local file into app-private storage, verifies SHA-256, and
 
 ### Windows To Android Example
 
-The user can push model files to a shared debug folder on the phone:
+The user can push model files from the repo-local model tree into a shared debug folder on the phone:
 
 ```powershell
 adb shell mkdir -p /sdcard/Download/nova-luna-model-import
 
-adb push "C:\Users\cricv\Desktop\nova-luna-models\gemma-3n-E2B-it-litert-lm\gemma-3n-E2B-it-int4.litertlm" /sdcard/Download/nova-luna-model-import/
-adb push "C:\Users\cricv\Desktop\nova-luna-models\multilingual-qwen-1.5b\qwen2.5-1.5b-instruct-q4_k_m.gguf" /sdcard/Download/nova-luna-model-import/
-adb push "C:\Users\cricv\Desktop\nova-luna-models\fallback-qwen-0.5b\qwen2.5-0.5b-instruct-q4_k_m.gguf" /sdcard/Download/nova-luna-model-import/
+adb push "C:\nova-luna\models\core\gemma-3n-E2B-it-int4.litertlm" /sdcard/Download/nova-luna-model-import/
+adb push "C:\nova-luna\models\multilingual\qwen2.5-1.5b-instruct-q4_k_m.gguf" /sdcard/Download/nova-luna-model-import/
+adb push "C:\nova-luna\models\lite\qwen2.5-0.5b-instruct-q4_k_m.gguf" /sdcard/Download/nova-luna-model-import/
 ```
 
 Then import the pack from the debug build:
@@ -93,4 +93,5 @@ You can also check the debug import report written to the app cache directory af
 - Release builds should use configured download URLs and hashes from local properties or Gradle properties.
 - Debug builds can use the import receiver for already-downloaded files.
 - A model is never marked ready until SHA-256 verification passes.
+- The repo-local `models/` tree is the canonical Windows staging location for local development; the Android runtime still copies verified packs into app-private storage.
 - No model binary should be committed to git.

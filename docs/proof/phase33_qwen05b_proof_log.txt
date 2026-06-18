@@ -1,0 +1,7 @@
+06-17 16:26:51.521 I/NativeProofController(29387): Completed proof stage READABLE_OUTPUT for modelId=lite
+06-17 16:27:27.957 I/NativeLlamaProof(29387): label=liteModelFixture | stage=model path verification | event=begin | /data/user/0/com.nova.luna.debug/files/model_install/models/lite/qwen2.5-0.5b-instruct-q4_k_m.gguf
+06-17 16:27:29.194 I/NativeLlamaProof(29387): label=liteModelFixture | stage=model path verification | event=end | /data/user/0/com.nova.luna.debug/files/model_install/models/lite/qwen2.5-0.5b-instruct-q4_k_m.gguf
+06-17 16:27:29.194 I/NativeLlamaProof(29387): label=liteModelFixture | stage=model sha256 | event=end | 74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db
+06-17 16:27:29.194 I/NativeLlamaProof(29387): label=DECODE_ONE_PROMPT_TOKEN | stage=controller | event=begin | modelId=lite, prompt=a
+06-17 16:27:29.205 I/NativeProofController(29387): Starting proof stage DECODE_ONE_PROMPT_TOKEN for modelId=lite timeoutMs=120000
+06-17 16:27:33.319 I/NativeProofController(29387): Completed proof stage DECODE_ONE_PROMPT_TOKEN for modelId=lite

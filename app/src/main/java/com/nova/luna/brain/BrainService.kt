@@ -26,6 +26,8 @@ import com.nova.luna.safety.SafetyGate
 import com.nova.luna.modelinstall.ModelInstallService
 import com.nova.luna.modelinstall.ModelInstallDiagnostics
 import com.nova.luna.util.AssistantTextNormalizer
+import com.nova.luna.util.NoOpNovaLogger
+import com.nova.luna.util.NovaLogger
 import java.util.Locale
 
 class BrainService(
@@ -52,6 +54,7 @@ class BrainService(
     private val phoneBrainProvider: PhoneBrainProvider = UnavailablePhoneBrainProvider(),
     private val ollamaClient: OllamaClient = HttpOllamaClient(),
     private val localBrainRouterBridge: BrainRouterBridge = NoOpBrainRouterBridge,
+    private val logger: NovaLogger = NoOpNovaLogger(),
     private val coreBrainModel: PhoneBrainModel = LocalBrainModelClient(
         role = BrainModelRole.CORE_BRAIN,
         roleReadinessProvider = (localBrainRouterBridge as? BrainRoleReadinessProvider)
@@ -77,9 +80,10 @@ class BrainService(
         onlineAiConfig = onlineAiConfig,
         internetAvailable = internetAvailable,
         onlineAiPolicy = onlineAiPolicy,
-        localBrainRouterBridge = localBrainRouterBridge
+        localBrainRouterBridge = localBrainRouterBridge,
+        logger = logger
     ),
-    private val gemmaRuntime: PhoneGemmaRuntime = PhoneGemmaRuntime(),
+    private val gemmaRuntime: PhoneGemmaRuntime = PhoneGemmaRuntime(logger = logger),
     private val gemmaBrainModel: PhoneBrainModel = GemmaBrainModel(gemmaRuntime),
     private val actionJsonModel: PhoneBrainModel = ActionJsonModel(),
     private val liteCommandModel: PhoneBrainModel = LiteCommandModel(),

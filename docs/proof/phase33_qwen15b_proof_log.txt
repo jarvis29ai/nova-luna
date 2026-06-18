@@ -1,0 +1,12 @@
+06-17 16:26:51.532 I/NativeLlamaProof(29387): label=fullModelFixture | stage=model path verification | event=begin | /data/user/0/com.nova.luna.debug/files/model_install/models/full/qwen2.5-1.5b-instruct-q4_k_m.gguf
+06-17 16:26:54.378 I/NativeLlamaProof(29387): label=fullModelFixture | stage=model path verification | event=end | /data/user/0/com.nova.luna.debug/files/model_install/models/full/qwen2.5-1.5b-instruct-q4_k_m.gguf
+06-17 16:26:54.379 I/NativeLlamaProof(29387): label=fullModelFixture | stage=model sha256 | event=end | 6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e
+06-17 16:26:54.379 I/NativeLlamaProof(29387): label=DECODE_ONE_PROMPT_TOKEN | stage=controller | event=begin | modelId=full, prompt=a
+06-17 16:26:54.389 I/NativeProofController(29387): Starting proof stage DECODE_ONE_PROMPT_TOKEN for modelId=full timeoutMs=120000
+06-17 16:26:59.870 I/NativeProofController(29387): Completed proof stage DECODE_ONE_PROMPT_TOKEN for modelId=full
+06-17 16:26:59.878 I/NativeLlamaProof(29387): label=fullModelFixture | stage=model path verification | event=begin | /data/user/0/com.nova.luna.debug/files/model_install/models/full/qwen2.5-1.5b-instruct-q4_k_m.gguf
+06-17 16:27:02.649 I/NativeLlamaProof(29387): label=fullModelFixture | stage=model path verification | event=end | /data/user/0/com.nova.luna.debug/files/model_install/models/full/qwen2.5-1.5b-instruct-q4_k_m.gguf
+06-17 16:27:02.649 I/NativeLlamaProof(29387): label=fullModelFixture | stage=model sha256 | event=end | 6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e
+06-17 16:27:02.649 I/NativeLlamaProof(29387): label=STRUCTURED_JSON_OUTPUT | stage=controller | event=begin | modelId=full, prompt=Camera kholo.
+06-17 16:27:02.661 I/NativeProofController(29387): Starting proof stage STRUCTURED_JSON_OUTPUT for modelId=full timeoutMs=120000
+06-17 16:27:27.948 I/NativeProofController(29387): Completed proof stage STRUCTURED_JSON_OUTPUT for modelId=full

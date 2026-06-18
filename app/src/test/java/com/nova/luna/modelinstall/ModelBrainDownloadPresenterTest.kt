@@ -12,7 +12,14 @@ class ModelBrainDownloadPresenterTest {
     fun reportShowsModelSourceNotConfiguredSafely() {
         val baseDir = Files.createTempDirectory("nova_luna_brain_download_report_test").toFile()
         try {
-            val manager = DefaultModelManager(PrivateAppModelStorage.from(baseDir))
+            val storage = PrivateAppModelStorage.from(baseDir)
+            val coordinator = ModelInstallCoordinator(
+                storage = storage,
+                downloadSourceProviderOverride = ModelDownloadSourceProvider(
+                    sourceManifest = ModelSourceManifest.empty()
+                )
+            )
+            val manager = DefaultModelManager(coordinator)
             val presenter = ModelBrainDownloadPresenter(manager)
             val report = presenter.buildReport(sampleSnapshot())
 
