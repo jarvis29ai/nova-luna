@@ -4,6 +4,8 @@ import com.nova.luna.model.BrainAction
 import com.nova.luna.model.BrainModelRole
 import com.nova.luna.model.BrainRouteDecision
 import com.nova.luna.model.BrainRuntimeStatus
+import com.nova.luna.util.NoOpNovaLogger
+import com.nova.luna.util.NovaLogger
 import java.io.File
 
 data class PhoneGemmaRuntimeReadiness(
@@ -38,6 +40,7 @@ class PhoneGemmaRuntime(
     private val config: GemmaPhoneConfig = GemmaPhoneConfig.fromBuildConfig(),
     private val backend: PhoneGemmaRuntimeBackend = UnavailablePhoneGemmaRuntimeBackend(),
     private val modelPathExists: (String) -> Boolean = { path -> path.isNotBlank() && File(path).exists() },
+    private val logger: NovaLogger = NoOpNovaLogger(),
     private val promptBuilder: (BrainRequest, BrainRouteDecision, GemmaPhoneConfig) -> String = { request, routeDecision, runtimeConfig ->
         buildString {
             append(BrainSystemPrompt.build(request))
@@ -133,10 +136,14 @@ class PhoneGemmaRuntime(
         fallbackActive: Boolean = false
     ): PhoneGemmaRuntimeReadiness {
         val modelPathConfigured = runtimeConfig.modelPathConfigured
-        val modelFileExists = modelPathConfigured && modelPathExists(runtimeConfig.gemmaModelAssetPath)
+        val modelPath = runtimeConfig.gemmaModelAssetPath
+        val modelFileExists = modelPathConfigured && modelPathExists(modelPath)
         val backendAvailable = backend.isRuntimeAvailable()
         val runtimeAvailable = runtimeConfig.runtimeFeatureEnabled && backendAvailable
         val modelLoaded = runtimeAvailable && modelPathConfigured && modelFileExists
+
+        logger.i("PhoneGemma", "Readiness: role=$selectedBrainRole, path=$modelPath, configured=$modelPathConfigured, exists=$modelFileExists, backend=$backendAvailable, feature=${runtimeConfig.runtimeFeatureEnabled}, loaded=$modelLoaded")
+
         val reason = when {
             !runtimeConfig.gemmaEnabled -> "Gemma phone runtime is disabled."
             !runtimeConfig.gemmaRoleEnabled -> "Gemma reasoning role is disabled."

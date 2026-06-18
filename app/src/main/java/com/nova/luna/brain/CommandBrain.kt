@@ -23,6 +23,7 @@ import com.nova.luna.safety.SafetyGate
 import com.nova.luna.agent.AgentLoop
 import com.nova.luna.agent.TaskLoopCoordinator
 import com.nova.luna.llm.*
+import com.nova.luna.util.AndroidNovaLogger
 
 class CommandBrain(
     context: Context,
@@ -61,11 +62,13 @@ class CommandBrain(
             LiteRTGemmaRuntimeBackend(context)
         } else {
             UnavailablePhoneGemmaRuntimeBackend()
-        }
+        },
+        logger = AndroidNovaLogger()
     )
     private val bridge = com.nova.luna.modelinstall.ModelInstallBrainRouterBridge(
         modelInstallService,
-        coreRuntimeAvailable = { gemmaRuntime.isReady() }
+        coreRuntimeAvailable = { gemmaRuntime.isReady() },
+        filesDir = context.filesDir
     )
 
     private val coreModel = LocalBrainModelClient(
@@ -92,7 +95,8 @@ class CommandBrain(
         liteFallbackModelOverride = liteModel,
         modelInstallService = modelInstallService,
         modelRuntimeManager = modelRuntimeManager,
-        gemmaRuntime = gemmaRuntime
+        gemmaRuntime = gemmaRuntime,
+        logger = AndroidNovaLogger()
     )
 
     private val parser = RuleBasedCommandParser()

@@ -9,13 +9,16 @@ import com.nova.luna.grocery.GroceryIntentParser
 import com.nova.luna.content.ContentCreationCommandType
 import com.nova.luna.content.ContentCreationIntentParser
 import com.nova.luna.util.AssistantTextNormalizer
+import com.nova.luna.util.NovaLogger
+import com.nova.luna.util.NoOpNovaLogger
 
 class BrainRouter(
     private val internetPermissionPolicy: InternetPermissionPolicy = InternetPermissionPolicy(),
     private val onlineAiConfig: OnlineAiConfig = OnlineAiConfig.fromBuildConfig(),
     private val internetAvailable: Boolean = false,
     private val onlineAiPolicy: OnlineAiPolicy = OnlineAiPolicy(internetPermissionPolicy = internetPermissionPolicy),
-    private val localBrainRouterBridge: BrainRouterBridge = NoOpBrainRouterBridge
+    private val localBrainRouterBridge: BrainRouterBridge = NoOpBrainRouterBridge,
+    private val logger: NovaLogger = NoOpNovaLogger()
 ) {
     private val foodIntentParser = FoodIntentParser()
     private val groceryIntentParser = GroceryIntentParser()
@@ -460,7 +463,10 @@ class BrainRouter(
         request: BrainRequest,
         allowOnlineHelper: Boolean
     ): BrainRouteDecision? {
-        return localBrainRouterBridge.selectLocalRoute(request, allowOnlineHelper)
+        logger.i("BrainRouter", "Requesting local route from bridge for: ${request.rawText}")
+        val decision = localBrainRouterBridge.selectLocalRoute(request, allowOnlineHelper)
+        logger.i("BrainRouter", "Bridge returned decision: ${decision?.selectedRole}")
+        return decision
     }
 
     private fun brainSetupRequiredDecision(

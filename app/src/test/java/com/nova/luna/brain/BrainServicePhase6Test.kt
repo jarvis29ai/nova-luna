@@ -187,6 +187,7 @@ class BrainServicePhase6Test {
     ): GemmaPhoneConfig {
         return GemmaPhoneConfig(
             gemmaEnabled = gemmaEnabled,
+            gemmaRealInferenceEnabled = false,
             gemmaModelAssetPath = gemmaModelAssetPath,
             gemmaMaxTokens = 128,
             gemmaTemperature = 0.2,

@@ -7,7 +7,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
@@ -17,6 +16,10 @@
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
 
     <queries>
         <!-- Content Creation Apps -->
@@ -30,6 +33,68 @@
         <package android:name="com.microsoft.office.powerpoint" />
         <package android:name="com.microsoft.office.word" />
         <package android:name="com.microsoft.office.excel" />
+
+        <!-- Phone / assistant / navigation apps -->
+        <package android:name="com.android.camera" />
+        <package android:name="com.google.android.GoogleCamera" />
+        <package android:name="com.sec.android.app.camera" />
+        <package android:name="com.android.settings" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.android.chrome" />
+        <package android:name="org.mozilla.firefox" />
+        <package android:name="com.microsoft.emmx" />
+        <package android:name="com.google.android.dialer" />
+        <package android:name="com.android.dialer" />
+        <package android:name="com.samsung.android.dialer" />
+        <package android:name="com.google.android.apps.messaging" />
+        <package android:name="com.android.messaging" />
+        <package android:name="com.samsung.android.messaging" />
+        <package android:name="com.google.android.apps.maps" />
+
+        <!-- Cab providers -->
+        <package android:name="com.ubercab" />
+        <package android:name="com.olacabs.customer" />
+        <package android:name="com.rapido.passenger" />
+        <package android:name="sinet.startup.inDriver" />
+        <package android:name="sinet.startup.indriver" />
+        <package android:name="com.indriver" />
+
+        <!-- Food providers -->
+        <package android:name="in.swiggy.android" />
+        <package android:name="com.application.zomato" />
+        <package android:name="com.toings.app" />
+        <package android:name="com.toings.android" />
+        <package android:name="com.toings.food" />
+
+        <!-- Grocery providers -->
+        <package android:name="com.grofers.customerapp" />
+        <package android:name="com.zeptoconsumerapp" />
+        <package android:name="com.zepto" />
+        <package android:name="com.jpl.jiomart" />
+        <package android:name="in.swiggy.android.instamart" />
+        <package android:name="com.bigbasket.mobileapp" />
+        <package android:name="com.bigbasket" />
+
+        <!-- Music providers -->
+        <package android:name="com.spotify.music" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.apple.android.music" />
+        <package android:name="com.jio.media.jiobeats" />
+        <package android:name="com.bsb.hike" />
+        <package android:name="com.gaana" />
+        <package android:name="com.android.music" />
+        <package android:name="com.google.android.apps.photos" />
+
+        <!-- Shopping providers -->
+        <package android:name="com.amazon.mShop.android.shopping" />
+        <package android:name="com.flipkart.android" />
+        <package android:name="com.croma.deals" />
+        <package android:name="com.reliance.digital" />
+
+        <!-- Communication providers -->
+        <package android:name="com.google.android.gm" />
+        <package android:name="com.whatsapp" />
+        <package android:name="org.telegram.messenger" />
     </queries>
 
     <application

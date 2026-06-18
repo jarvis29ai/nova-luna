@@ -13,6 +13,7 @@ fun tempModelFilePath(prefix: String = "gemma-phone-model"): String {
 
 fun gemmaPhoneConfig(
     gemmaEnabled: Boolean = true,
+    gemmaRealInferenceEnabled: Boolean = false,
     gemmaModelAssetPath: String = tempModelFilePath(),
     gemmaMaxTokens: Int = 128,
     gemmaTemperature: Double = 0.2,
@@ -22,6 +23,7 @@ fun gemmaPhoneConfig(
 ): GemmaPhoneConfig {
     return GemmaPhoneConfig(
         gemmaEnabled = gemmaEnabled,
+        gemmaRealInferenceEnabled = gemmaRealInferenceEnabled,
         gemmaModelAssetPath = gemmaModelAssetPath,
         gemmaMaxTokens = gemmaMaxTokens,
         gemmaTemperature = gemmaTemperature,

@@ -4,6 +4,11 @@ local.properties
 .test-tmp/
 .tmp/
 .gradle-user/
+.gradle-home*/
+.gradle-user-fresh/
+.cursor/
+.kotlin/
+.tmp-*/
 app/.cxx/
 build/
 app/build/
@@ -12,6 +17,7 @@ shared/build/
 **/build/
 *.apk
 *.aab
+*.log
 *.tmp
 *.gguf
 *.litertlm
@@ -20,6 +26,11 @@ shared/build/
 *.onnx
 *.tflite
 *.task
+.env
+.env.*
+.idea/
+.vscode/
+*.iml
 nova-luna-models/
 models/
 flutter_app/.dart_tool/

@@ -67,6 +67,17 @@
             </intent-filter>
         </receiver>
 
+        <!--
+             Phase 35 failover override control (debug only).
+             Exported=true, no intent-filter: only reachable via explicit intents
+             (e.g. adb shell am broadcast -n ...). Implicit broadcasts are
+             blocked. The receiver itself exists only in the debug variant.
+        -->
+        <receiver
+            android:name=".brain.FailoverDebugReceiver"
+            android:enabled="true"
+            android:exported="true" />
+
         <service
             android:name=".diagnostics.NativeInferenceProofProcessService"
             android:enabled="true"
